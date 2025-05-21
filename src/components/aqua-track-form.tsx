@@ -30,21 +30,22 @@ interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => Promise<void>;
   isProcessing: boolean;
   currentUserRole: UserRole;
+  lastMeterReadingsByVehicle: Record<string, number>;
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
 const riderNameOptions = ['Rider John', 'Rider Jane', 'Rider Alex']; 
 
-export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaTrackFormProps) {
+export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
-      date: currentUserRole === 'Team Leader' ? new Date() : undefined,
+      date: new Date(), // Will be overridden by useEffect for TL
       riderName: '',
       vehicleName: '',
       previousMeterReading: 0,
       currentMeterReading: 0,
-      overrideLitersSold: undefined, // Default to undefined
+      overrideLitersSold: undefined, 
       ratePerLiter: 0,
       cashReceived: 0,
       onlineReceived: 0,
@@ -56,20 +57,32 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
     },
   });
   
+  const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
+
   useEffect(() => {
     if (currentUserRole === 'Team Leader') {
       form.setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
-      // Optionally reset or clear previousMeterReading if it's auto-filled for TL and they switch roles
-      // form.setValue('previousMeterReading', 0); // Example: Reset if needed
-      form.setValue('overrideLitersSold', undefined); // Ensure override is cleared for TL
+      form.setValue('overrideLitersSold', undefined); 
+      // For Team Leader, previousMeterReading is disabled and auto-filled by vehicle selection
     } else { // Admin
-      // Potentially retain date if admin was editing and switched role then back
+      // Retain date if admin was editing, previousMeterReading is editable
     }
-     // Reset overrideLitersSold if role is not Admin or when it becomes undefined
     if (currentUserRole !== 'Admin' && form.getValues('overrideLitersSold') !== undefined) {
       form.setValue('overrideLitersSold', undefined, { shouldValidate: true });
     }
   }, [currentUserRole, form]);
+
+  useEffect(() => {
+    if (selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] !== undefined) {
+      const lastReading = lastMeterReadingsByVehicle[selectedVehicleName];
+        form.setValue('previousMeterReading', lastReading, { shouldValidate: true, shouldDirty: true });
+    } else if (selectedVehicleName) {
+        // If no last reading for this vehicle in session, set to 0 or allow manual (for admin)
+        // For TL, it would be 0 and disabled if not found. For Admin, they can edit this 0.
+        form.setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [selectedVehicleName, lastMeterReadingsByVehicle, form, currentUserRole]);
+
 
   const previousMeterReadingValue = useWatch({ control: form.control, name: 'previousMeterReading' });
   const currentMeterReadingValue = useWatch({ control: form.control, name: 'currentMeterReading' });
@@ -87,7 +100,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
   const inputFields = [
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select or enter rider name', componentType: 'select', options: riderNameOptions },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Typically auto-filled from DB. Editable by Admin." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled, editable by Admin." : "Auto-filled from last entry for vehicle." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
@@ -170,9 +183,15 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                     <FormControl>
                       {inputField.componentType === 'select' ? (
                         <Select 
-                          onValueChange={field.onChange} 
-                          defaultValue={field.value as string}
-                          value={field.value as string}
+                          onValueChange={(value) => {
+                            field.onChange(value);
+                            if (inputField.name === 'vehicleName') {
+                              // Trigger re-fetch of previous meter reading if vehicle changes
+                              const reading = lastMeterReadingsByVehicle[value] ?? 0;
+                              form.setValue('previousMeterReading', reading, { shouldValidate: true });
+                            }
+                          }}
+                          value={field.value as string || ""}
                         >
                           <SelectTrigger className="text-base">
                             <SelectValue placeholder={inputField.placeholder} />
@@ -205,7 +224,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReading && currentUserRole === 'Team Leader' && <FormDescription>Previous meter reading is not editable by Team Leader.</FormDescription>}
+                    {isPrevMeterReading && currentUserRole === 'Team Leader' && !lastMeterReadingsByVehicle[selectedVehicleName] && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -269,6 +288,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                   placeholder="Enter any comments related to the sales data"
                   className="resize-none text-base"
                   {...field}
+                  value={field.value ?? ""}
                 />
               </FormControl>
               <FormMessage />
@@ -290,4 +310,3 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
     </Form>
   );
 }
-

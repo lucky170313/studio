@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, Gauge } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield } from 'lucide-react';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
@@ -19,6 +19,7 @@ export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>('Team Leader');
+  const [lastMeterReadingsByVehicle, setLastMeterReadingsByVehicle] = useState<Record<string, number>>({});
   const { toast } = useToast();
 
   const handleFormSubmit = async (values: SalesDataFormValues) => {
@@ -35,7 +36,7 @@ export default function AquaTrackPage() {
         finalLitersSold = calculatedLitersFromMeter;
       }
       
-      if (finalLitersSold < 0) { // Should be caught by schema for calculated, but safety for override
+      if (finalLitersSold < 0) {
         toast({
           title: 'Validation Error',
           description: 'Liters sold cannot be negative. Please check meter readings or override value.',
@@ -56,9 +57,9 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
-      const { previousMeterReading, currentMeterReading, overrideLitersSold, ...restOfValues } = values;
+      const { overrideLitersSold, ...restOfValuesForAI } = values; // previousMeterReading, currentMeterReading are in restOfValuesForAI
       const aiInput: AdjustExpectedAmountInput = {
-        ...restOfValues,
+        ...restOfValuesForAI,
         date: formatDateFns(submissionDate, 'yyyy-MM-dd'),
         litersSold: finalLitersSold, 
         totalSale,
@@ -78,11 +79,11 @@ export default function AquaTrackPage() {
         status = 'Overage';
       }
 
-      setReportData({
+      const newReportData: SalesReportData = {
         ...values, 
         date: formatDateFns(submissionDate, 'PPP'),
-        previousMeterReading: values.previousMeterReading, // ensure these are passed through
-        currentMeterReading: values.currentMeterReading,   // ensure these are passed through
+        previousMeterReading: values.previousMeterReading,
+        currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
         adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) ? values.overrideLitersSold : undefined,
         totalSale,
@@ -92,7 +93,16 @@ export default function AquaTrackPage() {
         aiReasoning: aiOutput.reasoning,
         discrepancy,
         status,
-      });
+      };
+      setReportData(newReportData);
+
+      // Update last meter reading for the vehicle
+      if (values.vehicleName && values.currentMeterReading > 0) {
+        setLastMeterReadingsByVehicle(prevReadings => ({
+          ...prevReadings,
+          [values.vehicleName]: values.currentMeterReading
+        }));
+      }
 
       toast({
         title: 'Report Generated',
@@ -143,7 +153,7 @@ export default function AquaTrackPage() {
             defaultValue="Team Leader"
             onValueChange={(value: UserRole) => {
               setCurrentUserRole(value);
-              setReportData(null); // Clear report when role changes
+              setReportData(null); 
             }}
             className="flex space-x-4"
           >
@@ -163,13 +173,14 @@ export default function AquaTrackPage() {
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report.</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings are session-based.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
               onSubmit={handleFormSubmit} 
               isProcessing={isProcessing} 
-              currentUserRole={currentUserRole} 
+              currentUserRole={currentUserRole}
+              lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
             />
           </CardContent>
         </Card>
