@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, DollarSign, FileText, Loader2, Gauge, Edit } from 'lucide-react';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -89,13 +89,13 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Typically auto-filled from DB. Editable by Admin." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
-    { name: 'ratePerLiter', label: 'Rate Per Liter', icon: DollarSign, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
-    { name: 'cashReceived', label: 'Cash Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
-    { name: 'onlineReceived', label: 'Online Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
-    { name: 'dueCollected', label: 'Due Collected', icon: DollarSign, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
-    { name: 'tokenMoney', label: 'Token Money', icon: DollarSign, type: 'number', placeholder: 'e.g., 50', componentType: 'input' },
-    { name: 'staffExpense', label: 'Staff Expense', icon: DollarSign, type: 'number', placeholder: 'e.g., 20', componentType: 'input' },
-    { name: 'extraAmount', label: 'Extra Amount', icon: DollarSign, type: 'number', placeholder: 'e.g., 10', componentType: 'input' },
+    { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
+    { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
+    { name: 'onlineReceived', label: 'Online Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
+    { name: 'dueCollected', label: 'Due Collected', icon: IndianRupee, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
+    { name: 'tokenMoney', label: 'Token Money', icon: IndianRupee, type: 'number', placeholder: 'e.g., 50', componentType: 'input' },
+    { name: 'staffExpense', label: 'Staff Expense', icon: IndianRupee, type: 'number', placeholder: 'e.g., 20', componentType: 'input' },
+    { name: 'extraAmount', label: 'Extra Amount', icon: IndianRupee, type: 'number', placeholder: 'e.g., 10', componentType: 'input' },
   ] as const;
 
 
@@ -290,3 +290,4 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
     </Form>
   );
 }
+
