@@ -4,7 +4,8 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye } from 'lucide-react';
+import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
@@ -111,9 +112,10 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
+      // Bypassing AI call as per user request to avoid API/billing issues
       const aiOutput: AdjustExpectedAmountOutput = {
         adjustedExpectedAmount: initialAdjustedExpected,
-        reasoning: "AI analysis bypassed. Using initial system calculation for adjusted expected amount.",
+        reasoning: "AI analysis bypassed. Using initial system calculation.",
       };
       
       const discrepancy = actualReceived - aiOutput.adjustedExpectedAmount;
@@ -145,11 +147,11 @@ export default function AquaTrackPage() {
       
       // Save to Firestore
       try {
-        const docRef = await addDoc(collection(db, "salesEntries"), {
-            ...newReportData,
-            // Ensure 'date' for Firestore is the Timestamp object, remove the formatted string date from DB object if not needed
-            // Or ensure firestoreDate is primary if 'date' string is just for display
-        });
+        // Remove the 'date' (string) field before saving to Firestore if only 'firestoreDate' (Timestamp) is needed for DB storage
+        const dataToSave = { ...newReportData };
+        // delete dataToSave.date; // Optionally remove the formatted string date if not needed in DB
+
+        const docRef = await addDoc(collection(db, "salesEntries"), dataToSave);
         console.log("Document written with ID: ", docRef.id);
         toast({
           title: 'Report Generated & Saved',
@@ -264,7 +266,7 @@ export default function AquaTrackPage() {
         <CardHeader>
           <CardTitle className="text-xl text-primary flex items-center"><UserCog className="mr-2 h-5 w-5"/>Select User Role</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex justify-between items-center">
           <RadioGroup
             defaultValue="Team Leader"
             onValueChange={(value: UserRole) => {
@@ -282,6 +284,13 @@ export default function AquaTrackPage() {
               <Label htmlFor="role-admin" className="flex items-center"><UserCog className="mr-1 h-4 w-4 text-red-500"/>Admin</Label>
             </div>
           </RadioGroup>
+          {currentUserRole === 'Admin' && (
+            <Link href="/admin/view-data" passHref>
+              <Button variant="outline">
+                <Eye className="mr-2 h-4 w-4" /> View All Sales Data
+              </Button>
+            </Link>
+          )}
         </CardContent>
       </Card>
 

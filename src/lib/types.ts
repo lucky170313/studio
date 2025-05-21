@@ -32,13 +32,24 @@ export const salesDataSchema = z.object({
 
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
-export interface SalesReportData extends Omit<SalesDataFormValues, 'previousMeterReading' | 'currentMeterReading' | 'overrideLitersSold' | 'date'> {
+export interface SalesReportData {
+  id?: string; // Optional: for local display or if fetched with ID
   date: string; // Formatted string date for display
   firestoreDate: Timestamp; // Firestore Timestamp for database storage and querying
+  riderName: string;
+  vehicleName: string;
   previousMeterReading: number;
   currentMeterReading: number;
   litersSold: number; 
   adminOverrideLitersSold?: number; 
+  ratePerLiter: number;
+  cashReceived: number;
+  onlineReceived: number;
+  dueCollected: number;
+  tokenMoney: number;
+  staffExpense: number;
+  extraAmount: number;
+  comment?: string;
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
@@ -47,3 +58,4 @@ export interface SalesReportData extends Omit<SalesDataFormValues, 'previousMete
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
 }
+
