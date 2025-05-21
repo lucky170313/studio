@@ -19,7 +19,7 @@ const ReportItem: React.FC<{ icon: React.ElementType; label: string; value: stri
       <span>{label}</span>
     </div>
     <span className="text-sm font-medium text-foreground text-right">
-      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount')) ? `$${value.toFixed(2)}` : value}
+      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount')) ? `₹${value.toFixed(2)}` : value}
       {unit && <span className="text-xs text-muted-foreground ml-1">{unit}</span>}
     </span>
   </div>
@@ -98,7 +98,7 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
               <CardTitle className="text-md text-accent-foreground flex items-center"><Info className="mr-2 h-4 w-4" />AI Suggested Adjustment</CardTitle>
             </CardHeader>
             <CardContent className="text-sm space-y-1 pb-4">
-              <p><strong className="text-accent-foreground">Adjusted Expected Amount:</strong> ${reportData.aiAdjustedExpectedAmount.toFixed(2)}</p>
+              <p><strong className="text-accent-foreground">Adjusted Expected Amount:</strong> ₹{reportData.aiAdjustedExpectedAmount.toFixed(2)}</p>
               <p><strong className="text-accent-foreground">Reasoning:</strong> {reportData.aiReasoning}</p>
             </CardContent>
           </Card>
