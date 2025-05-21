@@ -18,6 +18,11 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  experimental: {
+    serverActions: {
+      allowedOrigins: ["localhost:9002"], // Adjust if your dev port is different or for production
+    },
+  },
 };
 
 export default nextConfig;
