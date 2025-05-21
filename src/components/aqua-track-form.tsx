@@ -20,6 +20,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues } from '@/lib/types';
 
@@ -27,6 +28,8 @@ interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => Promise<void>;
   isProcessing: boolean;
 }
+
+const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
 
 export function AquaTrackForm({ onSubmit, isProcessing }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
@@ -47,16 +50,16 @@ export function AquaTrackForm({ onSubmit, isProcessing }: AquaTrackFormProps) {
   });
 
   const inputFields = [
-    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Enter rider name' },
-    { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, placeholder: 'Enter vehicle name' },
-    { name: 'litersSold', label: 'Liters Sold', icon: Droplets, type: 'number', placeholder: 'e.g., 1500' },
-    { name: 'ratePerLiter', label: 'Rate Per Liter', icon: DollarSign, type: 'number', placeholder: 'e.g., 2.5' },
-    { name: 'cashReceived', label: 'Cash Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 3000' },
-    { name: 'onlineReceived', label: 'Online Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 500' },
-    { name: 'dueCollected', label: 'Due Collected', icon: DollarSign, type: 'number', placeholder: 'e.g., 100' },
-    { name: 'tokenMoney', label: 'Token Money', icon: DollarSign, type: 'number', placeholder: 'e.g., 50' },
-    { name: 'staffExpense', label: 'Staff Expense', icon: DollarSign, type: 'number', placeholder: 'e.g., 20' },
-    { name: 'extraAmount', label: 'Extra Amount', icon: DollarSign, type: 'number', placeholder: 'e.g., 10' },
+    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Enter rider name', componentType: 'input' },
+    { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
+    { name: 'litersSold', label: 'Liters Sold', icon: Droplets, type: 'number', placeholder: 'e.g., 1500', componentType: 'input' },
+    { name: 'ratePerLiter', label: 'Rate Per Liter', icon: DollarSign, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
+    { name: 'cashReceived', label: 'Cash Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
+    { name: 'onlineReceived', label: 'Online Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
+    { name: 'dueCollected', label: 'Due Collected', icon: DollarSign, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
+    { name: 'tokenMoney', label: 'Token Money', icon: DollarSign, type: 'number', placeholder: 'e.g., 50', componentType: 'input' },
+    { name: 'staffExpense', label: 'Staff Expense', icon: DollarSign, type: 'number', placeholder: 'e.g., 20', componentType: 'input' },
+    { name: 'extraAmount', label: 'Extra Amount', icon: DollarSign, type: 'number', placeholder: 'e.g., 10', componentType: 'input' },
   ] as const;
 
 
@@ -118,12 +121,27 @@ export function AquaTrackForm({ onSubmit, isProcessing }: AquaTrackFormProps) {
                     {inputField.label}
                   </FormLabel>
                   <FormControl>
-                    <Input
-                      type={inputField.type || 'text'}
-                      placeholder={inputField.placeholder}
-                      {...field}
-                      className="text-base"
-                    />
+                    {inputField.componentType === 'select' ? (
+                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <SelectTrigger className="text-base">
+                          <SelectValue placeholder={inputField.placeholder} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {inputField.options?.map((option) => (
+                            <SelectItem key={option} value={option}>
+                              {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Input
+                        type={inputField.type || 'text'}
+                        placeholder={inputField.placeholder}
+                        {...field}
+                        className="text-base"
+                      />
+                    )}
                   </FormControl>
                   <FormMessage />
                 </FormItem>
