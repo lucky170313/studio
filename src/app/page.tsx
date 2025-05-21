@@ -9,7 +9,6 @@ import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
 import type { SalesDataFormValues, SalesReportData, UserRole } from '@/lib/types';
-// import type { AdjustExpectedAmountOutput } from '@/ai/flows/adjust-expected-amount'; // AI Bypassed
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -17,11 +16,15 @@ import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
+// Firestore imports
+import { db } from '@/lib/firebase';
+import { collection, addDoc, Timestamp } from 'firebase/firestore';
+
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
 const RIDER_NAMES_KEY = 'riderNames';
-const DEFAULT_RIDER_NAMES = ['Rider John', 'Rider Jane', 'Rider Alex']; // Default if localStorage is empty
+const DEFAULT_RIDER_NAMES = ['Rider John', 'Rider Jane', 'Rider Alex'];
 
-interface AdjustExpectedAmountOutput { // Defining this interface locally as AI call is bypassed
+interface AdjustExpectedAmountOutput {
   adjustedExpectedAmount: number;
   reasoning: string;
 }
@@ -35,14 +38,12 @@ export default function AquaTrackPage() {
   const { toast } = useToast();
   const [currentYear, setCurrentYear] = useState<number | null>(null);
 
-  // Rider Management State
   const [riderNames, setRiderNames] = useState<string[]>([]);
   const [riderNameInput, setRiderNameInput] = useState('');
   const [editingRiderOriginalName, setEditingRiderOriginalName] = useState<string | null>(null);
 
 
   useEffect(() => {
-    // Load last meter readings from localStorage
     const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
     if (storedReadings) {
       try {
@@ -55,7 +56,6 @@ export default function AquaTrackPage() {
       }
     }
 
-    // Load rider names from localStorage
     const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
     if (storedRiderNames) {
       try {
@@ -70,7 +70,7 @@ export default function AquaTrackPage() {
         setRiderNames(DEFAULT_RIDER_NAMES);
       }
     } else {
-      setRiderNames(DEFAULT_RIDER_NAMES); // Initialize with defaults if nothing in localStorage
+      setRiderNames(DEFAULT_RIDER_NAMES);
     }
     setCurrentYear(new Date().getFullYear());
   }, []);
@@ -102,7 +102,7 @@ export default function AquaTrackPage() {
 
       const totalSale = finalLitersSold * values.ratePerLiter;
       const actualReceived = values.cashReceived + values.onlineReceived;
-      const submissionDate = values.date instanceof Date ? values.date : new Date();
+      const submissionDateObject = values.date instanceof Date ? values.date : new Date();
       
       const initialAdjustedExpected =
         totalSale -
@@ -111,7 +111,6 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
-      // Bypassing AI call as per user request to avoid API/billing errors
       const aiOutput: AdjustExpectedAmountOutput = {
         adjustedExpectedAmount: initialAdjustedExpected,
         reasoning: "AI analysis bypassed. Using initial system calculation for adjusted expected amount.",
@@ -129,7 +128,8 @@ export default function AquaTrackPage() {
 
       const newReportData: SalesReportData = {
         ...values, 
-        date: formatDateFns(submissionDate, 'PPP'),
+        date: formatDateFns(submissionDateObject, 'PPP'), // For display
+        firestoreDate: Timestamp.fromDate(submissionDateObject), // For Firestore
         previousMeterReading: values.previousMeterReading,
         currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
@@ -142,7 +142,30 @@ export default function AquaTrackPage() {
         discrepancy,
         status,
       };
-      setReportData(newReportData);
+      
+      // Save to Firestore
+      try {
+        const docRef = await addDoc(collection(db, "salesEntries"), {
+            ...newReportData,
+            // Ensure 'date' for Firestore is the Timestamp object, remove the formatted string date from DB object if not needed
+            // Or ensure firestoreDate is primary if 'date' string is just for display
+        });
+        console.log("Document written with ID: ", docRef.id);
+        toast({
+          title: 'Report Generated & Saved',
+          description: 'Sales report has been successfully generated and saved to the database.',
+          variant: 'default',
+        });
+      } catch (e) {
+        console.error("Error adding document: ", e);
+        toast({
+          title: 'Database Error',
+          description: 'Failed to save sales report to the database. Report is generated locally.',
+          variant: 'destructive',
+        });
+      }
+
+      setReportData(newReportData); // Set report data for local display
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         const updatedReadings = {
@@ -152,12 +175,6 @@ export default function AquaTrackPage() {
         setLastMeterReadingsByVehicle(updatedReadings);
         localStorage.setItem(LAST_METER_READINGS_KEY, JSON.stringify(updatedReadings));
       }
-
-      toast({
-        title: 'Report Generated',
-        description: 'Sales report has been successfully generated.',
-        variant: 'default',
-      });
 
     } catch (error) {
       console.error('Error processing sales data:', error);
@@ -175,7 +192,6 @@ export default function AquaTrackPage() {
     }
   };
 
-  // Rider Management Handlers
   const handleRiderNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRiderNameInput(e.target.value);
   };
@@ -187,7 +203,6 @@ export default function AquaTrackPage() {
     }
     let updatedRiderNames;
     if (editingRiderOriginalName) {
-      // Edit mode
       if (riderNames.includes(riderNameInput.trim()) && riderNameInput.trim() !== editingRiderOriginalName) {
         toast({ title: "Error", description: "This rider name already exists.", variant: "destructive" });
         return;
@@ -198,7 +213,6 @@ export default function AquaTrackPage() {
       setEditingRiderOriginalName(null);
       toast({ title: "Success", description: `Rider "${editingRiderOriginalName}" updated to "${riderNameInput.trim()}".` });
     } else {
-      // Add mode
       if (riderNames.includes(riderNameInput.trim())) {
         toast({ title: "Error", description: "This rider name already exists.", variant: "destructive" });
         return;
@@ -227,7 +241,7 @@ export default function AquaTrackPage() {
       setRiderNames(updatedRiderNames);
       localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(updatedRiderNames));
       toast({ title: "Success", description: `Rider "${nameToDelete}" deleted.` });
-      if (editingRiderOriginalName === nameToDelete) { // If deleting the rider currently being edited
+      if (editingRiderOriginalName === nameToDelete) {
         handleCancelEditRider();
       }
     }
@@ -334,7 +348,7 @@ export default function AquaTrackPage() {
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings and rider list are persisted in browser.</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Data is saved to Firestore. Previous meter readings and rider list are persisted in browser.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
@@ -352,7 +366,7 @@ export default function AquaTrackPage() {
             <Card className="flex flex-col items-center justify-center h-96 shadow-xl">
               <CardContent className="text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Generating report...</p>
+                <p className="text-lg text-muted-foreground">Generating and saving report...</p>
               </CardContent>
             </Card>
           )}
@@ -364,7 +378,7 @@ export default function AquaTrackPage() {
               <CardContent className="text-center p-6">
                 <BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" />
                 <h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3>
-                <p className="text-muted-foreground">Submit the form to view the generated sales report.</p>
+                <p className="text-muted-foreground">Submit the form to view the generated sales report. It will also be saved to the database.</p>
               </CardContent>
             </Card>
           )}

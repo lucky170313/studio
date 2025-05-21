@@ -1,5 +1,6 @@
 
 import { z } from 'zod';
+import type { Timestamp } from 'firebase/firestore';
 
 export type UserRole = 'Admin' | 'Team Leader';
 
@@ -19,13 +20,10 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   comment: z.string().optional(),
 }).refine(data => {
-  // This refinement only applies if overrideLitersSold is not provided or is zero.
-  // If overrideLitersSold is provided and positive, meter readings consistency is less critical for final calculation,
-  // but still good practice to enter correct meter readings.
   if (data.overrideLitersSold === undefined || data.overrideLitersSold <= 0) {
     return data.currentMeterReading >= data.previousMeterReading;
   }
-  return true; // Skip meter reading check if liters are overridden
+  return true; 
 }, {
   message: "Current meter reading cannot be less than previous meter reading (when not overriding liters sold).",
   path: ["currentMeterReading"],
@@ -34,12 +32,13 @@ export const salesDataSchema = z.object({
 
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
-export interface SalesReportData extends Omit<SalesDataFormValues, 'previousMeterReading' | 'currentMeterReading' | 'overrideLitersSold'> {
-  date: string; // Store date as string for report
+export interface SalesReportData extends Omit<SalesDataFormValues, 'previousMeterReading' | 'currentMeterReading' | 'overrideLitersSold' | 'date'> {
+  date: string; // Formatted string date for display
+  firestoreDate: Timestamp; // Firestore Timestamp for database storage and querying
   previousMeterReading: number;
   currentMeterReading: number;
-  litersSold: number; // This will be the final value used for calculations (either calculated or overridden)
-  adminOverrideLitersSold?: number; // Store the admin's override value if provided
+  litersSold: number; 
+  adminOverrideLitersSold?: number; 
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
