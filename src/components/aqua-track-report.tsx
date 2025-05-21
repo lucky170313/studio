@@ -5,7 +5,8 @@ import type { SalesReportData } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Truck, CalendarDays, Droplets, DollarSign, MessageSquare, AlertTriangle, CheckCircle, Info, Edit3, BarChartBig } from 'lucide-react';
+import { User, Truck, CalendarDays, Droplets, DollarSign, MessageSquare, AlertTriangle, CheckCircle, Info, Edit3, BarChartBig, Gauge } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 interface AquaTrackReportProps {
   reportData: SalesReportData;
@@ -54,7 +55,9 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
           <ReportItem icon={User} label="Rider Name" value={reportData.riderName} />
           <ReportItem icon={Truck} label="Vehicle Name" value={reportData.vehicleName} />
           <ReportItem icon={CalendarDays} label="Date" value={reportData.date} />
-          <ReportItem icon={Droplets} label="Liters Sold" value={reportData.litersSold} unit="L" />
+          <ReportItem icon={Gauge} label="Previous Meter Reading" value={reportData.previousMeterReading} />
+          <ReportItem icon={Gauge} label="Current Meter Reading" value={reportData.currentMeterReading} />
+          <ReportItem icon={Droplets} label="Liters Sold (Calculated)" value={reportData.litersSold} unit="L" />
           <ReportItem icon={DollarSign} label="Rate Per Liter" value={reportData.ratePerLiter} unit="/L" />
           <ReportItem icon={DollarSign} label="Total Sale" value={reportData.totalSale} className="font-semibold text-primary" />
         </div>

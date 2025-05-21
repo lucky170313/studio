@@ -1,12 +1,12 @@
 
 "use client";
 
-import type * as React from 'react';
+import * as React from 'react';
 import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, Droplets, DollarSign, FileText, Loader2 } from 'lucide-react';
+import { CalendarIcon, User, Truck, DollarSign, FileText, Loader2, Gauge } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -17,6 +17,7 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
+  FormDescription,
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -32,17 +33,17 @@ interface AquaTrackFormProps {
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
-// Placeholder for rider names - you can populate this from a backend or define statically
 const riderNameOptions = ['Rider John', 'Rider Jane', 'Rider Alex']; 
 
 export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
-      date: currentUserRole === 'Team Leader' ? new Date() : undefined, // Set today for TL
+      date: currentUserRole === 'Team Leader' ? new Date() : undefined,
       riderName: '',
       vehicleName: '',
-      litersSold: 0,
+      previousMeterReading: 0,
+      currentMeterReading: 0,
       ratePerLiter: 0,
       cashReceived: 0,
       onlineReceived: 0,
@@ -54,24 +55,37 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
     },
   });
 
-  // Watch for role changes to update date field if necessary
-  const role = useWatch({ control: form.control, name: 'currentUserRole' as any, defaultValue: currentUserRole });
+  // const role = useWatch({ control: form.control, name: 'currentUserRole' as any, defaultValue: currentUserRole });
   
   useEffect(() => {
     if (currentUserRole === 'Team Leader') {
       form.setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
     } else {
-      // For Admin, if date was set by TL default, allow them to change it by not forcing a value
-      // Or, if you want to clear it when switching to Admin:
-      // form.setValue('date', undefined, { shouldValidate: true, shouldDirty: true }); 
+      // When role changes to Admin, if date was pre-filled, we might want to clear it or leave it.
+      // For now, we only auto-set for Team Leader.
+      // If Admin had a date and switches to TL and back, the date field behavior for Admin might need more specific logic if we want to preserve or clear.
+      // Current setup: Admin picks date, if switches to TL, date becomes today, if switches back to Admin, date picker is available (might be empty or retain previous Admin value based on form state).
     }
   }, [currentUserRole, form]);
 
+  const previousMeterReadingValue = useWatch({ control: form.control, name: 'previousMeterReading' });
+  const currentMeterReadingValue = useWatch({ control: form.control, name: 'currentMeterReading' });
+
+  const calculatedLitersSold = React.useMemo(() => {
+    const prev = Number(previousMeterReadingValue);
+    const curr = Number(currentMeterReadingValue);
+    if (!isNaN(prev) && !isNaN(curr) && curr >= prev) {
+      return curr - prev;
+    }
+    return 0;
+  }, [previousMeterReadingValue, currentMeterReadingValue]);
+
 
   const inputFields = [
-    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select or enter rider name', componentType: 'select', options: riderNameOptions }, // Changed to select
+    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select or enter rider name', componentType: 'select', options: riderNameOptions },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
-    { name: 'litersSold', label: 'Liters Sold', icon: Droplets, type: 'number', placeholder: 'e.g., 1500', componentType: 'input' },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Typically auto-filled from DB." },
+    { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: DollarSign, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
     { name: 'cashReceived', label: 'Cash Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
     { name: 'onlineReceived', label: 'Online Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
@@ -112,7 +126,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                     </Button>
                   </FormControl>
                 </PopoverTrigger>
-                {currentUserRole === 'Admin' && ( // Only show calendar popover for Admin
+                {currentUserRole === 'Admin' && (
                   <PopoverContent className="w-auto p-0" align="start">
                     <Calendar
                       mode="single"
@@ -120,8 +134,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                       onSelect={(date) => {
                         if (date) field.onChange(date);
                       }}
-                      disabled={(date) => // Admin can select any date, for TL it's disabled anyway
-                        currentUserRole === 'Team Leader' || // Redundant due to PopoverContent conditional render but good for clarity
+                      disabled={(date) =>
                         date > new Date() || 
                         date < new Date("1900-01-01")
                       }
@@ -130,7 +143,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                   </PopoverContent>
                 )}
               </Popover>
-              {currentUserRole === 'Team Leader' && <p className="text-sm text-muted-foreground mt-1">Date is automatically set to today for Team Leaders.</p>}
+              {currentUserRole === 'Team Leader' && <FormDescription className="mt-1">Date is automatically set to today for Team Leaders.</FormDescription>}
               <FormMessage />
             </FormItem>
           )}
@@ -141,7 +154,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
             <FormField
               key={inputField.name}
               control={form.control}
-              name={inputField.name as keyof SalesDataFormValues} // Type assertion
+              name={inputField.name as keyof SalesDataFormValues}
               render={({ field }) => (
                 <FormItem>
                   <FormLabel className="flex items-center">
@@ -152,8 +165,8 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                     {inputField.componentType === 'select' ? (
                       <Select 
                         onValueChange={field.onChange} 
-                        defaultValue={field.value as string} // Ensure value is string for Select
-                        value={field.value as string} // Controlled component
+                        defaultValue={field.value as string}
+                        value={field.value as string}
                       >
                         <SelectTrigger className="text-base">
                           <SelectValue placeholder={inputField.placeholder} />
@@ -171,10 +184,11 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                         type={inputField.type || 'text'}
                         placeholder={inputField.placeholder}
                         {...field}
-                        value={ typeof field.value === 'number' && field.value === 0 && (inputField.name === 'litersSold' || inputField.name === 'ratePerLiter') ? "" : field.value } // Show empty for 0 for certain fields initially
+                        value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' ? "" : field.value }
                         onChange={event => {
                           if (inputField.type === 'number') {
-                            field.onChange(parseFloat(event.target.value) || 0);
+                            const numValue = parseFloat(event.target.value);
+                            field.onChange(isNaN(numValue) ? 0 : numValue);
                           } else {
                             field.onChange(event.target.value);
                           }
@@ -183,12 +197,24 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
                       />
                     )}
                   </FormControl>
+                  {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
                   <FormMessage />
                 </FormItem>
               )}
             />
           ))}
         </div>
+        
+        <div className="p-4 bg-muted/50 rounded-md">
+          <FormLabel className="flex items-center text-primary">
+            <Truck className="mr-2 h-4 w-4" /> Calculated Liters Sold
+          </FormLabel>
+          <p className="text-2xl font-bold mt-1">{calculatedLitersSold.toFixed(2)} L</p>
+          { (form.formState.errors.currentMeterReading?.message || form.formState.errors.previousMeterReading?.message) &&
+             <FormMessage>{form.formState.errors.currentMeterReading?.message || form.formState.errors.previousMeterReading?.message}</FormMessage>
+          }
+        </div>
+
 
         <FormField
           control={form.control}

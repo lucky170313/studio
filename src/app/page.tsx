@@ -1,10 +1,10 @@
 
 "use client";
 
-import type * as React from 'react';
+import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, Gauge } from 'lucide-react';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
@@ -26,10 +26,20 @@ export default function AquaTrackPage() {
     setReportData(null);
 
     try {
-      const totalSale = values.litersSold * values.ratePerLiter;
+      const litersSold = values.currentMeterReading - values.previousMeterReading;
+      if (litersSold < 0) { // This check is also in the schema, but good for early client-side feedback
+        toast({
+          title: 'Validation Error',
+          description: 'Current meter reading must be greater than or equal to previous meter reading.',
+          variant: 'destructive',
+        });
+        setIsProcessing(false);
+        return;
+      }
+
+      const totalSale = litersSold * values.ratePerLiter;
       const actualReceived = values.cashReceived + values.onlineReceived;
-      // Ensure date is correctly formatted from the form values, respecting potential disabled state
-      const submissionDate = values.date instanceof Date ? values.date : new Date();
+      const submissionDate = values.date instanceof Date ? values.date : new Date(); // Ensure date is a Date object
       
       const initialAdjustedExpected =
         totalSale -
@@ -38,9 +48,12 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
+      // Prepare the AI input, explicitly including the calculated litersSold
+      const { previousMeterReading, currentMeterReading, ...restOfValues } = values;
       const aiInput: AdjustExpectedAmountInput = {
-        ...values,
+        ...restOfValues,
         date: formatDateFns(submissionDate, 'yyyy-MM-dd'),
+        litersSold, // Pass calculated litersSold
         totalSale,
         actualReceived,
         adjustedExpected: initialAdjustedExpected,
@@ -50,7 +63,7 @@ export default function AquaTrackPage() {
 
       const discrepancy = actualReceived - aiOutput.adjustedExpectedAmount;
       let status: SalesReportData['status'];
-      if (Math.abs(discrepancy) < 0.01) { // Tolerance for floating point
+      if (Math.abs(discrepancy) < 0.01) { // Using a small epsilon for float comparison
         status = 'Match';
       } else if (discrepancy < 0) {
         status = 'Shortage';
@@ -59,8 +72,9 @@ export default function AquaTrackPage() {
       }
 
       setReportData({
-        ...values,
+        ...values, // Spread original form values (includes previous/current meter readings)
         date: formatDateFns(submissionDate, 'PPP'), // Format date for display
+        litersSold, // Store calculated litersSold in reportData
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -78,9 +92,13 @@ export default function AquaTrackPage() {
 
     } catch (error) {
       console.error('Error processing sales data:', error);
+      let errorMessage = 'Failed to process sales data. Please try again.';
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
       toast({
         title: 'Error',
-        description: 'Failed to process sales data. Please try again.',
+        description: errorMessage,
         variant: 'destructive',
       });
     } finally {
@@ -173,3 +191,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
