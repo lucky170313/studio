@@ -40,7 +40,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
-      date: new Date(), // Will be overridden by useEffect for TL
+      date: new Date(),
       riderName: '',
       vehicleName: '',
       previousMeterReading: 0,
@@ -58,30 +58,31 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   });
   
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
+  const { setValue } = form; // Destructure setValue for stable reference in useEffect
 
   useEffect(() => {
     if (currentUserRole === 'Team Leader') {
-      form.setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
-      form.setValue('overrideLitersSold', undefined); 
-      // For Team Leader, previousMeterReading is disabled and auto-filled by vehicle selection
-    } else { // Admin
-      // Retain date if admin was editing, previousMeterReading is editable
+      setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
+      setValue('overrideLitersSold', undefined); 
     }
     if (currentUserRole !== 'Admin' && form.getValues('overrideLitersSold') !== undefined) {
-      form.setValue('overrideLitersSold', undefined, { shouldValidate: true });
+      setValue('overrideLitersSold', undefined, { shouldValidate: true });
     }
-  }, [currentUserRole, form]);
+  }, [currentUserRole, setValue, form]); // Added form to dependencies as getValues is used
 
   useEffect(() => {
-    if (selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] !== undefined) {
+    if (selectedVehicleName) {
       const lastReading = lastMeterReadingsByVehicle[selectedVehicleName];
-        form.setValue('previousMeterReading', lastReading, { shouldValidate: true, shouldDirty: true });
-    } else if (selectedVehicleName) {
-        // If no last reading for this vehicle in session, set to 0 or allow manual (for admin)
-        // For TL, it would be 0 and disabled if not found. For Admin, they can edit this 0.
-        form.setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
+      if (lastReading !== undefined) {
+        setValue('previousMeterReading', lastReading, { shouldValidate: true, shouldDirty: true });
+      } else {
+        setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
+      }
+    } else {
+      // Optionally reset previousMeterReading if no vehicle is selected, or leave as is
+      // setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
-  }, [selectedVehicleName, lastMeterReadingsByVehicle, form, currentUserRole]);
+  }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue]);
 
 
   const previousMeterReadingValue = useWatch({ control: form.control, name: 'previousMeterReading' });
@@ -185,11 +186,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                         <Select 
                           onValueChange={(value) => {
                             field.onChange(value);
-                            if (inputField.name === 'vehicleName') {
-                              // Trigger re-fetch of previous meter reading if vehicle changes
-                              const reading = lastMeterReadingsByVehicle[value] ?? 0;
-                              form.setValue('previousMeterReading', reading, { shouldValidate: true });
-                            }
+                            // The useEffect hook will handle updating previousMeterReading
                           }}
                           value={field.value as string || ""}
                         >
@@ -224,7 +221,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReading && currentUserRole === 'Team Leader' && !lastMeterReadingsByVehicle[selectedVehicleName] && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
+                    {isPrevMeterReading && currentUserRole === 'Team Leader' && selectedVehicleName && !lastMeterReadingsByVehicle[selectedVehicleName] && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}

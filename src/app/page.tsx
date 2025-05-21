@@ -57,24 +57,12 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
-      // Bypassing AI call to avoid API errors
+      // Bypassing AI call as per user request to avoid API/billing errors
       const aiOutput: AdjustExpectedAmountOutput = {
         adjustedExpectedAmount: initialAdjustedExpected,
-        reasoning: "AI analysis bypassed due to API configuration. Using initial calculation.",
+        reasoning: "AI analysis bypassed. Using initial system calculation for adjusted expected amount.",
       };
       
-      // Original AI call - kept for reference if API issues are resolved later
-      // const { overrideLitersSold, ...restOfValuesForAI } = values;
-      // const aiInput: AdjustExpectedAmountInput = {
-      //   ...restOfValuesForAI,
-      //   date: formatDateFns(submissionDate, 'yyyy-MM-dd'),
-      //   litersSold: finalLitersSold, 
-      //   totalSale,
-      //   actualReceived,
-      //   adjustedExpected: initialAdjustedExpected,
-      // };
-      // const aiOutput = await adjustExpectedAmount(aiInput);
-
       const discrepancy = actualReceived - aiOutput.adjustedExpectedAmount;
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
@@ -102,10 +90,10 @@ export default function AquaTrackPage() {
       };
       setReportData(newReportData);
 
-      if (values.vehicleName && values.currentMeterReading > 0) {
+      if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         setLastMeterReadingsByVehicle(prevReadings => ({
           ...prevReadings,
-          [values.vehicleName]: values.currentMeterReading
+          [values.vehicleName as string]: values.currentMeterReading // Ensure vehicleName is string
         }));
       }
 
@@ -196,7 +184,6 @@ export default function AquaTrackPage() {
               <CardContent className="text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                 <p className="text-lg text-muted-foreground">Generating report...</p>
-                {/* <p className="text-sm text-muted-foreground">AI analysis in progress.</p> */}
               </CardContent>
             </Card>
           )}
