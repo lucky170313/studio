@@ -6,7 +6,7 @@ import { useEffect } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, DollarSign, FileText, Loader2, Gauge } from 'lucide-react';
+import { CalendarIcon, User, Truck, DollarSign, FileText, Loader2, Gauge, Edit } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -44,6 +44,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
       vehicleName: '',
       previousMeterReading: 0,
       currentMeterReading: 0,
+      overrideLitersSold: undefined, // Default to undefined
       ratePerLiter: 0,
       cashReceived: 0,
       onlineReceived: 0,
@@ -54,17 +55,19 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
       comment: '',
     },
   });
-
-  // const role = useWatch({ control: form.control, name: 'currentUserRole' as any, defaultValue: currentUserRole });
   
   useEffect(() => {
     if (currentUserRole === 'Team Leader') {
       form.setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
-    } else {
-      // When role changes to Admin, if date was pre-filled, we might want to clear it or leave it.
-      // For now, we only auto-set for Team Leader.
-      // If Admin had a date and switches to TL and back, the date field behavior for Admin might need more specific logic if we want to preserve or clear.
-      // Current setup: Admin picks date, if switches to TL, date becomes today, if switches back to Admin, date picker is available (might be empty or retain previous Admin value based on form state).
+      // Optionally reset or clear previousMeterReading if it's auto-filled for TL and they switch roles
+      // form.setValue('previousMeterReading', 0); // Example: Reset if needed
+      form.setValue('overrideLitersSold', undefined); // Ensure override is cleared for TL
+    } else { // Admin
+      // Potentially retain date if admin was editing and switched role then back
+    }
+     // Reset overrideLitersSold if role is not Admin or when it becomes undefined
+    if (currentUserRole !== 'Admin' && form.getValues('overrideLitersSold') !== undefined) {
+      form.setValue('overrideLitersSold', undefined, { shouldValidate: true });
     }
   }, [currentUserRole, form]);
 
@@ -84,7 +87,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
   const inputFields = [
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select or enter rider name', componentType: 'select', options: riderNameOptions },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Typically auto-filled from DB." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Typically auto-filled from DB. Editable by Admin." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: DollarSign, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
     { name: 'cashReceived', label: 'Cash Received', icon: DollarSign, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
@@ -150,64 +153,100 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole }: AquaT
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {inputFields.map((inputField) => (
-            <FormField
-              key={inputField.name}
-              control={form.control}
-              name={inputField.name as keyof SalesDataFormValues}
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="flex items-center">
-                    <inputField.icon className="mr-2 h-4 w-4 text-primary" />
-                    {inputField.label}
-                  </FormLabel>
-                  <FormControl>
-                    {inputField.componentType === 'select' ? (
-                      <Select 
-                        onValueChange={field.onChange} 
-                        defaultValue={field.value as string}
-                        value={field.value as string}
-                      >
-                        <SelectTrigger className="text-base">
-                          <SelectValue placeholder={inputField.placeholder} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {inputField.options?.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {option}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Input
-                        type={inputField.type || 'text'}
-                        placeholder={inputField.placeholder}
-                        {...field}
-                        value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' ? "" : field.value }
-                        onChange={event => {
-                          if (inputField.type === 'number') {
-                            const numValue = parseFloat(event.target.value);
-                            field.onChange(isNaN(numValue) ? 0 : numValue);
-                          } else {
-                            field.onChange(event.target.value);
-                          }
-                        }}
-                        className="text-base"
-                      />
-                    )}
-                  </FormControl>
-                  {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          ))}
+          {inputFields.map((inputField) => {
+            const isPrevMeterReading = inputField.name === 'previousMeterReading';
+            const isDisabled = isPrevMeterReading && currentUserRole === 'Team Leader';
+            return (
+              <FormField
+                key={inputField.name}
+                control={form.control}
+                name={inputField.name as keyof SalesDataFormValues}
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center">
+                      <inputField.icon className="mr-2 h-4 w-4 text-primary" />
+                      {inputField.label}
+                    </FormLabel>
+                    <FormControl>
+                      {inputField.componentType === 'select' ? (
+                        <Select 
+                          onValueChange={field.onChange} 
+                          defaultValue={field.value as string}
+                          value={field.value as string}
+                        >
+                          <SelectTrigger className="text-base">
+                            <SelectValue placeholder={inputField.placeholder} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {inputField.options?.map((option) => (
+                              <SelectItem key={option} value={option}>
+                                {option}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type={inputField.type || 'text'}
+                          placeholder={inputField.placeholder}
+                          {...field}
+                          disabled={isDisabled}
+                          value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' ? "" : field.value }
+                          onChange={event => {
+                            if (inputField.type === 'number') {
+                              const numValue = parseFloat(event.target.value);
+                              field.onChange(isNaN(numValue) ? (inputField.name === 'overrideLitersSold' ? undefined : 0) : numValue);
+                            } else {
+                              field.onChange(event.target.value);
+                            }
+                          }}
+                          className={cn("text-base", isDisabled && "cursor-not-allowed opacity-70")}
+                        />
+                      )}
+                    </FormControl>
+                    {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
+                    {isPrevMeterReading && currentUserRole === 'Team Leader' && <FormDescription>Previous meter reading is not editable by Team Leader.</FormDescription>}
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            );
+          })}
         </div>
         
+        {currentUserRole === 'Admin' && (
+          <FormField
+            control={form.control}
+            name="overrideLitersSold"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel className="flex items-center">
+                  <Edit className="mr-2 h-4 w-4 text-primary" />
+                  Override Liters Sold (Admin Only, Optional)
+                </FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    placeholder="e.g., 150 (Overrides calculation if set)"
+                    {...field}
+                    value={field.value === undefined ? "" : field.value}
+                     onChange={event => {
+                        const numValue = parseFloat(event.target.value);
+                        field.onChange(isNaN(numValue) || event.target.value === '' ? undefined : numValue);
+                      }}
+                    className="text-base"
+                  />
+                </FormControl>
+                <FormDescription>If a value is entered here, it will be used as Liters Sold, otherwise it's calculated from meter readings.</FormDescription>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        )}
+
         <div className="p-4 bg-muted/50 rounded-md">
           <FormLabel className="flex items-center text-primary">
-            <Truck className="mr-2 h-4 w-4" /> Calculated Liters Sold
+            <Gauge className="mr-2 h-4 w-4" /> Calculated Liters Sold (from Meter Readings)
           </FormLabel>
           <p className="text-2xl font-bold mt-1">{calculatedLitersSold.toFixed(2)} L</p>
           { (form.formState.errors.currentMeterReading?.message || form.formState.errors.previousMeterReading?.message) &&

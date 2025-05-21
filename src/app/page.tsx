@@ -26,20 +26,28 @@ export default function AquaTrackPage() {
     setReportData(null);
 
     try {
-      const litersSold = values.currentMeterReading - values.previousMeterReading;
-      if (litersSold < 0) { // This check is also in the schema, but good for early client-side feedback
+      let finalLitersSold: number;
+      const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
+
+      if (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) {
+        finalLitersSold = values.overrideLitersSold;
+      } else {
+        finalLitersSold = calculatedLitersFromMeter;
+      }
+      
+      if (finalLitersSold < 0) { // Should be caught by schema for calculated, but safety for override
         toast({
           title: 'Validation Error',
-          description: 'Current meter reading must be greater than or equal to previous meter reading.',
+          description: 'Liters sold cannot be negative. Please check meter readings or override value.',
           variant: 'destructive',
         });
         setIsProcessing(false);
         return;
       }
 
-      const totalSale = litersSold * values.ratePerLiter;
+      const totalSale = finalLitersSold * values.ratePerLiter;
       const actualReceived = values.cashReceived + values.onlineReceived;
-      const submissionDate = values.date instanceof Date ? values.date : new Date(); // Ensure date is a Date object
+      const submissionDate = values.date instanceof Date ? values.date : new Date();
       
       const initialAdjustedExpected =
         totalSale -
@@ -48,12 +56,11 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
-      // Prepare the AI input, explicitly including the calculated litersSold
-      const { previousMeterReading, currentMeterReading, ...restOfValues } = values;
+      const { previousMeterReading, currentMeterReading, overrideLitersSold, ...restOfValues } = values;
       const aiInput: AdjustExpectedAmountInput = {
         ...restOfValues,
         date: formatDateFns(submissionDate, 'yyyy-MM-dd'),
-        litersSold, // Pass calculated litersSold
+        litersSold: finalLitersSold, 
         totalSale,
         actualReceived,
         adjustedExpected: initialAdjustedExpected,
@@ -63,7 +70,7 @@ export default function AquaTrackPage() {
 
       const discrepancy = actualReceived - aiOutput.adjustedExpectedAmount;
       let status: SalesReportData['status'];
-      if (Math.abs(discrepancy) < 0.01) { // Using a small epsilon for float comparison
+      if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
       } else if (discrepancy < 0) {
         status = 'Shortage';
@@ -72,9 +79,12 @@ export default function AquaTrackPage() {
       }
 
       setReportData({
-        ...values, // Spread original form values (includes previous/current meter readings)
-        date: formatDateFns(submissionDate, 'PPP'), // Format date for display
-        litersSold, // Store calculated litersSold in reportData
+        ...values, 
+        date: formatDateFns(submissionDate, 'PPP'),
+        previousMeterReading: values.previousMeterReading, // ensure these are passed through
+        currentMeterReading: values.currentMeterReading,   // ensure these are passed through
+        litersSold: finalLitersSold,
+        adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) ? values.overrideLitersSold : undefined,
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -131,7 +141,10 @@ export default function AquaTrackPage() {
         <CardContent>
           <RadioGroup
             defaultValue="Team Leader"
-            onValueChange={(value: UserRole) => setCurrentUserRole(value)}
+            onValueChange={(value: UserRole) => {
+              setCurrentUserRole(value);
+              setReportData(null); // Clear report when role changes
+            }}
             className="flex space-x-4"
           >
             <div className="flex items-center space-x-2">
@@ -191,4 +204,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-

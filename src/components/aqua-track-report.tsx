@@ -40,6 +40,10 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
     }
   };
 
+  const litersSoldLabel = (reportData.adminOverrideLitersSold && reportData.adminOverrideLitersSold > 0)
+    ? "Liters Sold (Admin Override)"
+    : "Liters Sold (Calculated)";
+
   return (
     <Card className="w-full shadow-xl">
       <CardHeader className="bg-primary/10 rounded-t-lg">
@@ -57,7 +61,10 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
           <ReportItem icon={CalendarDays} label="Date" value={reportData.date} />
           <ReportItem icon={Gauge} label="Previous Meter Reading" value={reportData.previousMeterReading} />
           <ReportItem icon={Gauge} label="Current Meter Reading" value={reportData.currentMeterReading} />
-          <ReportItem icon={Droplets} label="Liters Sold (Calculated)" value={reportData.litersSold} unit="L" />
+          {reportData.adminOverrideLitersSold && reportData.adminOverrideLitersSold > 0 && (
+            <ReportItem icon={Droplets} label="Liters Sold (Calculated from Meters)" value={(reportData.currentMeterReading - reportData.previousMeterReading).toFixed(2)} unit="L" className="text-xs text-muted-foreground" />
+          )}
+          <ReportItem icon={Droplets} label={litersSoldLabel} value={reportData.litersSold} unit="L" />
           <ReportItem icon={DollarSign} label="Rate Per Liter" value={reportData.ratePerLiter} unit="/L" />
           <ReportItem icon={DollarSign} label="Total Sale" value={reportData.totalSale} className="font-semibold text-primary" />
         </div>
