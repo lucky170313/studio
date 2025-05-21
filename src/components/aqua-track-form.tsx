@@ -31,12 +31,13 @@ interface AquaTrackFormProps {
   isProcessing: boolean;
   currentUserRole: UserRole;
   lastMeterReadingsByVehicle: Record<string, number>;
+  riderNames: string[];
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
-const riderNameOptions = ['Rider John', 'Rider Jane', 'Rider Alex']; 
+// riderNameOptions is now passed as a prop: riderNames
 
-export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle }: AquaTrackFormProps) {
+export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle, riderNames }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
@@ -58,17 +59,17 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   });
   
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
-  const { setValue } = form; // Destructure setValue for stable reference in useEffect
+  const { setValue, getValues } = form; // Destructure form methods for stable reference
 
   useEffect(() => {
     if (currentUserRole === 'Team Leader') {
       setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
       setValue('overrideLitersSold', undefined); 
     }
-    if (currentUserRole !== 'Admin' && form.getValues('overrideLitersSold') !== undefined) {
+    if (currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
       setValue('overrideLitersSold', undefined, { shouldValidate: true });
     }
-  }, [currentUserRole, setValue, form]); // Added form to dependencies as getValues is used
+  }, [currentUserRole, setValue, getValues]);
 
   useEffect(() => {
     if (selectedVehicleName) {
@@ -78,9 +79,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
       } else {
         setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
       }
-    } else {
-      // Optionally reset previousMeterReading if no vehicle is selected, or leave as is
-      // setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
   }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue]);
 
@@ -99,7 +97,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
 
 
   const inputFields = [
-    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select or enter rider name', componentType: 'select', options: riderNameOptions },
+    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled, editable by Admin." : "Auto-filled from last entry for vehicle." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
@@ -170,6 +168,8 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
           {inputFields.map((inputField) => {
             const isPrevMeterReading = inputField.name === 'previousMeterReading';
             const isDisabled = isPrevMeterReading && currentUserRole === 'Team Leader';
+            const currentOptions = inputField.name === 'riderName' ? riderNames : inputField.options;
+
             return (
               <FormField
                 key={inputField.name}
@@ -186,7 +186,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                         <Select 
                           onValueChange={(value) => {
                             field.onChange(value);
-                            // The useEffect hook will handle updating previousMeterReading
                           }}
                           value={field.value as string || ""}
                         >
@@ -194,11 +193,17 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                             <SelectValue placeholder={inputField.placeholder} />
                           </SelectTrigger>
                           <SelectContent>
-                            {inputField.options?.map((option) => (
-                              <SelectItem key={option} value={option}>
-                                {option}
+                            {currentOptions && currentOptions.length > 0 ? (
+                              currentOptions.map((option) => (
+                                <SelectItem key={option} value={option}>
+                                  {option}
+                                </SelectItem>
+                              ))
+                            ) : (
+                              <SelectItem value="" disabled>
+                                {inputField.name === 'riderName' ? 'No riders available (add in Admin Panel)' : 'No options'}
                               </SelectItem>
-                            ))}
+                            )}
                           </SelectContent>
                         </Select>
                       ) : (
@@ -307,3 +312,4 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     </Form>
   );
 }
+

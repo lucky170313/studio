@@ -4,18 +4,28 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle } from 'lucide-react';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
 import type { SalesDataFormValues, SalesReportData, UserRole } from '@/lib/types';
-import type { AdjustExpectedAmountOutput } from '@/ai/flows/adjust-expected-amount';
+// import type { AdjustExpectedAmountOutput } from '@/ai/flows/adjust-expected-amount'; // AI Bypassed
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
+const RIDER_NAMES_KEY = 'riderNames';
+const DEFAULT_RIDER_NAMES = ['Rider John', 'Rider Jane', 'Rider Alex']; // Default if localStorage is empty
+
+interface AdjustExpectedAmountOutput { // Defining this interface locally as AI call is bypassed
+  adjustedExpectedAmount: number;
+  reasoning: string;
+}
+
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -25,8 +35,14 @@ export default function AquaTrackPage() {
   const { toast } = useToast();
   const [currentYear, setCurrentYear] = useState<number | null>(null);
 
+  // Rider Management State
+  const [riderNames, setRiderNames] = useState<string[]>([]);
+  const [riderNameInput, setRiderNameInput] = useState('');
+  const [editingRiderOriginalName, setEditingRiderOriginalName] = useState<string | null>(null);
+
+
   useEffect(() => {
-    // Load last meter readings from localStorage on initial client-side mount
+    // Load last meter readings from localStorage
     const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
     if (storedReadings) {
       try {
@@ -36,11 +52,28 @@ export default function AquaTrackPage() {
         }
       } catch (error) {
         console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
-        // Optionally clear invalid data: localStorage.removeItem(LAST_METER_READINGS_KEY);
       }
     }
+
+    // Load rider names from localStorage
+    const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
+    if (storedRiderNames) {
+      try {
+        const parsedRiderNames = JSON.parse(storedRiderNames);
+        if (Array.isArray(parsedRiderNames) && parsedRiderNames.every(name => typeof name === 'string')) {
+          setRiderNames(parsedRiderNames.length > 0 ? parsedRiderNames : DEFAULT_RIDER_NAMES);
+        } else {
+          setRiderNames(DEFAULT_RIDER_NAMES);
+        }
+      } catch (error) {
+        console.error("Failed to parse riderNames from localStorage", error);
+        setRiderNames(DEFAULT_RIDER_NAMES);
+      }
+    } else {
+      setRiderNames(DEFAULT_RIDER_NAMES); // Initialize with defaults if nothing in localStorage
+    }
     setCurrentYear(new Date().getFullYear());
-  }, []); // Empty dependency array ensures this runs once on mount (client-side)
+  }, []);
 
 
   const handleFormSubmit = async (values: SalesDataFormValues) => {
@@ -141,6 +174,64 @@ export default function AquaTrackPage() {
       setIsProcessing(false);
     }
   };
+
+  // Rider Management Handlers
+  const handleRiderNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRiderNameInput(e.target.value);
+  };
+
+  const handleAddOrUpdateRider = () => {
+    if (!riderNameInput.trim()) {
+      toast({ title: "Error", description: "Rider name cannot be empty.", variant: "destructive" });
+      return;
+    }
+    let updatedRiderNames;
+    if (editingRiderOriginalName) {
+      // Edit mode
+      if (riderNames.includes(riderNameInput.trim()) && riderNameInput.trim() !== editingRiderOriginalName) {
+        toast({ title: "Error", description: "This rider name already exists.", variant: "destructive" });
+        return;
+      }
+      updatedRiderNames = riderNames.map(name =>
+        name === editingRiderOriginalName ? riderNameInput.trim() : name
+      );
+      setEditingRiderOriginalName(null);
+      toast({ title: "Success", description: `Rider "${editingRiderOriginalName}" updated to "${riderNameInput.trim()}".` });
+    } else {
+      // Add mode
+      if (riderNames.includes(riderNameInput.trim())) {
+        toast({ title: "Error", description: "This rider name already exists.", variant: "destructive" });
+        return;
+      }
+      updatedRiderNames = [...riderNames, riderNameInput.trim()];
+      toast({ title: "Success", description: `Rider "${riderNameInput.trim()}" added.` });
+    }
+    setRiderNames(updatedRiderNames);
+    localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(updatedRiderNames));
+    setRiderNameInput('');
+  };
+
+  const handleEditRiderSetup = (nameToEdit: string) => {
+    setRiderNameInput(nameToEdit);
+    setEditingRiderOriginalName(nameToEdit);
+  };
+
+  const handleCancelEditRider = () => {
+    setRiderNameInput('');
+    setEditingRiderOriginalName(null);
+  };
+
+  const handleDeleteRider = (nameToDelete: string) => {
+    if (window.confirm(`Are you sure you want to delete rider "${nameToDelete}"?`)) {
+      const updatedRiderNames = riderNames.filter(name => name !== nameToDelete);
+      setRiderNames(updatedRiderNames);
+      localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(updatedRiderNames));
+      toast({ title: "Success", description: `Rider "${nameToDelete}" deleted.` });
+      if (editingRiderOriginalName === nameToDelete) { // If deleting the rider currently being edited
+        handleCancelEditRider();
+      }
+    }
+  };
   
 
   return (
@@ -180,11 +271,70 @@ export default function AquaTrackPage() {
         </CardContent>
       </Card>
 
+      {currentUserRole === 'Admin' && (
+        <Card className="mb-8 shadow-md">
+          <CardHeader>
+            <CardTitle className="text-xl text-primary flex items-center">
+              <UserCog className="mr-2 h-5 w-5" />Manage Riders
+            </CardTitle>
+            <CardDescription>Add, edit, or delete rider names. Changes are saved in your browser.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex space-x-2 items-end">
+              <div className="flex-grow">
+                <Label htmlFor="riderNameInput">Rider Name</Label>
+                <Input
+                  id="riderNameInput"
+                  type="text"
+                  value={riderNameInput}
+                  onChange={handleRiderNameInputChange}
+                  placeholder={editingRiderOriginalName ? "Enter new name" : "Enter new rider name"}
+                  className="text-base"
+                />
+              </div>
+              <Button onClick={handleAddOrUpdateRider} className="h-10">
+                {editingRiderOriginalName ? <Edit3 className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                {editingRiderOriginalName ? 'Update Rider' : 'Add Rider'}
+              </Button>
+              {editingRiderOriginalName && (
+                <Button onClick={handleCancelEditRider} variant="outline" className="h-10">
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Cancel Edit
+                </Button>
+              )}
+            </div>
+            {riderNames.length > 0 ? (
+              <div>
+                <h4 className="text-md font-medium mb-2">Current Riders:</h4>
+                <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
+                  {riderNames.map(name => (
+                    <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                      <span className="text-sm">{name}</span>
+                      <div className="space-x-2">
+                        <Button size="sm" variant="outline" onClick={() => handleEditRiderSetup(name)} aria-label={`Edit ${name}`}>
+                          <Edit3 className="h-4 w-4" />
+                        </Button>
+                        <Button size="sm" variant="destructive" onClick={() => handleDeleteRider(name)} aria-label={`Delete ${name}`}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No riders added yet.</p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings are session-based (persisted in browser).</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings and rider list are persisted in browser.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
@@ -192,6 +342,7 @@ export default function AquaTrackPage() {
               isProcessing={isProcessing} 
               currentUserRole={currentUserRole}
               lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
+              riderNames={riderNames}
             />
           </CardContent>
         </Card>
