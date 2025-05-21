@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react'; // Added useState
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
@@ -35,7 +35,6 @@ interface AquaTrackFormProps {
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
-// riderNameOptions is now passed as a prop: riderNames
 
 export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle, riderNames }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
@@ -59,7 +58,13 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   });
   
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
-  const { setValue, getValues } = form; // Destructure form methods for stable reference
+  const { setValue, getValues } = form;
+
+  const [isClient, setIsClient] = useState(false);
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   useEffect(() => {
     if (currentUserRole === 'Team Leader') {
@@ -79,6 +84,9 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
       } else {
         setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
       }
+    } else {
+       // If no vehicle is selected, or vehicle is cleared, reset previous meter reading
+       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
   }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue]);
 
@@ -99,7 +107,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   const inputFields = [
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled, editable by Admin." : "Auto-filled from last entry for vehicle." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled from last session, editable by Admin." : "Auto-filled from last session for vehicle." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
@@ -132,10 +140,10 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                       )}
                       disabled={currentUserRole === 'Team Leader'}
                     >
-                      {field.value ? (
+                      {isClient && field.value ? (
                         format(field.value, "PPP")
                       ) : (
-                        <span>Pick a date</span>
+                        <span>{field.value ? "Initializing date..." : "Pick a date"}</span>
                       )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
@@ -226,7 +234,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReading && currentUserRole === 'Team Leader' && selectedVehicleName && !lastMeterReadingsByVehicle[selectedVehicleName] && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
+                    {isPrevMeterReading && currentUserRole === 'Team Leader' && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
