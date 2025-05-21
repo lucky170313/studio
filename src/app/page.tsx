@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -266,7 +266,7 @@ export default function AquaTrackPage() {
         <CardHeader>
           <CardTitle className="text-xl text-primary flex items-center"><UserCog className="mr-2 h-5 w-5"/>Select User Role</CardTitle>
         </CardHeader>
-        <CardContent className="flex justify-between items-center">
+        <CardContent className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
           <RadioGroup
             defaultValue="Team Leader"
             onValueChange={(value: UserRole) => {
@@ -285,11 +285,18 @@ export default function AquaTrackPage() {
             </div>
           </RadioGroup>
           {currentUserRole === 'Admin' && (
-            <Link href="/admin/view-data" passHref>
-              <Button variant="outline">
-                <Eye className="mr-2 h-4 w-4" /> View All Sales Data
-              </Button>
-            </Link>
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+              <Link href="/admin/view-data" passHref>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Eye className="mr-2 h-4 w-4" /> View All Sales Data
+                </Button>
+              </Link>
+              <Link href="/admin/rider-monthly-report" passHref>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report
+                </Button>
+              </Link>
+            </div>
           )}
         </CardContent>
       </Card>
