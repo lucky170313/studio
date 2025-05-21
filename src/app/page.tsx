@@ -9,11 +9,13 @@ import { Droplets, Loader2, BarChartBig, UserCog, Shield } from 'lucide-react';
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
 import type { SalesDataFormValues, SalesReportData, UserRole } from '@/lib/types';
-import type { AdjustExpectedAmountInput, AdjustExpectedAmountOutput } from '@/ai/flows/adjust-expected-amount'; // Keep type import
+import type { AdjustExpectedAmountOutput } from '@/ai/flows/adjust-expected-amount';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+
+const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -21,6 +23,25 @@ export default function AquaTrackPage() {
   const [currentUserRole, setCurrentUserRole] = useState<UserRole>('Team Leader');
   const [lastMeterReadingsByVehicle, setLastMeterReadingsByVehicle] = useState<Record<string, number>>({});
   const { toast } = useToast();
+  const [currentYear, setCurrentYear] = useState<number | null>(null);
+
+  useEffect(() => {
+    // Load last meter readings from localStorage on initial client-side mount
+    const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
+    if (storedReadings) {
+      try {
+        const parsedReadings = JSON.parse(storedReadings);
+        if (typeof parsedReadings === 'object' && parsedReadings !== null) {
+          setLastMeterReadingsByVehicle(parsedReadings);
+        }
+      } catch (error) {
+        console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
+        // Optionally clear invalid data: localStorage.removeItem(LAST_METER_READINGS_KEY);
+      }
+    }
+    setCurrentYear(new Date().getFullYear());
+  }, []); // Empty dependency array ensures this runs once on mount (client-side)
+
 
   const handleFormSubmit = async (values: SalesDataFormValues) => {
     setIsProcessing(true);
@@ -91,10 +112,12 @@ export default function AquaTrackPage() {
       setReportData(newReportData);
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
-        setLastMeterReadingsByVehicle(prevReadings => ({
-          ...prevReadings,
-          [values.vehicleName as string]: values.currentMeterReading // Ensure vehicleName is string
-        }));
+        const updatedReadings = {
+          ...lastMeterReadingsByVehicle,
+          [values.vehicleName as string]: values.currentMeterReading
+        };
+        setLastMeterReadingsByVehicle(updatedReadings);
+        localStorage.setItem(LAST_METER_READINGS_KEY, JSON.stringify(updatedReadings));
       }
 
       toast({
@@ -119,11 +142,6 @@ export default function AquaTrackPage() {
     }
   };
   
-  const [currentYear, setCurrentYear] = useState<number | null>(null);
-  useEffect(() => {
-    setCurrentYear(new Date().getFullYear());
-  }, []);
-
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
@@ -166,7 +184,7 @@ export default function AquaTrackPage() {
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings are session-based.</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings are session-based (persisted in browser).</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
@@ -207,3 +225,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
