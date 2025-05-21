@@ -11,7 +11,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyCmEf6RYOFKTw9_VBKmrSr_Zqfca8tq4z0",
   authDomain: "aquatrack-d2b66.firebaseapp.com",
   projectId: "aquatrack-d2b66",
-  storageBucket: "aquatrack-d2b66.appspot.com", // Corrected from firebasestorage.app
+  storageBucket: "aquatrack-d2b66.firebasestorage.app",
   messagingSenderId: "591475688551",
   appId: "1:591475688551:web:b38028e0ac3fc4c12140c2",
   measurementId: "G-79XN9Z0M90"
