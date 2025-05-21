@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export type UserRole = 'Admin' | 'Team Leader';
+
 export const salesDataSchema = z.object({
   date: z.date({ required_error: 'Date is required.' }),
   riderName: z.string().min(1, 'Rider name is required.'),
