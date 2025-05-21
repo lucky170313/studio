@@ -9,7 +9,7 @@ import { Droplets, Loader2, BarChartBig, UserCog, Shield } from 'lucide-react';
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
 import type { SalesDataFormValues, SalesReportData, UserRole } from '@/lib/types';
-import { adjustExpectedAmount, type AdjustExpectedAmountInput } from '@/ai/flows/adjust-expected-amount';
+import type { AdjustExpectedAmountInput, AdjustExpectedAmountOutput } from '@/ai/flows/adjust-expected-amount'; // Keep type import
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -57,17 +57,23 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
 
-      const { overrideLitersSold, ...restOfValuesForAI } = values; // previousMeterReading, currentMeterReading are in restOfValuesForAI
-      const aiInput: AdjustExpectedAmountInput = {
-        ...restOfValuesForAI,
-        date: formatDateFns(submissionDate, 'yyyy-MM-dd'),
-        litersSold: finalLitersSold, 
-        totalSale,
-        actualReceived,
-        adjustedExpected: initialAdjustedExpected,
+      // Bypassing AI call to avoid API errors
+      const aiOutput: AdjustExpectedAmountOutput = {
+        adjustedExpectedAmount: initialAdjustedExpected,
+        reasoning: "AI analysis bypassed due to API configuration. Using initial calculation.",
       };
       
-      const aiOutput = await adjustExpectedAmount(aiInput);
+      // Original AI call - kept for reference if API issues are resolved later
+      // const { overrideLitersSold, ...restOfValuesForAI } = values;
+      // const aiInput: AdjustExpectedAmountInput = {
+      //   ...restOfValuesForAI,
+      //   date: formatDateFns(submissionDate, 'yyyy-MM-dd'),
+      //   litersSold: finalLitersSold, 
+      //   totalSale,
+      //   actualReceived,
+      //   adjustedExpected: initialAdjustedExpected,
+      // };
+      // const aiOutput = await adjustExpectedAmount(aiInput);
 
       const discrepancy = actualReceived - aiOutput.adjustedExpectedAmount;
       let status: SalesReportData['status'];
@@ -96,7 +102,6 @@ export default function AquaTrackPage() {
       };
       setReportData(newReportData);
 
-      // Update last meter reading for the vehicle
       if (values.vehicleName && values.currentMeterReading > 0) {
         setLastMeterReadingsByVehicle(prevReadings => ({
           ...prevReadings,
@@ -106,7 +111,7 @@ export default function AquaTrackPage() {
 
       toast({
         title: 'Report Generated',
-        description: 'Sales report has been successfully generated and analyzed.',
+        description: 'Sales report has been successfully generated.',
         variant: 'default',
       });
 
@@ -191,7 +196,7 @@ export default function AquaTrackPage() {
               <CardContent className="text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
                 <p className="text-lg text-muted-foreground">Generating report...</p>
-                <p className="text-sm text-muted-foreground">AI analysis in progress.</p>
+                {/* <p className="text-sm text-muted-foreground">AI analysis in progress.</p> */}
               </CardContent>
             </Card>
           )}
@@ -203,7 +208,7 @@ export default function AquaTrackPage() {
               <CardContent className="text-center p-6">
                 <BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" />
                 <h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3>
-                <p className="text-muted-foreground">Submit the form to view the generated sales report and AI analysis.</p>
+                <p className="text-muted-foreground">Submit the form to view the generated sales report.</p>
               </CardContent>
             </Card>
           )}
