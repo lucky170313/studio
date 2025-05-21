@@ -45,34 +45,37 @@ export default function AquaTrackPage() {
 
 
   useEffect(() => {
-    const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
-    if (storedReadings) {
-      try {
+    try {
+      const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
+      if (storedReadings) {
         const parsedReadings = JSON.parse(storedReadings);
         if (typeof parsedReadings === 'object' && parsedReadings !== null) {
           setLastMeterReadingsByVehicle(parsedReadings);
         }
-      } catch (error) {
-        console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
       }
+    } catch (error) {
+      console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
+      // Initialize with empty object or handle error as needed
+      setLastMeterReadingsByVehicle({});
     }
 
-    const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
-    if (storedRiderNames) {
-      try {
+    try {
+      const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
+      if (storedRiderNames) {
         const parsedRiderNames = JSON.parse(storedRiderNames);
         if (Array.isArray(parsedRiderNames) && parsedRiderNames.every(name => typeof name === 'string')) {
           setRiderNames(parsedRiderNames.length > 0 ? parsedRiderNames : DEFAULT_RIDER_NAMES);
         } else {
           setRiderNames(DEFAULT_RIDER_NAMES);
         }
-      } catch (error) {
-        console.error("Failed to parse riderNames from localStorage", error);
+      } else {
         setRiderNames(DEFAULT_RIDER_NAMES);
       }
-    } else {
+    } catch (error) {
+      console.error("Failed to parse riderNames from localStorage", error);
       setRiderNames(DEFAULT_RIDER_NAMES);
     }
+    
     setCurrentYear(new Date().getFullYear());
   }, []);
 
@@ -143,15 +146,24 @@ export default function AquaTrackPage() {
         aiReasoning: aiOutput.reasoning,
         discrepancy,
         status,
+        // comment will be spread from `...values`
       };
       
       // Save to Firestore
       try {
-        // Remove the 'date' (string) field before saving to Firestore if only 'firestoreDate' (Timestamp) is needed for DB storage
-        const dataToSave = { ...newReportData };
-        // delete dataToSave.date; // Optionally remove the formatted string date if not needed in DB
+        // Prepare data for Firestore: remove any undefined fields.
+        const dataToSaveForFirestore: { [key: string]: any } = {};
+        for (const key of Object.keys(newReportData) as Array<keyof SalesReportData>) {
+            if (newReportData[key] !== undefined) {
+                dataToSaveForFirestore[key] = newReportData[key];
+            }
+        }
+        // Ensure 'id' is not included when adding a new document
+        if ('id' in dataToSaveForFirestore) {
+            delete dataToSaveForFirestore.id;
+        }
 
-        const docRef = await addDoc(collection(db, "salesEntries"), dataToSave);
+        const docRef = await addDoc(collection(db, "salesEntries"), dataToSaveForFirestore);
         console.log("Document written with ID: ", docRef.id);
         toast({
           title: 'Report Generated & Saved',
