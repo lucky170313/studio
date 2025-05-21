@@ -4,7 +4,7 @@
 import type * as React from 'react';
 import { useState } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Water } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig } from 'lucide-react';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
@@ -86,7 +86,7 @@ export default function AquaTrackPage() {
     <main className="min-h-screen container mx-auto px-4 py-8">
       <header className="mb-10 text-center">
         <h1 className="text-5xl font-extrabold tracking-tight text-primary flex items-center justify-center">
-          <Water className="mr-3 h-12 w-12" />
+          <Droplets className="mr-3 h-12 w-12" />
           AquaTrack
         </h1>
         <p className="mt-2 text-xl text-muted-foreground">
@@ -135,15 +135,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
-// Placeholder for Loader2 if not already defined in a shared components file.
-// For this task, assuming Loader2 is imported from lucide-react.
-const Loader2: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-);
-
-// Placeholder for BarChartBig, Water
-const BarChartBig: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
- <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><path d="M3 3v18h18"/><path d="M7 12h3v-4H7Z"/><path d="M12 12h3v-7h-3Z"/><path d="M17 12h3V5h-3Z"/></svg>
-);
-// Water icon from lucide-react already imported.
