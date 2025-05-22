@@ -1,8 +1,8 @@
 // src/lib/dbConnect.js
 import mongoose from 'mongoose';
-// import dotenv from 'dotenv'; // Next.js automatically loads .env files
+import dotenv from 'dotenv'; // Import dotenv
 
-// dotenv.config(); // Not strictly necessary in Next.js server-side environments
+dotenv.config(); // Load environment variables from .env file
 
 const MONGO_URI = process.env.MONGO_URI;
 
