@@ -10,7 +10,7 @@ import type { SalesReportData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet } from 'lucide-react'; // Added FileSpreadsheet
 import { format as formatDateFns, getMonth, getYear } from 'date-fns';
 
 interface MonthlyRiderStats {
@@ -143,11 +143,16 @@ export default function RiderMonthlyReportPage() {
       <main className="min-h-screen container mx-auto px-4 py-8">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold text-primary">Rider Monthly Performance</h1>
-          <Link href="/" passHref>
-            <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+          <div className="flex space-x-2">
+            <Button variant="outline" onClick={() => alert("Google Sheets export functionality to be implemented.")}>
+              <FileSpreadsheet className="mr-2 h-4 w-4" /> Export to Google Sheets
             </Button>
-          </Link>
+            <Link href="/" passHref>
+              <Button variant="outline">
+                <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+              </Button>
+            </Link>
+          </div>
         </div>
         <p className="text-muted-foreground text-center py-10">No sales data found to generate the report.</p>
       </main>
@@ -163,11 +168,16 @@ export default function RiderMonthlyReportPage() {
           <PieChart className="mr-3 h-8 w-8" />
           Rider Monthly Performance
         </h1>
-        <Link href="/" passHref>
-          <Button variant="outline">
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+        <div className="flex space-x-2">
+          <Button variant="outline" onClick={() => alert("Google Sheets export functionality to be implemented.")}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Export to Google Sheets
           </Button>
-        </Link>
+          <Link href="/" passHref>
+            <Button variant="outline">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <Card className="mb-8 shadow-lg">
@@ -238,4 +248,3 @@ export default function RiderMonthlyReportPage() {
     </main>
   );
 }
-
