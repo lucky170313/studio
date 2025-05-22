@@ -316,8 +316,8 @@ export default function MonthlySummaryPage() {
           Monthly Sales Summary
         </h1>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => alert("Google Sheets export functionality to be implemented.")}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" /> Export to Google Sheets
+          <Button variant="outline" onClick={() => alert("Excel export functionality to be implemented.")}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>
             <Button variant="outline">
@@ -371,5 +371,3 @@ export default function MonthlySummaryPage() {
     </main>
   );
 }
-
-    

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
+import { cn } from '@/lib/utils';
 
 
 const formatDisplayDate = (dateInput: any): string => {
@@ -209,8 +210,8 @@ export default function AdminViewDataPage() {
           All Sales Entries (MongoDB)
         </h1>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => alert("Google Sheets export functionality to be implemented.")}>
-            <FileSpreadsheet className="mr-2 h-4 w-4" /> Export to Google Sheets
+          <Button variant="outline" onClick={() => alert("Excel export functionality to be implemented.")}>
+            <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>
             <Button variant="outline">
