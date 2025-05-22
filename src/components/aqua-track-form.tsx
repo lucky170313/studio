@@ -176,6 +176,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
           {inputFields.map((inputField) => {
             const isPrevMeterReading = inputField.name === 'previousMeterReading';
             const isDisabled = isPrevMeterReading && currentUserRole === 'Team Leader';
+            // Use riderNames prop directly for rider name options, otherwise use inputField.options
             const currentOptions = inputField.name === 'riderName' ? riderNames : inputField.options;
 
             return (
