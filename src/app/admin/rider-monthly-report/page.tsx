@@ -90,7 +90,9 @@ async function fetchSalesDataForReport(): Promise<SalesReportData[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate)
+    firestoreDate: new Date(entry.firestoreDate), // Ensure this field is being correctly populated and is a Date
+    dailySalaryCalculated: entry.dailySalaryCalculated || 0,
+    commissionEarned: entry.commissionEarned || 0,
   }));
 }
 
@@ -110,7 +112,8 @@ export default function RiderMonthlyReportPage() {
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
-  useEffect(() => {
+ useEffect(() => {
+    // This effect runs once on mount to load salaries from localStorage
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
@@ -124,7 +127,9 @@ export default function RiderMonthlyReportPage() {
     }
   }, []);
 
+
   useEffect(() => {
+    // This effect runs on mount and when riderSalaries state changes
     setIsLoading(true);
     fetchSalesDataForReport()
       .then(fetchedEntries => {
@@ -143,7 +148,7 @@ export default function RiderMonthlyReportPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, []); // Removed riderSalaries from dependency array if it's not directly needed for fetching. If it IS needed, ensure it's stable.
 
   const filteredEntries = useMemo(() => {
     if (isLoading || allSalesEntries.length === 0) return [];
@@ -156,7 +161,7 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0) return;
+    if (isLoading && allSalesEntries.length > 0 && Object.keys(riderSalaries).length === 0) return; // Wait for salaries if they are being loaded
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
@@ -191,14 +196,9 @@ export default function RiderMonthlyReportPage() {
         };
       }
       
-      const riderFullDaySalary = riderSalaries[rider] || 0;
-      const hoursWorked = entry.hoursWorked || 9;
-      const baseDailySalary = (riderFullDaySalary / 9) * hoursWorked;
-      
-      let commissionEarned = 0;
-      if (entry.litersSold > 2000) {
-        commissionEarned = (entry.litersSold - 2000) * 0.10;
-      }
+      // Use entry.dailySalaryCalculated and entry.commissionEarned directly as they are now saved
+      const baseDailySalary = entry.dailySalaryCalculated || 0;
+      const commissionEarned = entry.commissionEarned || 0;
       
       // Discrepancy: Positive is shortage (rider owes), Negative is overage (rider has extra)
       // Net Earning = Base Salary + Commission - Shortage (or + Overage)
@@ -209,7 +209,7 @@ export default function RiderMonthlyReportPage() {
         date: entry.date,
         firestoreDate: entry.firestoreDate,
         litersSold: entry.litersSold,
-        hoursWorked: hoursWorked,
+        hoursWorked: entry.hoursWorked,
         baseDailySalary: baseDailySalary,
         commissionEarned: commissionEarned,
         discrepancy: entry.discrepancy,
@@ -416,19 +416,7 @@ export default function RiderMonthlyReportPage() {
                           </TableBody>
                           <TableFooter>
                             <TableRow className="bg-muted/50 font-semibold">
-                              <TableCell colSpan={1}>Month Totals:</TableCell>
-                              <TableCell className="text-right">{stats.totalLitersSold.toFixed(2)} L</TableCell>
-                              <TableCell className="text-right">-</TableCell> {/* Total Hours not directly useful */}
-                              <TableCell className="text-right">₹{stats.totalSalesGenerated.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">₹{stats.totalMoneyCollected.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">₹{stats.totalBaseSalary.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">₹{stats.totalCommissionEarned.toFixed(2)}</TableCell>
-                              <TableCell className={`text-right ${stats.totalDiscrepancy > 0 ? 'text-red-600' : stats.totalDiscrepancy < 0 ? 'text-green-600' : ''}`}>
-                                {stats.totalDiscrepancy > 0 && <MinusCircle className="inline-block mr-1 h-3 w-3"/>}
-                                {stats.totalDiscrepancy < 0 && <PlusCircle className="inline-block mr-1 h-3 w-3"/>}
-                                ₹{Math.abs(stats.totalDiscrepancy).toFixed(2)}
-                              </TableCell>
-                              <TableCell className="text-right text-lg">₹{stats.netMonthlyEarning.toFixed(2)}</TableCell>
+                              <TableCell colSpan={1}>Month Totals:</TableCell><TableCell className="text-right">{stats.totalLitersSold.toFixed(2)} L</TableCell><TableCell className="text-right">-</TableCell><TableCell className="text-right">₹{stats.totalSalesGenerated.toFixed(2)}</TableCell><TableCell className="text-right">₹{stats.totalMoneyCollected.toFixed(2)}</TableCell><TableCell className="text-right">₹{stats.totalBaseSalary.toFixed(2)}</TableCell><TableCell className="text-right">₹{stats.totalCommissionEarned.toFixed(2)}</TableCell><TableCell className={`text-right ${stats.totalDiscrepancy > 0 ? 'text-red-600' : stats.totalDiscrepancy < 0 ? 'text-green-600' : ''}`}>{stats.totalDiscrepancy > 0 && <MinusCircle className="inline-block mr-1 h-3 w-3"/>}{stats.totalDiscrepancy < 0 && <PlusCircle className="inline-block mr-1 h-3 w-3"/>}₹{Math.abs(stats.totalDiscrepancy).toFixed(2)}</TableCell><TableCell className="text-right text-lg">₹{stats.netMonthlyEarning.toFixed(2)}</TableCell>
                             </TableRow>
                           </TableFooter>
                         </Table>
