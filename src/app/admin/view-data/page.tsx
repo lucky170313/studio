@@ -2,27 +2,32 @@
 "use client";
 
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { SalesReportData } from '@/lib/types'; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet } from 'lucide-react';
-import { format as formatDateFns } from 'date-fns';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, BarChart3, CalendarDays } from 'lucide-react';
+import { format as formatDateFns, getYear, getMonth } from 'date-fns';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import type { ChartConfig } from "@/components/ui/chart";
 
 const formatDisplayDate = (dateInput: any): string => {
-  if (dateInput instanceof Date) {
-    return formatDateFns(dateInput, 'PPP p');
+  if (!dateInput) return 'Invalid Date';
+  const date = dateInput instanceof Date ? dateInput : new Date(dateInput);
+  if (isNaN(date.getTime())) {
+    return 'Invalid Date';
   }
-  if (typeof dateInput === 'string') {
-    const parsedDate = new Date(dateInput);
-    if (!isNaN(parsedDate.getTime())) {
-      return formatDateFns(parsedDate, 'PPP p');
-    }
-    return dateInput;
-  }
-  return 'Invalid Date';
+  return formatDateFns(date, 'PPP p');
 };
 
 interface SalesReportDataWithId extends SalesReportData {
@@ -38,37 +43,58 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate), // Ensure this is a Date object for consistency
+    firestoreDate: new Date(entry.firestoreDate), 
     _id: entry._id 
   }));
 }
 
+const monthNames = [
+  "January", "February", "March", "April", "May", "June", 
+  "July", "August", "September", "October", "November", "December"
+];
 
 export default function AdminViewDataPage() {
-  const [salesEntries, setSalesEntries] = useState<SalesReportDataWithId[]>([]);
+  const [allSalesEntries, setAllSalesEntries] = useState<SalesReportDataWithId[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof SalesReportDataWithId | null; direction: 'ascending' | 'descending' }>({ key: 'firestoreDate', direction: 'descending' });
+
+  const [selectedYear, setSelectedYear] = useState<string>("all");
+  const [selectedMonth, setSelectedMonth] = useState<string>("all");
+  const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   useEffect(() => {
     setIsLoading(true);
     fetchSalesData()
       .then(data => {
-        setSalesEntries(data);
+        setAllSalesEntries(data);
+        if (data.length > 0) {
+          const years = Array.from(new Set(data.map(entry => getYear(new Date(entry.firestoreDate))))).sort((a,b) => b-a);
+          setAvailableYears(years);
+        }
         setError(null);
       })
       .catch(err => {
         console.error("Error fetching sales data for view page:", err);
         setError(err.message || 'Failed to load sales entries from MongoDB.');
-        setSalesEntries([]);
+        setAllSalesEntries([]);
       })
       .finally(() => {
         setIsLoading(false);
       });
   }, []);
 
-  const sortedEntries = React.useMemo(() => {
-    let sortableItems = [...salesEntries];
+  const filteredEntries = useMemo(() => {
+    return allSalesEntries.filter(entry => {
+      const entryDate = new Date(entry.firestoreDate);
+      const yearMatch = selectedYear === "all" || getYear(entryDate) === parseInt(selectedYear);
+      const monthMatch = selectedMonth === "all" || getMonth(entryDate) === parseInt(selectedMonth);
+      return yearMatch && monthMatch;
+    });
+  }, [allSalesEntries, selectedYear, selectedMonth]);
+
+  const sortedEntries = useMemo(() => {
+    let sortableItems = [...filteredEntries];
     if (sortConfig.key !== null) {
       sortableItems.sort((a, b) => {
         let valA = a[sortConfig.key!];
@@ -78,27 +104,39 @@ export default function AdminViewDataPage() {
           valA = (valA instanceof Date) ? valA : new Date(valA as string || 0);
           valB = (valB instanceof Date) ? valB : new Date(valB as string || 0);
         }
-
-        // Handle undefined or null values, pushing them to the bottom
+        
         if (valA === undefined || valA === null) return 1;
         if (valB === undefined || valB === null) return -1;
-
 
         if (typeof valA === 'string' && typeof valB === 'string') {
           return sortConfig.direction === 'ascending' ? valA.localeCompare(valB) : valB.localeCompare(valA);
         }
 
-        if (valA < valB) {
-          return sortConfig.direction === 'ascending' ? -1 : 1;
-        }
-        if (valA > valB) {
-          return sortConfig.direction === 'ascending' ? 1 : -1;
-        }
+        if (valA < valB) return sortConfig.direction === 'ascending' ? -1 : 1;
+        if (valA > valB) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
       });
     }
     return sortableItems;
-  }, [salesEntries, sortConfig]);
+  }, [filteredEntries, sortConfig]);
+
+  const chartData = useMemo(() => {
+    const salesByRider: { [key: string]: number } = {};
+    filteredEntries.forEach(entry => {
+      salesByRider[entry.riderName] = (salesByRider[entry.riderName] || 0) + entry.totalSale;
+    });
+    return Object.entries(salesByRider)
+      .map(([name, total]) => ({ name, total: parseFloat(total.toFixed(2)) }))
+      .sort((a,b) => b.total - a.total);
+  }, [filteredEntries]);
+
+  const chartConfig = {
+    total: {
+      label: "Total Sales (₹)",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig;
+
 
   const requestSort = (key: keyof SalesReportDataWithId) => {
     let direction: 'ascending' | 'descending' = 'ascending';
@@ -146,9 +184,9 @@ export default function AdminViewDataPage() {
     { key: 'totalSale', label: 'Total Sale (₹)', sortable: true },
     { key: 'actualReceived', label: 'Actual Rcvd (₹)', sortable: true },
     { key: 'dueCollected', label: 'Due Collected (₹)', sortable: true },
-    { key: 'newDueAmount', label: 'New Due (₹)', sortable: true }, // New Column
-    { key: 'aiAdjustedExpectedAmount', label: 'Adj. Expected (₹)', sortable: true }, // This is now effectively initialAdjustedExpected
-    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true }, // Expected - Actual
+    { key: 'newDueAmount', label: 'New Due (₹)', sortable: true },
+    { key: 'aiAdjustedExpectedAmount', label: 'Adj. Expected (₹)', sortable: true },
+    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true },
     { key: 'status', label: 'Status', sortable: true },
     { key: 'comment', label: 'Comment' },
   ];
@@ -169,14 +207,92 @@ export default function AdminViewDataPage() {
         </div>
       </div>
 
+      <Card className="mb-8 shadow-lg">
+        <CardHeader>
+          <CardTitle>Filters</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-col md:flex-row gap-4">
+          <div className="flex-1">
+            <Label htmlFor="year-filter">Filter by Year</Label>
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger id="year-filter">
+                <SelectValue placeholder="Select Year" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Years</SelectItem>
+                {availableYears.map(year => (
+                  <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1">
+            <Label htmlFor="month-filter">Filter by Month</Label>
+            <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+              <SelectTrigger id="month-filter">
+                <SelectValue placeholder="Select Month" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Months</SelectItem>
+                {monthNames.map((month, index) => (
+                  <SelectItem key={index} value={String(index)}>{month}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </CardContent>
+      </Card>
+
+      {chartData.length > 0 && (
+         <Card className="mb-8 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <BarChart3 className="mr-2 h-5 w-5 text-primary" />
+              Total Sales per Rider
+            </CardTitle>
+            <CardDescription>
+              Showing total sales for {selectedMonth === "all" ? "all months" : monthNames[parseInt(selectedMonth)]}
+              {selectedYear === "all" ? "" : ` in ${selectedYear}`}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2 pr-6">
+            <div style={{ height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+                  <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      tickMargin={10}
+                      axisLine={false}
+                      // tickFormatter={(value) => value.slice(0, 3)}
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `₹${value}`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="total" fill="var(--color-total)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Sales Data Overview</CardTitle>
-          <CardDescription>Browse all recorded sales entries from MongoDB. Click column headers to sort.</CardDescription>
+          <CardDescription>Browse recorded sales entries from MongoDB. Click column headers to sort.
+            Displaying {sortedEntries.length} of {allSalesEntries.length} total entries based on filters.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {sortedEntries.length === 0 ? (
-            <p className="text-muted-foreground text-center py-10">No sales entries found in MongoDB.</p>
+            <p className="text-muted-foreground text-center py-10">No sales entries found for the selected filters in MongoDB.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
