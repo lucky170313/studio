@@ -7,11 +7,11 @@ import Link from 'next/link';
 import type { SalesReportData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3 } from 'lucide-react';
-import { format as formatDateFns, getYear, getMonth, parse } from 'date-fns';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3, Clock, Briefcase, Gift, MinusCircle, PlusCircle } from 'lucide-react';
+import { format as formatDateFns, getYear, getMonth, parse, format } from 'date-fns';
 import {
   ChartContainer,
   ChartTooltip,
@@ -22,27 +22,45 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
 
-const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
+const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp'; // Per-day salary for 9 hours
 
-interface MonthlyRiderStats {
+interface DailyEntryDetail {
+  id: string;
+  date: string;
+  firestoreDate: Date;
+  litersSold: number;
+  hoursWorked: number;
+  baseDailySalary: number;
+  commissionEarned: number;
+  discrepancy: number;
+  netEarning: number; // baseDailySalary + commissionEarned - discrepancy
+  totalSale: number;
+  actualReceived: number; // cash + online
+}
+
+interface MonthlyRiderDetailedStats {
+  dailyEntries: DailyEntryDetail[];
   totalLitersSold: number;
-  totalMoneyCollected: number; // actualReceived
-  totalTokenMoney: number;
+  totalMoneyCollected: number; // sum of daily actualReceived
+  totalTokenMoney: number; // sum from sales entries for this rider in this month
+  totalSalesGenerated: number; // sum of daily totalSale
+  totalBaseSalary: number;
+  totalCommissionEarned: number;
+  totalDiscrepancy: number;
+  netMonthlyEarning: number; // totalBaseSalary + totalCommissionEarned - totalDiscrepancy
   daysActive: number;
-  calculatedSalary: number;
-  totalSales: number; // New for rider-specific total sales
 }
 
 interface RiderMonthlyData {
   [riderName: string]: {
-    [monthYear: string]: MonthlyRiderStats;
+    [monthYear: string]: MonthlyRiderDetailedStats;
   };
 }
 
 interface AggregatedReportData {
   riderData: RiderMonthlyData;
   overallDailyAverageCollection: number;
-  riderSalesChartData: { name: string; total: number }[]; // For the new chart
+  riderSalesChartData: { name: string; total: number }[];
 }
 
 const formatDisplayDateToMonthYear = (dateInput: any): string => {
@@ -86,7 +104,7 @@ export default function RiderMonthlyReportPage() {
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
+  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({}); // Stores per-day salary for 9 hours
 
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
@@ -138,7 +156,7 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0) return; // Ensure allSalesEntries is populated before processing
+    if (isLoading && allSalesEntries.length > 0) return;
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
@@ -160,20 +178,56 @@ export default function RiderMonthlyReportPage() {
       }
       if (!riderMonthlyData[rider][monthYear]) {
         riderMonthlyData[rider][monthYear] = {
+          dailyEntries: [],
           totalLitersSold: 0,
           totalMoneyCollected: 0,
           totalTokenMoney: 0,
+          totalSalesGenerated: 0,
+          totalBaseSalary: 0,
+          totalCommissionEarned: 0,
+          totalDiscrepancy: 0,
+          netMonthlyEarning: 0,
           daysActive: 0,
-          calculatedSalary: 0,
-          totalSales: 0, // Initialize totalSales
         };
       }
+      
+      const riderFullDaySalary = riderSalaries[rider] || 0;
+      const hoursWorked = entry.hoursWorked || 9;
+      const baseDailySalary = (riderFullDaySalary / 9) * hoursWorked;
+      
+      let commissionEarned = 0;
+      if (entry.litersSold > 2000) {
+        commissionEarned = (entry.litersSold - 2000) * 0.10;
+      }
+      
+      // Discrepancy: Positive is shortage (rider owes), Negative is overage (rider has extra)
+      // Net Earning = Base Salary + Commission - Shortage (or + Overage)
+      const netEarning = baseDailySalary + commissionEarned - entry.discrepancy;
+
+      riderMonthlyData[rider][monthYear].dailyEntries.push({
+        id: entry._id || `entry-${Math.random()}`,
+        date: entry.date,
+        firestoreDate: entry.firestoreDate,
+        litersSold: entry.litersSold,
+        hoursWorked: hoursWorked,
+        baseDailySalary: baseDailySalary,
+        commissionEarned: commissionEarned,
+        discrepancy: entry.discrepancy,
+        netEarning: netEarning,
+        totalSale: entry.totalSale,
+        actualReceived: entry.actualReceived,
+      });
 
       riderMonthlyData[rider][monthYear].totalLitersSold += entry.litersSold;
       const actualReceived = typeof entry.actualReceived === 'number' ? entry.actualReceived : 0;
       riderMonthlyData[rider][monthYear].totalMoneyCollected += actualReceived;
       riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney || 0;
-      riderMonthlyData[rider][monthYear].totalSales += entry.totalSale || 0; // Accumulate total sales
+      riderMonthlyData[rider][monthYear].totalSalesGenerated += entry.totalSale || 0;
+      riderMonthlyData[rider][monthYear].totalBaseSalary += baseDailySalary;
+      riderMonthlyData[rider][monthYear].totalCommissionEarned += commissionEarned;
+      riderMonthlyData[rider][monthYear].totalDiscrepancy += entry.discrepancy;
+      riderMonthlyData[rider][monthYear].netMonthlyEarning += netEarning;
+
 
       salesByRiderForChart[rider] = (salesByRiderForChart[rider] || 0) + (entry.totalSale || 0);
 
@@ -181,19 +235,16 @@ export default function RiderMonthlyReportPage() {
       uniqueDaysWithEntriesGlobal.add(dayKey);
     });
 
+    // Calculate days active
     Object.keys(riderMonthlyData).forEach(rider => {
-        Object.keys(riderMonthlyData[rider]).forEach(monthYear => {
-            const monthlyEntriesForRider = filteredEntries.filter(
-                entry => entry.riderName === rider && formatDisplayDateToMonthYear(entry.firestoreDate) === monthYear
-            );
-            const uniqueDaysForRiderInMonth = new Set(monthlyEntriesForRider.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
-            const daysActive = uniqueDaysForRiderInMonth.size;
-            riderMonthlyData[rider][monthYear].daysActive = daysActive;
-
-            const perDaySalary = riderSalaries[rider] || 0;
-            riderMonthlyData[rider][monthYear].calculatedSalary = perDaySalary * daysActive;
-        });
+      Object.keys(riderMonthlyData[rider]).forEach(monthYear => {
+        const uniqueDaysForRiderInMonth = new Set(riderMonthlyData[rider][monthYear].dailyEntries.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
+        riderMonthlyData[rider][monthYear].daysActive = uniqueDaysForRiderInMonth.size;
+        // Sort daily entries by date
+        riderMonthlyData[rider][monthYear].dailyEntries.sort((a,b) => a.firestoreDate.getTime() - b.firestoreDate.getTime());
+      });
     });
+    
 
     const overallDailyAverageCollection = uniqueDaysWithEntriesGlobal.size > 0
       ? totalCollectionAcrossAllDays / uniqueDaysWithEntriesGlobal.size
@@ -276,7 +327,7 @@ export default function RiderMonthlyReportPage() {
               Total Sales per Rider
             </CardTitle>
             <CardDescription>
-              Showing total sales for {selectedMonth === "all" ? "all months" : monthNames[parseInt(selectedMonth)]}
+              Showing total sales generated by each rider for {selectedMonth === "all" ? "all months" : monthNames[parseInt(selectedMonth)]}
               {selectedYear === "all" ? "" : ` in ${selectedYear}`}.
             </CardDescription>
           </CardHeader>
@@ -323,42 +374,67 @@ export default function RiderMonthlyReportPage() {
                     <User className="mr-2 h-6 w-6 text-primary" />
                     {riderName}
                   </CardTitle>
-                  <CardDescription>Monthly sales performance for {riderName}. Per-day salary: ₹{(riderSalaries[riderName] || 0).toFixed(2) || 'Not Set'}</CardDescription>
+                  <CardDescription>Monthly performance for {riderName}. Full Day Salary (9hr): ₹{(riderSalaries[riderName] || 0).toFixed(2) || 'Not Set'}</CardDescription>
                 </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead><CalendarDays className="inline-block mr-1 h-4 w-4"/>Month</TableHead>
-                          <TableHead className="text-right"><Droplets className="inline-block mr-1 h-4 w-4"/>Liters Sold</TableHead>
-                          <TableHead className="text-right"><TrendingUp className="inline-block mr-1 h-4 w-4"/>Total Sales (₹)</TableHead>
-                          <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Money Collected (₹)</TableHead>
-                          <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Token Money (₹)</TableHead>
-                          <TableHead className="text-right"><CalendarDays className="inline-block mr-1 h-4 w-4"/>Days Active</TableHead>
-                          <TableHead className="text-right"><TrendingUp className="inline-block mr-1 h-4 w-4"/>Avg. Daily Collection (₹)</TableHead>
-                          <TableHead className="text-right"><Wallet className="inline-block mr-1 h-4 w-4"/>Calculated Salary (₹)</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {riderMonths.map(([monthYear, stats]) => {
-                          const riderDailyAverage = stats.daysActive > 0 ? stats.totalMoneyCollected / stats.daysActive : 0;
-                          return (
-                            <TableRow key={monthYear}>
-                              <TableCell className="font-medium">{monthYear}</TableCell>
-                              <TableCell className="text-right">{stats.totalLitersSold.toFixed(2)} L</TableCell>
-                              <TableCell className="text-right">₹{stats.totalSales.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">₹{stats.totalMoneyCollected.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">₹{stats.totalTokenMoney.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">{stats.daysActive}</TableCell>
-                              <TableCell className="text-right">₹{riderDailyAverage.toFixed(2)}</TableCell>
-                              <TableCell className="text-right">₹{stats.calculatedSalary.toFixed(2)}</TableCell>
+                <CardContent className="space-y-6">
+                  {riderMonths.map(([monthYear, stats]) => (
+                    <div key={monthYear}>
+                      <h4 className="text-lg font-semibold mb-2">{monthYear} (Active Days: {stats.daysActive})</h4>
+                      <div className="overflow-x-auto border rounded-md">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead><CalendarDays className="inline-block mr-1 h-4 w-4"/>Date</TableHead>
+                              <TableHead className="text-right"><Droplets className="inline-block mr-1 h-4 w-4"/>Liters</TableHead>
+                              <TableHead className="text-right"><Clock className="inline-block mr-1 h-4 w-4"/>Hours</TableHead>
+                              <TableHead className="text-right"><TrendingUp className="inline-block mr-1 h-4 w-4"/>Total Sale (₹)</TableHead>
+                              <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Actual Rcvd (₹)</TableHead>
+                              <TableHead className="text-right"><Briefcase className="inline-block mr-1 h-4 w-4"/>Base Salary (₹)</TableHead>
+                              <TableHead className="text-right"><Gift className="inline-block mr-1 h-4 w-4"/>Commission (₹)</TableHead>
+                              <TableHead className="text-right">Discrepancy (₹)</TableHead>
+                              <TableHead className="text-right"><Wallet className="inline-block mr-1 h-4 w-4"/>Net Earning (₹)</TableHead>
                             </TableRow>
-                          );
-                        })}
-                      </TableBody>
-                    </Table>
-                  </div>
+                          </TableHeader>
+                          <TableBody>
+                            {stats.dailyEntries.map(day => (
+                              <TableRow key={day.id}>
+                                <TableCell className="font-medium">{format(day.firestoreDate, "dd-MMM")}</TableCell>
+                                <TableCell className="text-right">{day.litersSold.toFixed(2)} L</TableCell>
+                                <TableCell className="text-right">{day.hoursWorked} hr</TableCell>
+                                <TableCell className="text-right">₹{day.totalSale.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">₹{day.actualReceived.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">₹{day.baseDailySalary.toFixed(2)}</TableCell>
+                                <TableCell className="text-right">₹{day.commissionEarned.toFixed(2)}</TableCell>
+                                <TableCell className={`text-right ${day.discrepancy > 0 ? 'text-red-600' : day.discrepancy < 0 ? 'text-green-600' : ''}`}>
+                                  {day.discrepancy > 0 && <MinusCircle className="inline-block mr-1 h-3 w-3"/>}
+                                  {day.discrepancy < 0 && <PlusCircle className="inline-block mr-1 h-3 w-3"/>}
+                                  ₹{Math.abs(day.discrepancy).toFixed(2)}
+                                </TableCell>
+                                <TableCell className="text-right font-semibold">₹{day.netEarning.toFixed(2)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                          <TableFooter>
+                            <TableRow className="bg-muted/50 font-semibold">
+                              <TableCell colSpan={1}>Month Totals:</TableCell>
+                              <TableCell className="text-right">{stats.totalLitersSold.toFixed(2)} L</TableCell>
+                              <TableCell className="text-right">-</TableCell> {/* Total Hours not directly useful */}
+                              <TableCell className="text-right">₹{stats.totalSalesGenerated.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">₹{stats.totalMoneyCollected.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">₹{stats.totalBaseSalary.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">₹{stats.totalCommissionEarned.toFixed(2)}</TableCell>
+                              <TableCell className={`text-right ${stats.totalDiscrepancy > 0 ? 'text-red-600' : stats.totalDiscrepancy < 0 ? 'text-green-600' : ''}`}>
+                                {stats.totalDiscrepancy > 0 && <MinusCircle className="inline-block mr-1 h-3 w-3"/>}
+                                {stats.totalDiscrepancy < 0 && <PlusCircle className="inline-block mr-1 h-3 w-3"/>}
+                                ₹{Math.abs(stats.totalDiscrepancy).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right text-lg">₹{stats.netMonthlyEarning.toFixed(2)}</TableCell>
+                            </TableRow>
+                          </TableFooter>
+                        </Table>
+                      </div>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             );

@@ -10,8 +10,18 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, BarChart3, User, Droplets, IndianRupee, Clock, Briefcase, Gift } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import type { ChartConfig } from "@/components/ui/chart";
+
 
 const formatDisplayDate = (dateInput: any): string => {
   if (!dateInput) return 'Invalid Date';
@@ -19,7 +29,7 @@ const formatDisplayDate = (dateInput: any): string => {
   if (isNaN(date.getTime())) {
     return 'Invalid Date';
   }
-  return formatDateFns(date, 'PPP p');
+  return formatDateFns(date, 'PPP p'); // Format like "Jun 21, 2024, 3:30 PM"
 };
 
 interface SalesReportDataWithId extends SalesReportData {
@@ -30,13 +40,13 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
   const response = await fetch('/api/sales-reports');
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to fetch sales data');
+    throw new Error(errorData.message || 'Failed to fetch sales data from MongoDB');
   }
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate),
-    _id: entry._id
+    firestoreDate: new Date(entry.firestoreDate), // Ensure it's a Date object
+    _id: entry._id // Assuming MongoDB returns _id
   }));
 }
 
@@ -54,6 +64,7 @@ export default function AdminViewDataPage() {
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
+  const [chartData, setChartData] = useState<{ name: string; totalSales: number }[]>([]);
 
   useEffect(() => {
     setIsLoading(true);
@@ -85,6 +96,22 @@ export default function AdminViewDataPage() {
     });
   }, [allSalesEntries, selectedYear, selectedMonth]);
 
+  useEffect(() => {
+    if (filteredEntries.length > 0) {
+      const salesByRider: { [key: string]: number } = {};
+      filteredEntries.forEach(entry => {
+        salesByRider[entry.riderName] = (salesByRider[entry.riderName] || 0) + entry.totalSale;
+      });
+      setChartData(
+        Object.entries(salesByRider)
+          .map(([name, totalSales]) => ({ name, totalSales: parseFloat(totalSales.toFixed(2)) }))
+          .sort((a, b) => b.totalSales - a.totalSales)
+      );
+    } else {
+      setChartData([]);
+    }
+  }, [filteredEntries]);
+
   const sortedEntries = useMemo(() => {
     let sortableItems = [...filteredEntries];
     if (sortConfig.key !== null) {
@@ -103,8 +130,9 @@ export default function AdminViewDataPage() {
         if (typeof valA === 'string' && typeof valB === 'string') {
           return sortConfig.direction === 'ascending' ? valA.localeCompare(valB) : valB.localeCompare(valA);
         }
-
+        // @ts-ignore
         if (valA < valB) return sortConfig.direction === 'ascending' ? -1 : 1;
+        // @ts-ignore
         if (valA > valB) return sortConfig.direction === 'ascending' ? 1 : -1;
         return 0;
       });
@@ -126,6 +154,13 @@ export default function AdminViewDataPage() {
     }
     return '';
   };
+
+  const chartConfig = {
+    totalSales: {
+      label: "Total Sales (₹)",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig;
 
   if (isLoading) {
     return (
@@ -150,17 +185,18 @@ export default function AdminViewDataPage() {
     );
   }
 
-  const tableHeaders: { key: keyof SalesReportDataWithId; label: string; sortable?: boolean }[] = [
-    { key: 'firestoreDate', label: 'Date & Time', sortable: true },
-    { key: 'riderName', label: 'Rider', sortable: true },
+  const tableHeaders: { key: keyof SalesReportDataWithId; label: string; sortable?: boolean; icon?: React.ElementType }[] = [
+    { key: 'firestoreDate', label: 'Date & Time', sortable: true, icon: CalendarDays },
+    { key: 'riderName', label: 'Rider', sortable: true, icon: User },
     { key: 'vehicleName', label: 'Vehicle', sortable: true },
-    { key: 'litersSold', label: 'Liters Sold', sortable: true },
-    { key: 'totalSale', label: 'Total Sale (₹)', sortable: true },
-    { key: 'actualReceived', label: 'Actual Rcvd (₹)', sortable: true },
-    { key: 'dueCollected', label: 'Due Collected (₹)', sortable: true },
-    { key: 'newDueAmount', label: 'New Due (₹)', sortable: true },
-    { key: 'aiAdjustedExpectedAmount', label: 'Adj. Expected (₹)', sortable: true },
-    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true },
+    { key: 'hoursWorked', label: 'Hours', sortable: true, icon: Clock },
+    { key: 'litersSold', label: 'Liters Sold', sortable: true, icon: Droplets },
+    { key: 'totalSale', label: 'Total Sale (₹)', sortable: true, icon: IndianRupee },
+    { key: 'actualReceived', label: 'Actual Rcvd (₹)', sortable: true, icon: IndianRupee },
+    { key: 'dailySalaryCalculated', label: 'Daily Salary (₹)', sortable: true, icon: Briefcase },
+    { key: 'commissionEarned', label: 'Commission (₹)', sortable: true, icon: Gift },
+    { key: 'newDueAmount', label: 'New Due (₹)', sortable: true, icon: IndianRupee },
+    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true, icon: IndianRupee },
     { key: 'status', label: 'Status', sortable: true },
     { key: 'comment', label: 'Comment' },
   ];
@@ -219,6 +255,42 @@ export default function AdminViewDataPage() {
           </div>
         </CardContent>
       </Card>
+      
+      {chartData.length > 0 && (
+        <Card className="mb-8 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <BarChart3 className="mr-2 h-5 w-5 text-primary" />
+              Total Sales per Rider (Filtered)
+            </CardTitle>
+            <CardDescription>
+              Showing total sales contribution by each rider based on the current filters.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2 pr-6">
+            <div style={{ height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
+                  <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      tickMargin={10}
+                      axisLine={false}
+                    />
+                    <YAxis tickFormatter={(value) => `₹${value}`} />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="totalSales" fill="var(--color-totalSales)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
 
       <Card className="shadow-lg">
         <CardHeader>
@@ -239,8 +311,9 @@ export default function AdminViewDataPage() {
                       <TableHead
                         key={header.key}
                         onClick={header.sortable ? () => requestSort(header.key as keyof SalesReportDataWithId) : undefined}
-                        className={header.sortable ? "cursor-pointer hover:bg-muted/50" : ""}
+                        className={cn("whitespace-nowrap", header.sortable ? "cursor-pointer hover:bg-muted/50" : "")}
                       >
+                        {header.icon && <header.icon className="inline-block mr-1 h-4 w-4" />}
                         {header.label}
                         {header.sortable ? getSortIndicator(header.key as keyof SalesReportDataWithId) : ''}
                       </TableHead>
@@ -254,13 +327,13 @@ export default function AdminViewDataPage() {
                         let cellValue = entry[header.key as keyof SalesReportDataWithId];
                         if (header.key === 'firestoreDate') {
                            cellValue = formatDisplayDate(entry.firestoreDate);
-                        } else if (typeof cellValue === 'number' && (header.label.includes('(₹)') || header.key === 'litersSold' || header.key === 'discrepancy')) {
+                        } else if (typeof cellValue === 'number' && (header.label.includes('(₹)') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'dailySalaryCalculated' || header.key === 'commissionEarned')) {
                            cellValue = cellValue.toFixed(2);
                         } else if (cellValue === undefined || cellValue === null) {
                           cellValue = '-';
                         }
                         return (
-                          <TableCell key={`${entry._id}-${header.key}`}>
+                          <TableCell key={`${entry._id}-${header.key}`} className="whitespace-nowrap">
                             {String(cellValue)}
                           </TableCell>
                         );

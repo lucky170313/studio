@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -172,7 +172,6 @@ export default function AquaTrackPage() {
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      // Discrepancy = (Total Sale + Due Collected) - (Cash Received + Online Received + New Due Amount + Token Money + Extra Amount + Staff Expense)
       const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       let status: SalesReportData['status'];
@@ -184,7 +183,17 @@ export default function AquaTrackPage() {
         status = 'Overage';
       }
 
-      const newReportData: Omit<SalesReportData, 'id'> = {
+      // Calculate daily salary and commission
+      const riderPerDaySalary = riderSalaries[values.riderName] || 0;
+      const hoursWorked = values.hoursWorked || 9; // Default to 9 if not provided
+      const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
+      
+      let commissionEarned = 0;
+      if (finalLitersSold > 2000) {
+        commissionEarned = (finalLitersSold - 2000) * 0.10;
+      }
+
+      const newReportData: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'), 
         firestoreDate: submissionDateObject, 
         riderName: values.riderName,
@@ -201,6 +210,9 @@ export default function AquaTrackPage() {
         tokenMoney: values.tokenMoney,
         staffExpense: values.staffExpense,
         extraAmount: values.extraAmount,
+        hoursWorked: hoursWorked,
+        dailySalaryCalculated: dailySalaryCalculated,
+        commissionEarned: commissionEarned,
         comment: values.comment || "",
         totalSale,
         actualReceived,
@@ -218,6 +230,13 @@ export default function AquaTrackPage() {
       if (reportToSave.comment === undefined || reportToSave.comment === "") {
          delete reportToSave.comment;
       }
+      if (reportToSave.dailySalaryCalculated === undefined) {
+        reportToSave.dailySalaryCalculated = 0;
+      }
+      if (reportToSave.commissionEarned === undefined) {
+        reportToSave.commissionEarned = 0;
+      }
+
 
       const result = await saveSalesReportAction(reportToSave);
 
@@ -234,6 +253,7 @@ export default function AquaTrackPage() {
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
+        // Still set report data for local preview even if DB save fails
         setReportData({ ...newReportData, id: `local-preview-${Date.now()}` }); 
       }
 
@@ -373,7 +393,7 @@ export default function AquaTrackPage() {
           AquaTrack
         </h1>
         <p className="mt-2 text-xl text-muted-foreground">
-          Daily Sales & Reconciliation Reporter (MongoDB)
+          Daily Sales & Reconciliation Reporter (MongoDB Version)
         </p>
       </header>
 
@@ -474,7 +494,7 @@ export default function AquaTrackPage() {
               </div>
               {riderNames.length > 0 ? (
                 <div>
-                  <h4 className="text-md font-medium mb-2">Current Riders:</h4>
+                  <h4 className="text-md font-medium mb-2 mt-4">Current Riders:</h4>
                   <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
                     {riderNames.map(name => (
                       <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
@@ -502,7 +522,7 @@ export default function AquaTrackPage() {
               <CardTitle className="text-xl text-primary flex items-center">
                 <DollarSign className="mr-2 h-5 w-5" />Manage Rider Salaries (Per Day)
               </CardTitle>
-              <CardDescription>Set the per-day salary for each rider. Used for monthly report calculations.</CardDescription>
+              <CardDescription>Set the per-day salary for each rider (for a full 9-hour day). Used for monthly report calculations.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:items-end">
@@ -523,7 +543,7 @@ export default function AquaTrackPage() {
                   </Select>
                 </div>
                 <div className="sm:w-40">
-                  <Label htmlFor="salaryInput">Salary (₹/Day)</Label>
+                  <Label htmlFor="salaryInput">Full Day Salary (₹)</Label>
                   <Input
                     id="salaryInput"
                     type="number"
@@ -535,14 +555,14 @@ export default function AquaTrackPage() {
                   />
                 </div>
               </div>
-              <div>
+              <div className="mt-2">
                 <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="w-full sm:w-auto">
-                  Set Salary
+                  Set Full Day Salary
                 </Button>
               </div>
               {Object.keys(riderSalaries).length > 0 && (
-                 <div>
-                  <h4 className="text-md font-medium mb-2">Current Salaries:</h4>
+                 <div className="mt-4">
+                  <h4 className="text-md font-medium mb-2">Current Full Day Salaries:</h4>
                     <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
                       {riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (
                         <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
@@ -632,6 +652,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-    
-
-    

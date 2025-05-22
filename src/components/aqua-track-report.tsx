@@ -5,7 +5,7 @@ import type { SalesReportData } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Truck, CalendarDays, Droplets, DollarSign, MessageSquare, AlertTriangle, CheckCircle, Info, Edit3, BarChartBig, Gauge } from 'lucide-react';
+import { User, Truck, CalendarDays, Droplets, DollarSign, MessageSquare, AlertTriangle, CheckCircle, Info, Edit3, BarChartBig, Gauge, Clock, Briefcase, Gift } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface AquaTrackReportProps {
@@ -19,7 +19,7 @@ const ReportItem: React.FC<{ icon: React.ElementType; label: string; value: stri
       <span>{label}</span>
     </div>
     <span className="text-sm font-medium text-foreground text-right">
-      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount') || label.toLowerCase().includes('new due')) ? `₹${value.toFixed(2)}` : value}
+      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount') || label.toLowerCase().includes('new due') || label.toLowerCase().includes('salary') || label.toLowerCase().includes('commission')) ? `₹${value.toFixed(2)}` : value}
       {unit && <span className="text-xs text-muted-foreground ml-1">{unit}</span>}
     </span>
   </div>
@@ -28,17 +28,14 @@ const ReportItem: React.FC<{ icon: React.ElementType; label: string; value: stri
 
 export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
   const getStatusBadge = (status: SalesReportData['status'], discrepancy: number) => {
-    // Discrepancy = Expected - Actual
-    // Positive discrepancy = Shortage
-    // Negative discrepancy = Overage
     if (status === 'Match') {
       return <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white"><CheckCircle className="mr-1 h-4 w-4" />Match</Badge>;
-    } else if (status === 'Shortage') { // Corresponds to discrepancy > 0
+    } else if (status === 'Shortage') {
       return <Badge variant="destructive"><AlertTriangle className="mr-1 h-4 w-4" />Shortage</Badge>;
-    } else if (status === 'Overage') { // Corresponds to discrepancy < 0
+    } else if (status === 'Overage') { 
       return <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-black"><Info className="mr-1 h-4 w-4" />Overage</Badge>;
     }
-    return <Badge>{status}</Badge>; // Fallback
+    return <Badge>{status}</Badge>;
   };
 
   const litersSoldLabel = (reportData.adminOverrideLitersSold && reportData.adminOverrideLitersSold > 0)
@@ -60,6 +57,7 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
           <ReportItem icon={User} label="Rider Name" value={reportData.riderName} />
           <ReportItem icon={Truck} label="Vehicle Name" value={reportData.vehicleName} />
           <ReportItem icon={CalendarDays} label="Date" value={reportData.date} />
+          <ReportItem icon={Clock} label="Hours Worked" value={reportData.hoursWorked} unit="hrs" />
           <ReportItem icon={Gauge} label="Previous Meter Reading" value={reportData.previousMeterReading} />
           <ReportItem icon={Gauge} label="Current Meter Reading" value={reportData.currentMeterReading} />
           {reportData.adminOverrideLitersSold && reportData.adminOverrideLitersSold > 0 && (
@@ -71,7 +69,13 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
         </div>
 
         <Separator />
+         <h3 className="text-lg font-semibold text-primary flex items-center"><Briefcase className="mr-2 h-5 w-5" />Rider Earnings (This Entry)</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 pl-2">
+          <ReportItem icon={DollarSign} label="Calculated Daily Salary" value={reportData.dailySalaryCalculated ?? 0} />
+          <ReportItem icon={Gift} label="Commission Earned" value={reportData.commissionEarned ?? 0} />
+        </div>
 
+        <Separator />
         <h3 className="text-lg font-semibold text-primary flex items-center"><DollarSign className="mr-2 h-5 w-5" />Amount Received</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 pl-2">
           <ReportItem icon={DollarSign} label="Cash Received" value={reportData.cashReceived} />
@@ -110,11 +114,10 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
         <Separator />
         
         <div className="space-y-3 pt-2">
-          {/* Discrepancy is Expected - Actual. Positive means shortage, Negative means overage. */}
           <ReportItem 
             icon={DollarSign} 
             label="Discrepancy" 
-            value={reportData.discrepancy} // Show actual signed discrepancy
+            value={reportData.discrepancy}
             className="text-lg font-bold" 
           />
           <div className="flex items-center justify-between py-2">
