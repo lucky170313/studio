@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, AlertCircleIcon } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, AlertCircleIcon, FileSpreadsheet } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -204,7 +204,7 @@ export default function AquaTrackPage() {
       const initialAdjustedExpected =
         totalSale +
         values.dueCollected -
-        values.newDueAmount - // Added newDueAmount
+        values.newDueAmount -
         values.tokenMoney -
         values.staffExpense -
         values.extraAmount;
@@ -265,8 +265,8 @@ export default function AquaTrackPage() {
         discrepancy,
         status,
       };
-
-      const reportToSaveForMongoDB = { ...newReportData };
+      
+      const reportToSaveForMongoDB: Partial<SalesReportData> = { ...newReportData };
       if (reportToSaveForMongoDB.adminOverrideLitersSold === undefined) {
         delete reportToSaveForMongoDB.adminOverrideLitersSold;
       }
@@ -280,7 +280,8 @@ export default function AquaTrackPage() {
         reportToSaveForMongoDB.commissionEarned = 0;
       }
 
-      const result = await saveSalesReportAction(reportToSaveForMongoDB);
+      const result = await saveSalesReportAction(reportToSaveForMongoDB as Omit<SalesReportData, 'id'>);
+
 
       if (result.success && result.id) {
         toast({
@@ -288,14 +289,14 @@ export default function AquaTrackPage() {
           description: result.message,
           variant: 'default',
         });
-        setReportData({ ...newReportData, id: result.id });
+        setReportData({ ...newReportData, id: result.id, _id: result.id });
       } else {
         toast({
           title: 'Database Error (MongoDB)',
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        setReportData({ ...newReportData, id: `local-preview-${Date.now()}` });
+        setReportData({ ...newReportData, id: `local-preview-${Date.now()}`, _id: `local-preview-${Date.now()}` });
       }
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
@@ -533,7 +534,7 @@ export default function AquaTrackPage() {
                 </Link>
                  <Link href="/admin/user-monthly-cash-report" passHref>
                   <Button variant="outline" className="w-full sm:w-auto">
-                    <Users className="mr-2 h-4 w-4" /> User Cash Report
+                    <Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report
                   </Button>
                 </Link>
               </CardContent>

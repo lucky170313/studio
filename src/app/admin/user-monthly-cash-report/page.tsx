@@ -74,7 +74,7 @@ const monthNames = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-export default function UserMonthlyCashReportPage() {
+export default function CollectorMonthlyCashReportPage() { // Renamed component
   const [allSalesEntries, setAllSalesEntries] = useState<SalesReportData[]>([]);
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -98,7 +98,7 @@ export default function UserMonthlyCashReportPage() {
         setError(null);
       })
       .catch(err => {
-        console.error("Error fetching sales data for user cash report:", err);
+        console.error("Error fetching sales data for collector's cash report:", err);
         setError(err.message || 'Failed to load sales entries.');
         setReportData(null);
       })
@@ -127,7 +127,7 @@ export default function UserMonthlyCashReportPage() {
     const userMonthlyCashData: UserMonthlyData = {};
 
     filteredEntries.forEach(entry => {
-      const user = entry.recordedBy; // Using riderName as placeholder for recordedBy
+      const user = entry.recordedBy; 
       const entryDate = new Date(entry.firestoreDate);
       const monthYear = formatDisplayDateToMonthYear(entryDate);
 
@@ -155,7 +155,7 @@ export default function UserMonthlyCashReportPage() {
         Object.entries(reportData.userData).forEach(([userName, monthlyData]) => {
             Object.entries(monthlyData).forEach(([monthYear, stats]) => {
                 exportableData.push({
-                    User: userName,
+                    "Collector (User ID)": userName,
                     "Month-Year": monthYear,
                     "Total Cash Received (₹)": stats.totalCashReceived.toFixed(2)
                 });
@@ -164,17 +164,17 @@ export default function UserMonthlyCashReportPage() {
     }
     
     if (exportableData.length > 0) {
-        sheetsToExport.push({data: exportableData, sheetName: "User Monthly Cash Received"});
+        sheetsToExport.push({data: exportableData, sheetName: "Collector Monthly Cash Received"});
     }
     
-    handleExcelExport(sheetsToExport, "UserMonthlyCashReport_AquaTrack");
+    handleExcelExport(sheetsToExport, "CollectorMonthlyCashReport_AquaTrack");
   };
 
   if (isLoading && !reportData) {
     return (
       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Generating user cash report...</p>
+        <p className="text-lg text-muted-foreground">Generating collector's cash report...</p>
       </main>
     );
   }
@@ -220,9 +220,9 @@ export default function UserMonthlyCashReportPage() {
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <Users className="mr-2 h-6 w-6 text-primary" />
-                  {userName}
+                  Collector: {userName}
                 </CardTitle>
-                <CardDescription>Monthly cash collection report for {userName}.</CardDescription>
+                <CardDescription>Monthly cash collection report for {userName} (Admin/Team Leader who recorded entries).</CardDescription>
               </CardHeader>
               <CardContent>
                 <Table>
@@ -254,7 +254,7 @@ export default function UserMonthlyCashReportPage() {
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-3xl font-bold text-primary flex items-center">
           <Users className="mr-3 h-8 w-8" />
-          User Monthly Cash Report
+          Collector's Monthly Cash Report
         </h1>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={exportCurrentReportData}>
@@ -309,9 +309,11 @@ export default function UserMonthlyCashReportPage() {
       {mainContent()}
 
        <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AquaTrack. User Monthly Cash Report.</p>
-        <p className="text-xs mt-1">Note: 'User' in this report currently refers to the 'Rider Name' selected during data entry, as a placeholder for a full user login system.</p>
+        <p>&copy; {new Date().getFullYear()} AquaTrack. Collector's Monthly Cash Report.</p>
+        <p className="text-xs mt-1">Note: 'Collector' in this report refers to the User ID (Admin/Team Leader) who recorded the sales entries.</p>
       </footer>
     </main>
   );
 }
+
+    
