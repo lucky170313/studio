@@ -4,18 +4,21 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { SalesReportData } from '@/lib/types'; // Ensure this matches MongoDB structure
+import type { SalesReportData } from '@/lib/types'; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet } from 'lucide-react';
 import { format as formatDateFns } from 'date-fns';
+
+const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp'; // Same key as in page.tsx
 
 interface MonthlyRiderStats {
   totalLitersSold: number;
-  totalMoneyCollected: number; // This will be actualReceived
+  totalMoneyCollected: number; 
   totalTokenMoney: number;
-  daysActive: number; // For daily average calculation
+  daysActive: number;
+  calculatedSalary: number; // New field for salary
 }
 
 interface RiderMonthlyData {
@@ -62,10 +65,9 @@ async function fetchSalesDataForReport(): Promise<SalesReportData[]> {
     throw new Error(errorData.message || 'Failed to fetch sales data for report');
   }
   const data = await response.json();
-  // Ensure firestoreDate is a Date object
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate)
+    firestoreDate: new Date(entry.firestoreDate) // Ensure this is a Date object
   }));
 }
 
@@ -74,8 +76,22 @@ export default function RiderMonthlyReportPage() {
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
 
   useEffect(() => {
+    // Load rider salaries from localStorage
+    try {
+      const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
+      if (storedSalaries) {
+        const parsedSalaries = JSON.parse(storedSalaries);
+        if (typeof parsedSalaries === 'object' && parsedSalaries !== null) {
+          setRiderSalaries(parsedSalaries);
+        }
+      }
+    } catch (e) {
+      console.error("Failed to load rider salaries from localStorage", e);
+    }
+
     setIsLoading(true);
     fetchSalesDataForReport()
       .then(allEntries => {
@@ -103,33 +119,32 @@ export default function RiderMonthlyReportPage() {
               totalMoneyCollected: 0,
               totalTokenMoney: 0,
               daysActive: 0,
+              calculatedSalary: 0, // Initialize salary
             };
           }
 
           riderMonthlyData[rider][monthYear].totalLitersSold += entry.litersSold;
-          riderMonthlyData[rider][monthYear].totalMoneyCollected += entry.actualReceived; // Cash + Online
+          riderMonthlyData[rider][monthYear].totalMoneyCollected += entry.actualReceived; 
           riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney;
           
-          // Count unique days active for this rider in this month (for potential rider-specific averages)
-          // This part is not directly used in the current display but is good for future enhancements
-          // For overall average, we use a global set of unique days below.
-
-          // For overall daily average calculation
           totalCollectionAcrossAllDays += entry.actualReceived;
           uniqueDaysWithEntries.add(dayKey);
         });
         
-        // Refine daysActive per rider per month
         Object.keys(riderMonthlyData).forEach(rider => {
             Object.keys(riderMonthlyData[rider]).forEach(monthYear => {
                 const monthlyEntriesForRider = allEntries.filter(
                     entry => entry.riderName === rider && formatDisplayDateToMonthYear(entry.firestoreDate) === monthYear
                 );
                 const uniqueDaysForRiderInMonth = new Set(monthlyEntriesForRider.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
-                riderMonthlyData[rider][monthYear].daysActive = uniqueDaysForRiderInMonth.size;
+                const daysActive = uniqueDaysForRiderInMonth.size;
+                riderMonthlyData[rider][monthYear].daysActive = daysActive;
+
+                // Calculate salary
+                const perDaySalary = riderSalaries[rider] || 0;
+                riderMonthlyData[rider][monthYear].calculatedSalary = perDaySalary * daysActive;
             });
         });
-
 
         const overallDailyAverageCollection = uniqueDaysWithEntries.size > 0
           ? totalCollectionAcrossAllDays / uniqueDaysWithEntries.size
@@ -146,7 +161,7 @@ export default function RiderMonthlyReportPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []);
+  }, [riderSalaries]); // Add riderSalaries to dependency array to re-trigger if salaries change (though unlikely in this view)
 
   if (isLoading) {
     return (
@@ -233,7 +248,7 @@ export default function RiderMonthlyReportPage() {
                 <User className="mr-2 h-6 w-6 text-primary" />
                 {riderName}
               </CardTitle>
-              <CardDescription>Monthly sales performance for {riderName}.</CardDescription>
+              <CardDescription>Monthly sales performance for {riderName}. Per-day salary: ₹{riderSalaries[riderName]?.toFixed(2) || 'Not Set'}</CardDescription>
             </CardHeader>
             <CardContent>
               {Object.keys(reportData.riderData[riderName]).length === 0 ? (
@@ -248,13 +263,13 @@ export default function RiderMonthlyReportPage() {
                         <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Total Money Collected</TableHead>
                         <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Total Token Money</TableHead>
                         <TableHead className="text-right"><CalendarDays className="inline-block mr-1 h-4 w-4"/>Days Active</TableHead>
-                         <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Avg. Daily Collection (Rider)</TableHead>
+                        <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Avg. Daily Collection</TableHead>
+                        <TableHead className="text-right"><Wallet className="inline-block mr-1 h-4 w-4"/>Calculated Salary</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {Object.entries(reportData.riderData[riderName])
                         .sort(([monthYearA], [monthYearB]) => {
-                            // Ensure consistent date parsing for sorting
                             const dateA = new Date(monthYearA.replace(/(\w+) (\d+)/, '$1 1, $2'));
                             const dateB = new Date(monthYearB.replace(/(\w+) (\d+)/, '$1 1, $2'));
                             return dateA.getTime() - dateB.getTime();
@@ -269,6 +284,7 @@ export default function RiderMonthlyReportPage() {
                               <TableCell className="text-right">₹{stats.totalTokenMoney.toFixed(2)}</TableCell>
                               <TableCell className="text-right">{stats.daysActive}</TableCell>
                               <TableCell className="text-right">₹{riderDailyAverage.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">₹{stats.calculatedSalary.toFixed(2)}</TableCell>
                             </TableRow>
                           );
                         })}
@@ -286,3 +302,4 @@ export default function RiderMonthlyReportPage() {
     </main>
   );
 }
+

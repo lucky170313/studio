@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -16,11 +16,13 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { saveSalesReportAction } from './actions'; 
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
-const RIDER_NAMES_KEY = 'riderNames';
-const DEFAULT_RIDER_NAMES = ['Rider John', 'Rider Jane', 'Rider Alex'];
+const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp'; // Changed key to be more specific
+const DEFAULT_RIDER_NAMES = ['Rider A', 'Rider B', 'Rider C'];
+const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -33,6 +35,10 @@ export default function AquaTrackPage() {
   const [riderNames, setRiderNames] = useState<string[]>([]);
   const [riderNameInput, setRiderNameInput] = useState('');
   const [editingRiderOriginalName, setEditingRiderOriginalName] = useState<string | null>(null);
+
+  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
+  const [selectedRiderForSalary, setSelectedRiderForSalary] = useState<string>('');
+  const [salaryInput, setSalaryInput] = useState<string>('');
 
 
   useEffect(() => {
@@ -65,6 +71,19 @@ export default function AquaTrackPage() {
     } catch (error) {
       console.error("Failed to parse riderNames from localStorage", error);
       setRiderNames(DEFAULT_RIDER_NAMES);
+    }
+
+    try {
+      const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
+      if (storedSalaries) {
+        const parsedSalaries = JSON.parse(storedSalaries);
+        if (typeof parsedSalaries === 'object' && parsedSalaries !== null) {
+          setRiderSalaries(parsedSalaries);
+        }
+      }
+    } catch (error) {
+      console.error("Failed to parse riderSalaries from localStorage", error);
+      setRiderSalaries({});
     }
     
     setCurrentYear(new Date().getFullYear());
@@ -99,7 +118,6 @@ export default function AquaTrackPage() {
       const actualReceived = values.cashReceived + values.onlineReceived;
       const submissionDateObject = values.date instanceof Date ? values.date : new Date();
       
-      // New calculation for initialAdjustedExpected
       const initialAdjustedExpected = 
         totalSale + 
         values.dueCollected - 
@@ -108,65 +126,48 @@ export default function AquaTrackPage() {
         values.staffExpense - 
         values.extraAmount;
       
-      const aiAdjustedExpectedAmount = initialAdjustedExpected; // AI Bypassed
+      const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      // New discrepancy calculation: Expected - Actual
-      const discrepancy = aiAdjustedExpectedAmount - actualReceived;
+      const discrepancy = initialAdjustedExpected - actualReceived;
       
       let status: SalesReportData['status'];
-      if (Math.abs(discrepancy) < 0.01) { // Match
+      if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
-      } else if (discrepancy > 0) { // Expected > Actual => Shortage
+      } else if (discrepancy > 0) {
         status = 'Shortage';
-      } else { // Actual > Expected (discrepancy is negative) => Overage
+      } else { 
         status = 'Overage';
       }
 
-      const newReportData: SalesReportData = {
-        ...values, 
+      const newReportData: Omit<SalesReportData, 'id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'), 
         firestoreDate: submissionDateObject, 
+        riderName: values.riderName,
+        vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
         currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
         adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) ? values.overrideLitersSold : undefined,
-        newDueAmount: values.newDueAmount, // include new field
+        ratePerLiter: values.ratePerLiter,
+        cashReceived: values.cashReceived,
+        onlineReceived: values.onlineReceived,
+        dueCollected: values.dueCollected,
+        newDueAmount: values.newDueAmount,
+        tokenMoney: values.tokenMoney,
+        staffExpense: values.staffExpense,
+        extraAmount: values.extraAmount,
+        comment: values.comment,
         totalSale,
         actualReceived,
         initialAdjustedExpected,
-        aiAdjustedExpectedAmount: aiAdjustedExpectedAmount,
-        aiReasoning: aiReasoning,
+        aiAdjustedExpectedAmount,
+        aiReasoning,
         discrepancy,
         status,
       };
       
-      const reportToSaveForServer = {
-        date: newReportData.date,
-        firestoreDate: newReportData.firestoreDate,
-        riderName: newReportData.riderName,
-        vehicleName: newReportData.vehicleName,
-        previousMeterReading: newReportData.previousMeterReading,
-        currentMeterReading: newReportData.currentMeterReading,
-        litersSold: newReportData.litersSold,
-        ratePerLiter: newReportData.ratePerLiter,
-        cashReceived: newReportData.cashReceived,
-        onlineReceived: newReportData.onlineReceived,
-        dueCollected: newReportData.dueCollected,
-        newDueAmount: newReportData.newDueAmount, // include new field
-        tokenMoney: newReportData.tokenMoney,
-        staffExpense: newReportData.staffExpense,
-        extraAmount: newReportData.extraAmount,
-        totalSale: newReportData.totalSale,
-        actualReceived: newReportData.actualReceived,
-        initialAdjustedExpected: newReportData.initialAdjustedExpected,
-        aiAdjustedExpectedAmount: newReportData.aiAdjustedExpectedAmount,
-        aiReasoning: newReportData.aiReasoning,
-        discrepancy: newReportData.discrepancy,
-        status: newReportData.status,
-        ...(newReportData.adminOverrideLitersSold !== undefined && { adminOverrideLitersSold: newReportData.adminOverrideLitersSold }),
-        ...(newReportData.comment !== undefined && { comment: newReportData.comment }),
-      };
+      const reportToSaveForServer = { ...newReportData };
 
       const result = await saveSalesReportAction(reportToSaveForServer);
 
@@ -183,8 +184,7 @@ export default function AquaTrackPage() {
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        // Display report locally even if save fails, ID will be missing.
-        setReportData(newReportData); 
+        setReportData({ ...newReportData, id: 'local-preview-only' }); 
       }
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
@@ -222,23 +222,32 @@ export default function AquaTrackPage() {
       return;
     }
     let updatedRiderNames;
+    const trimmedRiderName = riderNameInput.trim();
     if (editingRiderOriginalName) {
-      if (riderNames.includes(riderNameInput.trim()) && riderNameInput.trim() !== editingRiderOriginalName) {
+      if (riderNames.includes(trimmedRiderName) && trimmedRiderName !== editingRiderOriginalName) {
         toast({ title: "Error", description: "This rider name already exists.", variant: "destructive" });
         return;
       }
       updatedRiderNames = riderNames.map(name =>
-        name === editingRiderOriginalName ? riderNameInput.trim() : name
+        name === editingRiderOriginalName ? trimmedRiderName : name
       );
+      // Update salary key if rider name changed
+      if (editingRiderOriginalName !== trimmedRiderName && riderSalaries[editingRiderOriginalName] !== undefined) {
+        const updatedSalaries = { ...riderSalaries };
+        updatedSalaries[trimmedRiderName] = updatedSalaries[editingRiderOriginalName];
+        delete updatedSalaries[editingRiderOriginalName];
+        setRiderSalaries(updatedSalaries);
+        localStorage.setItem(RIDER_SALARIES_KEY, JSON.stringify(updatedSalaries));
+      }
       setEditingRiderOriginalName(null);
-      toast({ title: "Success", description: `Rider "${editingRiderOriginalName}" updated to "${riderNameInput.trim()}".` });
+      toast({ title: "Success", description: `Rider "${editingRiderOriginalName}" updated to "${trimmedRiderName}".` });
     } else {
-      if (riderNames.includes(riderNameInput.trim())) {
+      if (riderNames.includes(trimmedRiderName)) {
         toast({ title: "Error", description: "This rider name already exists.", variant: "destructive" });
         return;
       }
-      updatedRiderNames = [...riderNames, riderNameInput.trim()];
-      toast({ title: "Success", description: `Rider "${riderNameInput.trim()}" added.` });
+      updatedRiderNames = [...riderNames, trimmedRiderName];
+      toast({ title: "Success", description: `Rider "${trimmedRiderName}" added.` });
     }
     setRiderNames(updatedRiderNames);
     localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(updatedRiderNames));
@@ -256,15 +265,43 @@ export default function AquaTrackPage() {
   };
 
   const handleDeleteRider = (nameToDelete: string) => {
-    if (window.confirm(`Are you sure you want to delete rider "${nameToDelete}"?`)) {
+    if (window.confirm(`Are you sure you want to delete rider "${nameToDelete}"? This will also remove their salary information.`)) {
       const updatedRiderNames = riderNames.filter(name => name !== nameToDelete);
       setRiderNames(updatedRiderNames);
       localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(updatedRiderNames));
+
+      // Remove salary for the deleted rider
+      const updatedSalaries = { ...riderSalaries };
+      delete updatedSalaries[nameToDelete];
+      setRiderSalaries(updatedSalaries);
+      localStorage.setItem(RIDER_SALARIES_KEY, JSON.stringify(updatedSalaries));
+      if (selectedRiderForSalary === nameToDelete) {
+        setSelectedRiderForSalary('');
+        setSalaryInput('');
+      }
+
       toast({ title: "Success", description: `Rider "${nameToDelete}" deleted.` });
       if (editingRiderOriginalName === nameToDelete) {
         handleCancelEditRider();
       }
     }
+  };
+
+  const handleSetRiderSalary = () => {
+    if (!selectedRiderForSalary) {
+      toast({ title: "Error", description: "Please select a rider.", variant: "destructive" });
+      return;
+    }
+    const salaryValue = parseFloat(salaryInput);
+    if (isNaN(salaryValue) || salaryValue < 0) {
+      toast({ title: "Error", description: "Please enter a valid positive salary.", variant: "destructive" });
+      return;
+    }
+    const updatedSalaries = { ...riderSalaries, [selectedRiderForSalary]: salaryValue };
+    setRiderSalaries(updatedSalaries);
+    localStorage.setItem(RIDER_SALARIES_KEY, JSON.stringify(updatedSalaries));
+    toast({ title: "Success", description: `Salary for ${selectedRiderForSalary} set to ₹${salaryValue}/day.` });
+    // setSalaryInput(''); // Optionally clear input after setting
   };
   
 
@@ -303,7 +340,7 @@ export default function AquaTrackPage() {
             </div>
           </RadioGroup>
           {currentUserRole === 'Admin' && (
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-4 sm:mt-0">
               <Link href="/admin/view-data" passHref>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <Eye className="mr-2 h-4 w-4" /> View All Sales Data
@@ -320,61 +357,120 @@ export default function AquaTrackPage() {
       </Card>
 
       {currentUserRole === 'Admin' && (
-        <Card className="mb-8 shadow-md">
-          <CardHeader>
-            <CardTitle className="text-xl text-primary flex items-center">
-              <UserCog className="mr-2 h-5 w-5" />Manage Riders
-            </CardTitle>
-            <CardDescription>Add, edit, or delete rider names. Changes are saved in your browser.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex space-x-2 items-end">
-              <div className="flex-grow">
-                <Label htmlFor="riderNameInput">Rider Name</Label>
-                <Input
-                  id="riderNameInput"
-                  type="text"
-                  value={riderNameInput}
-                  onChange={handleRiderNameInputChange}
-                  placeholder={editingRiderOriginalName ? "Enter new name" : "Enter new rider name"}
-                  className="text-base"
-                />
-              </div>
-              <Button onClick={handleAddOrUpdateRider} className="h-10">
-                {editingRiderOriginalName ? <Edit3 className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                {editingRiderOriginalName ? 'Update Rider' : 'Add Rider'}
-              </Button>
-              {editingRiderOriginalName && (
-                <Button onClick={handleCancelEditRider} variant="outline" className="h-10">
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Cancel Edit
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="text-xl text-primary flex items-center">
+                <UserCog className="mr-2 h-5 w-5" />Manage Riders
+              </CardTitle>
+              <CardDescription>Add, edit, or delete rider names. Changes are saved in your browser.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex space-x-2 items-end">
+                <div className="flex-grow">
+                  <Label htmlFor="riderNameInput">Rider Name</Label>
+                  <Input
+                    id="riderNameInput"
+                    type="text"
+                    value={riderNameInput}
+                    onChange={handleRiderNameInputChange}
+                    placeholder={editingRiderOriginalName ? "Enter new name" : "Enter new rider name"}
+                    className="text-base"
+                  />
+                </div>
+                <Button onClick={handleAddOrUpdateRider} className="h-10">
+                  {editingRiderOriginalName ? <Edit3 className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                  {editingRiderOriginalName ? 'Update Rider' : 'Add Rider'}
                 </Button>
-              )}
-            </div>
-            {riderNames.length > 0 ? (
-              <div>
-                <h4 className="text-md font-medium mb-2">Current Riders:</h4>
-                <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
-                  {riderNames.map(name => (
-                    <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                      <span className="text-sm">{name}</span>
-                      <div className="space-x-2">
-                        <Button size="sm" variant="outline" onClick={() => handleEditRiderSetup(name)} aria-label={`Edit ${name}`}>
-                          <Edit3 className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="destructive" onClick={() => handleDeleteRider(name)} aria-label={`Delete ${name}`}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
+                {editingRiderOriginalName && (
+                  <Button onClick={handleCancelEditRider} variant="outline" className="h-10">
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Cancel Edit
+                  </Button>
+                )}
               </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No riders added yet. Add some riders to see them here and in the form dropdown.</p>
-            )}
-          </CardContent>
-        </Card>
+              {riderNames.length > 0 ? (
+                <div>
+                  <h4 className="text-md font-medium mb-2">Current Riders:</h4>
+                  <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
+                    {riderNames.map(name => (
+                      <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                        <span className="text-sm">{name}</span>
+                        <div className="space-x-1">
+                          <Button size="sm" variant="outline" onClick={() => handleEditRiderSetup(name)} aria-label={`Edit ${name}`}>
+                            <Edit3 className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="destructive" onClick={() => handleDeleteRider(name)} aria-label={`Delete ${name}`}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No riders added yet. Add some riders to see them here and in the form dropdown.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="text-xl text-primary flex items-center">
+                <DollarSign className="mr-2 h-5 w-5" />Manage Rider Salaries (Per Day)
+              </CardTitle>
+              <CardDescription>Set the per-day salary for each rider. Used for monthly report calculations.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex space-x-2 items-end">
+                <div className="flex-grow">
+                  <Label htmlFor="selectRiderForSalary">Select Rider</Label>
+                  <Select value={selectedRiderForSalary} onValueChange={(value) => {
+                    setSelectedRiderForSalary(value);
+                    setSalaryInput(riderSalaries[value]?.toString() || '');
+                  }}>
+                    <SelectTrigger id="selectRiderForSalary">
+                      <SelectValue placeholder="Select a rider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {riderNames.length > 0 ? riderNames.map(name => (
+                        <SelectItem key={name} value={name}>{name}</SelectItem>
+                      )) : <SelectItem value="" disabled>No riders available</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="w-1/3">
+                  <Label htmlFor="salaryInput">Salary (₹/Day)</Label>
+                  <Input
+                    id="salaryInput"
+                    type="number"
+                    value={salaryInput}
+                    onChange={(e) => setSalaryInput(e.target.value)}
+                    placeholder="e.g., 500"
+                    disabled={!selectedRiderForSalary}
+                    className="text-base"
+                  />
+                </div>
+                <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="h-10">
+                  Set Salary
+                </Button>
+              </div>
+              {Object.keys(riderSalaries).length > 0 && (
+                 <div>
+                  <h4 className="text-md font-medium mb-2">Current Salaries:</h4>
+                    <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
+                      {riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (
+                        <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                          <span className="text-sm">{name}</span>
+                          <span className="text-sm font-medium">₹{riderSalaries[name]}/day</span>
+                        </li>
+                      ))}
+                    </ul>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
 
@@ -424,3 +520,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
