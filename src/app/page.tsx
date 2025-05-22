@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -34,7 +34,7 @@ const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp';
 const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie'];
 const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterAquaTrackApp';
-const DEFAULT_GLOBAL_RATE = 0.0; 
+const DEFAULT_GLOBAL_RATE = 0.0;
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -103,7 +103,7 @@ export default function AquaTrackPage() {
     } catch (error) {
       console.error("Failed to parse riderSalaries from localStorage", error);
     }
-    
+
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
       if (storedRate) {
@@ -126,7 +126,7 @@ export default function AquaTrackPage() {
   const handleFormSubmit = async (values: SalesDataFormValues) => {
     setPendingFormValues(values);
     setIsConfirmationDialogOpen(true);
-    setReportData(null); 
+    setReportData(null);
   };
 
   const executeReportGeneration = async () => {
@@ -144,7 +144,7 @@ export default function AquaTrackPage() {
       } else {
         finalLitersSold = calculatedLitersFromMeter;
       }
-      
+
       if (finalLitersSold < 0) {
         toast({
           title: 'Validation Error',
@@ -160,42 +160,41 @@ export default function AquaTrackPage() {
       const totalSale = finalLitersSold * values.ratePerLiter;
       const actualReceived = values.cashReceived + values.onlineReceived;
       const submissionDateObject = values.date instanceof Date ? values.date : new Date();
-      
-      const initialAdjustedExpected = 
-        totalSale + 
-        values.dueCollected - 
+
+      const initialAdjustedExpected =
+        totalSale +
+        values.dueCollected -
         values.newDueAmount -
-        values.tokenMoney - 
-        values.staffExpense - 
+        values.tokenMoney -
+        values.staffExpense -
         values.extraAmount;
-      
-      const aiAdjustedExpectedAmount = initialAdjustedExpected; 
+
+      const aiAdjustedExpectedAmount = initialAdjustedExpected;
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
-      
+
       const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
-      
+
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
-      } else if (discrepancy > 0) { 
+      } else if (discrepancy > 0) {
         status = 'Shortage';
-      } else { 
+      } else {
         status = 'Overage';
       }
 
-      // Calculate daily salary and commission
       const riderPerDaySalary = riderSalaries[values.riderName] || 0;
-      const hoursWorked = values.hoursWorked || 9; // Default to 9 if not provided
+      const hoursWorked = values.hoursWorked || 9;
       const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
-      
+
       let commissionEarned = 0;
       if (finalLitersSold > 2000) {
         commissionEarned = (finalLitersSold - 2000) * 0.10;
       }
 
       const newReportData: Omit<SalesReportData, 'id' | '_id'> = {
-        date: formatDateFns(submissionDateObject, 'PPP'), 
-        firestoreDate: submissionDateObject, 
+        date: formatDateFns(submissionDateObject, 'PPP'),
+        firestoreDate: submissionDateObject,
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
@@ -214,6 +213,7 @@ export default function AquaTrackPage() {
         dailySalaryCalculated: dailySalaryCalculated,
         commissionEarned: commissionEarned,
         comment: values.comment || "",
+        recordedBy: values.riderName, // Using riderName as a placeholder for recordedBy
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -222,7 +222,7 @@ export default function AquaTrackPage() {
         discrepancy,
         status,
       };
-      
+
       const reportToSave: any = { ...newReportData };
       if (reportToSave.adminOverrideLitersSold === undefined) {
         delete reportToSave.adminOverrideLitersSold;
@@ -246,15 +246,14 @@ export default function AquaTrackPage() {
           description: result.message,
           variant: 'default',
         });
-        setReportData({ ...newReportData, id: result.id }); 
+        setReportData({ ...newReportData, id: result.id });
       } else {
         toast({
           title: 'Database Error',
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        // Still set report data for local preview even if DB save fails
-        setReportData({ ...newReportData, id: `local-preview-${Date.now()}` }); 
+        setReportData({ ...newReportData, id: `local-preview-${Date.now()}` });
       }
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
@@ -383,7 +382,7 @@ export default function AquaTrackPage() {
     localStorage.setItem(GLOBAL_RATE_PER_LITER_KEY, String(newRate));
     toast({ title: "Success", description: `Global rate per liter set to ₹${newRate.toFixed(2)}.` });
   };
-  
+
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
@@ -424,7 +423,7 @@ export default function AquaTrackPage() {
             defaultValue="Team Leader"
             onValueChange={(value: UserRole) => {
               setCurrentUserRole(value);
-              setReportData(null); 
+              setReportData(null);
             }}
             className="flex space-x-4"
           >
@@ -452,6 +451,11 @@ export default function AquaTrackPage() {
               <Link href="/admin/monthly-summary" passHref>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <BarChartHorizontal className="mr-2 h-4 w-4" /> Monthly Sales Summary
+                </Button>
+              </Link>
+               <Link href="/admin/user-monthly-cash-report" passHref>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <Users className="mr-2 h-4 w-4" /> User Cash Report
                 </Button>
               </Link>
             </div>
@@ -612,9 +616,9 @@ export default function AquaTrackPage() {
             <CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved to MongoDB.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
-            <AquaTrackForm 
-              onSubmit={handleFormSubmit} 
-              isProcessing={isProcessing} 
+            <AquaTrackForm
+              onSubmit={handleFormSubmit}
+              isProcessing={isProcessing}
               currentUserRole={currentUserRole}
               lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
               riderNames={riderNames}
@@ -622,7 +626,7 @@ export default function AquaTrackPage() {
             />
           </CardContent>
         </Card>
-        
+
         <div className="lg:col-span-2">
           {isProcessing && !reportData && (
             <Card className="flex flex-col items-center justify-center h-96 shadow-xl">

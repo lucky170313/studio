@@ -2,14 +2,14 @@
 import mongoose from 'mongoose';
 
 const SalesReportSchema = new mongoose.Schema({
-  date: { type: String, required: true }, 
-  firestoreDate: { type: Date, required: true, default: Date.now }, 
+  date: { type: String, required: true },
+  firestoreDate: { type: Date, required: true, default: Date.now },
   riderName: { type: String, required: true },
   vehicleName: { type: String, required: true },
   previousMeterReading: { type: Number, required: true },
   currentMeterReading: { type: Number, required: true },
   litersSold: { type: Number, required: true },
-  adminOverrideLitersSold: { type: Number }, 
+  adminOverrideLitersSold: { type: Number },
   ratePerLiter: { type: Number, required: true },
   cashReceived: { type: Number, required: true },
   onlineReceived: { type: Number, required: true },
@@ -21,7 +21,8 @@ const SalesReportSchema = new mongoose.Schema({
   hoursWorked: { type: Number, required: true, min: 1, max: 9, default: 9 },
   dailySalaryCalculated: { type: Number, default: 0 },
   commissionEarned: { type: Number, default: 0 },
-  comment: { type: String }, 
+  comment: { type: String },
+  recordedBy: { type: String, required: true }, // User who recorded the entry
   totalSale: { type: Number, required: true },
   actualReceived: { type: Number, required: true },
   initialAdjustedExpected: { type: Number, required: true },
@@ -33,6 +34,6 @@ const SalesReportSchema = new mongoose.Schema({
     enum: ['Match', 'Shortage', 'Overage'],
     required: true,
   },
-}, { timestamps: true }); 
+}, { timestamps: true });
 
 export default mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);

@@ -24,7 +24,7 @@ export const salesDataSchema = z.object({
   if (data.overrideLitersSold === undefined || data.overrideLitersSold <= 0) {
     return data.currentMeterReading >= data.previousMeterReading;
   }
-  return true; 
+  return true;
 }, {
   message: "Current meter reading cannot be less than previous meter reading (when not overriding liters sold).",
   path: ["currentMeterReading"],
@@ -34,16 +34,16 @@ export const salesDataSchema = z.object({
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
-  id?: string; 
+  id?: string;
   _id?: string; // For MongoDB
-  date: string; 
-  firestoreDate: Date; // Using JS Date for MongoDB compatibility
+  date: string;
+  firestoreDate: Date; // Date object for MongoDB compatibility
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
   currentMeterReading: number;
-  litersSold: number; 
-  adminOverrideLitersSold?: number; 
+  litersSold: number;
+  adminOverrideLitersSold?: number;
   ratePerLiter: number;
   cashReceived: number;
   onlineReceived: number;
@@ -53,9 +53,10 @@ export interface SalesReportData {
   staffExpense: number;
   extraAmount: number;
   hoursWorked: number;
-  dailySalaryCalculated?: number; // Salary for that day based on hours & rate
-  commissionEarned?: number; // Commission for that day
+  dailySalaryCalculated?: number;
+  commissionEarned?: number;
   comment?: string;
+  recordedBy: string; // User who recorded the entry (using riderName as placeholder)
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
