@@ -2,11 +2,9 @@
 // Import the functions you need from the SDKs you need
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
-// TODO: Add SDKs for Firebase products that you want to use
-// https://firebase.google.com/docs/web/setup#available-libraries
 
-// Your web app's Firebase configuration
-// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+// TODO(developer) Replace the following with your app's Firebase configuration
+// See: https://firebase.google.com/docs/web/learn-more#config-object
 const firebaseConfig = {
   apiKey: "AIzaSyCmEf6RYOFKTw9_VBKmrSr_Zqfca8tq4z0",
   authDomain: "aquatrack-d2b66.firebaseapp.com",
