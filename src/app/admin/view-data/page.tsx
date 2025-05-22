@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label'; // Added missing import
 import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, BarChart3, CalendarDays } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import {
