@@ -147,7 +147,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     const extraAmountVal = Number(extraAmount) || 0;
     const staffExpenseVal = Number(staffExpense) || 0;
 
-    // Discrepancy = (Total Sale + Due Collected) - Cash Received - Online Received - New Due Amount - Token Money - Extra Amount - Staff Expense
     return (totalSaleVal + dueCollectedVal) - cashReceivedVal - onlineReceivedVal - newDueAmountVal - tokenMoneyVal - extraAmountVal - staffExpenseVal;
   }, [liveTotalSale, cashReceived, onlineReceived, dueCollected, newDueAmount, tokenMoney, staffExpense, extraAmount]);
 
@@ -223,9 +222,19 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {inputFields.map((inputField) => {
-            const isPrevMeterReading = inputField.name === 'previousMeterReading';
-            const isDisabled = isPrevMeterReading && currentUserRole === 'Team Leader';
-            const currentOptions = inputField.name === 'riderName' ? riderNames : inputField.options;
+            const isPrevMeterReadingField = inputField.name === 'previousMeterReading';
+            const isRatePerLiterField = inputField.name === 'ratePerLiter';
+            
+            let fieldIsDisabled = false;
+            if (isPrevMeterReadingField && currentUserRole === 'Team Leader') {
+              fieldIsDisabled = true;
+            }
+            if (isRatePerLiterField && currentUserRole === 'Team Leader') {
+              fieldIsDisabled = true;
+            }
+            
+            const currentOptions = inputField.name === 'riderName' ? riderNames : (inputField.options || []);
+
 
             return (
               <FormField
@@ -268,7 +277,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                           type={inputField.type || 'text'}
                           placeholder={inputField.placeholder}
                           {...field}
-                          disabled={isDisabled}
+                          disabled={fieldIsDisabled}
                           value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' && inputField.name !== 'newDueAmount' ? "" : field.value }
                           onChange={event => {
                             if (inputField.type === 'number') {
@@ -278,12 +287,13 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                               field.onChange(event.target.value);
                             }
                           }}
-                          className={cn("text-base", isDisabled && "cursor-not-allowed opacity-70")}
+                          className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}
                         />
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReading && currentUserRole === 'Team Leader' && isClient && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
+                    {isRatePerLiterField && currentUserRole === 'Team Leader' && <FormDescription>Rate per liter is set by Admin and cannot be changed by Team Leader.</FormDescription>}
+                    {isPrevMeterReadingField && currentUserRole === 'Team Leader' && isClient && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -382,3 +392,4 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     </Form>
   );
 }
+
