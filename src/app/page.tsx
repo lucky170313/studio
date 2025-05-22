@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, AlertCircleIcon } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -12,10 +12,9 @@ import { AquaTrackReport } from '@/components/aqua-track-report';
 import type { SalesDataFormValues, SalesReportData, UserRole } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { saveSalesReportAction } from './actions';
 import {
@@ -28,6 +27,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleAquaTrackApp';
 const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp';
@@ -36,10 +37,14 @@ const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 
+// --- Simulated Admin Credentials ---
+const ADMIN_USER_ID = "lucky170313";
+const ADMIN_PASSWORD = "northpole";
+// --- End Simulated Admin Credentials ---
+
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole>('Team Leader');
   const [lastMeterReadingsByVehicle, setLastMeterReadingsByVehicle] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const [currentYear, setCurrentYear] = useState<number | null>(null);
@@ -57,6 +62,15 @@ export default function AquaTrackPage() {
 
   const [pendingFormValues, setPendingFormValues] = useState<SalesDataFormValues | null>(null);
   const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
+
+  // --- Login State ---
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
+  const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
+  const [usernameInput, setUsernameInput] = useState('');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  // --- End Login State ---
 
 
   useEffect(() => {
@@ -79,17 +93,17 @@ export default function AquaTrackPage() {
       if (storedRiderNames) {
         const parsedRiderNames = JSON.parse(storedRiderNames);
         if (Array.isArray(parsedRiderNames) && parsedRiderNames.every(name => typeof name === 'string')) {
-          setRiderNames(parsedRiderNames.length > 0 ? parsedRiderNames : DEFAULT_RIDER_NAMES);
+          setRiderNames(parsedRiderNames.length > 0 ? parsedRiderNames : [...DEFAULT_RIDER_NAMES]);
         } else {
-          setRiderNames(DEFAULT_RIDER_NAMES);
+          setRiderNames([...DEFAULT_RIDER_NAMES]);
         }
       } else {
-        setRiderNames(DEFAULT_RIDER_NAMES);
+        setRiderNames([...DEFAULT_RIDER_NAMES]);
         localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(DEFAULT_RIDER_NAMES));
       }
     } catch (error) {
       console.error("Failed to parse riderNames from localStorage", error);
-      setRiderNames(DEFAULT_RIDER_NAMES);
+      setRiderNames([...DEFAULT_RIDER_NAMES]);
     }
 
     try {
@@ -123,6 +137,22 @@ export default function AquaTrackPage() {
     }
   }, []);
 
+  const handleLogin = () => {
+    if (usernameInput === ADMIN_USER_ID && passwordInput === ADMIN_PASSWORD) {
+      setIsLoggedIn(true);
+      setCurrentUserRole('Admin');
+      setLoggedInUsername(ADMIN_USER_ID);
+      setLoginError(null);
+      setUsernameInput('');
+      setPasswordInput('');
+    } else {
+      setLoginError("Invalid User ID or Password.");
+      setIsLoggedIn(false);
+      setCurrentUserRole(null);
+      setLoggedInUsername(null);
+    }
+  };
+
   const handleFormSubmit = async (values: SalesDataFormValues) => {
     setPendingFormValues(values);
     setIsConfirmationDialogOpen(true);
@@ -130,7 +160,7 @@ export default function AquaTrackPage() {
   };
 
   const executeReportGeneration = async () => {
-    if (!pendingFormValues) return;
+    if (!pendingFormValues || !loggedInUsername) return;
 
     setIsProcessing(true);
     const values = pendingFormValues;
@@ -171,7 +201,7 @@ export default function AquaTrackPage() {
 
       const aiAdjustedExpectedAmount = initialAdjustedExpected;
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
-
+      
       const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
 
       let status: SalesReportData['status'];
@@ -184,7 +214,7 @@ export default function AquaTrackPage() {
       }
 
       const riderPerDaySalary = riderSalaries[values.riderName] || 0;
-      const hoursWorked = values.hoursWorked || 9;
+      const hoursWorked = values.hoursWorked || 9; // Default to 9 if not provided
       const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
 
       let commissionEarned = 0;
@@ -194,7 +224,7 @@ export default function AquaTrackPage() {
 
       const newReportData: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject,
+        firestoreDate: submissionDateObject, // Use JavaScript Date for MongoDB
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
@@ -213,7 +243,7 @@ export default function AquaTrackPage() {
         dailySalaryCalculated: dailySalaryCalculated,
         commissionEarned: commissionEarned,
         comment: values.comment || "",
-        recordedBy: values.riderName, // Using riderName as a placeholder for recordedBy
+        recordedBy: loggedInUsername, // Use logged-in admin's username
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -230,7 +260,7 @@ export default function AquaTrackPage() {
       if (reportToSave.comment === undefined || reportToSave.comment === "") {
          delete reportToSave.comment;
       }
-      if (reportToSave.dailySalaryCalculated === undefined) {
+       if (reportToSave.dailySalaryCalculated === undefined) {
         reportToSave.dailySalaryCalculated = 0;
       }
       if (reportToSave.commissionEarned === undefined) {
@@ -249,10 +279,11 @@ export default function AquaTrackPage() {
         setReportData({ ...newReportData, id: result.id });
       } else {
         toast({
-          title: 'Database Error',
+          title: 'Database Error (MongoDB)',
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
+        // Display the report locally even if DB save fails for preview
         setReportData({ ...newReportData, id: `local-preview-${Date.now()}` });
       }
 
@@ -383,6 +414,58 @@ export default function AquaTrackPage() {
     toast({ title: "Success", description: `Global rate per liter set to ₹${newRate.toFixed(2)}.` });
   };
 
+  if (!isLoggedIn) {
+    return (
+      <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardHeader className="text-center">
+            <div className="flex items-center justify-center mb-4">
+                <Droplets className="h-10 w-10 text-primary" />
+                <h1 className="text-3xl font-bold text-primary ml-2">AquaTrack Login</h1>
+            </div>
+            <CardDescription>Please login to access the application.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {loginError && (
+              <Alert variant="destructive">
+                <AlertCircleIcon className="h-4 w-4" />
+                <AlertTitle>Login Failed</AlertTitle>
+                <AlertDescription>{loginError}</AlertDescription>
+              </Alert>
+            )}
+            <div className="space-y-2">
+              <Label htmlFor="username">User ID</Label>
+              <Input
+                id="username"
+                type="text"
+                placeholder="Enter your User ID"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                className="text-base"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Password</Label>
+              <Input
+                id="password"
+                type="password"
+                placeholder="Enter your password"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="text-base"
+              />
+            </div>
+            <Button onClick={handleLogin} className="w-full text-lg py-3">
+              <LogIn className="mr-2 h-5 w-5" /> Login
+            </Button>
+            <CardDescription className="text-xs text-center pt-2">
+              This is a simulated login for prototyping. Use User ID: lucky170313, Password: northpole.
+            </CardDescription>
+          </CardContent>
+        </Card>
+      </main>
+    );
+  }
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
@@ -394,6 +477,7 @@ export default function AquaTrackPage() {
         <p className="mt-2 text-xl text-muted-foreground">
           Daily Sales & Reconciliation Reporter (MongoDB Version)
         </p>
+         <p className="mt-1 text-sm text-green-600">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>
       </header>
 
       <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
@@ -414,198 +498,179 @@ export default function AquaTrackPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="mb-8 shadow-md">
-        <CardHeader>
-          <CardTitle className="text-xl text-primary flex items-center"><UserCog className="mr-2 h-5 w-5"/>Select User Role</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
-          <RadioGroup
-            defaultValue="Team Leader"
-            onValueChange={(value: UserRole) => {
-              setCurrentUserRole(value);
-              setReportData(null);
-            }}
-            className="flex space-x-4"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="Team Leader" id="role-tl" />
-              <Label htmlFor="role-tl" className="flex items-center"><Shield className="mr-1 h-4 w-4 text-blue-500"/>Team Leader</Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="Admin" id="role-admin" />
-              <Label htmlFor="role-admin" className="flex items-center"><UserCog className="mr-1 h-4 w-4 text-red-500"/>Admin</Label>
-            </div>
-          </RadioGroup>
-          {currentUserRole === 'Admin' && (
-            <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
-              <Link href="/admin/view-data" passHref>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Eye className="mr-2 h-4 w-4" /> View All Sales Data
-                </Button>
-              </Link>
-              <Link href="/admin/rider-monthly-report" passHref>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report
-                </Button>
-              </Link>
-              <Link href="/admin/monthly-summary" passHref>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <BarChartHorizontal className="mr-2 h-4 w-4" /> Monthly Sales Summary
-                </Button>
-              </Link>
-               <Link href="/admin/user-monthly-cash-report" passHref>
-                <Button variant="outline" className="w-full sm:w-auto">
-                  <Users className="mr-2 h-4 w-4" /> User Cash Report
-                </Button>
-              </Link>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-
       {currentUserRole === 'Admin' && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
-          <Card className="shadow-md">
+        <>
+          <Card className="mb-8 shadow-md">
             <CardHeader>
-              <CardTitle className="text-xl text-primary flex items-center">
-                <UserCog className="mr-2 h-5 w-5" />Manage Riders
-              </CardTitle>
-              <CardDescription>Add, edit, or delete rider names. Changes are saved in your browser.</CardDescription>
+              <CardTitle className="text-xl text-primary flex items-center"><Shield className="mr-2 h-5 w-5"/>Admin Dashboard</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex space-x-2 items-end">
-                <div className="flex-grow">
-                  <Label htmlFor="riderNameInput">Rider Name</Label>
-                  <Input
-                    id="riderNameInput"
-                    type="text"
-                    value={riderNameInput}
-                    onChange={handleRiderNameInputChange}
-                    placeholder={editingRiderOriginalName ? "Enter new name" : "Enter new rider name"}
-                    className="text-base"
-                  />
-                </div>
-                <Button onClick={handleAddOrUpdateRider} className="h-10">
-                  {editingRiderOriginalName ? <Edit3 className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
-                  {editingRiderOriginalName ? 'Update Rider' : 'Add Rider'}
-                </Button>
-                {editingRiderOriginalName && (
-                  <Button onClick={handleCancelEditRider} variant="outline" className="h-10">
-                    <XCircle className="mr-2 h-4 w-4" />
-                    Cancel Edit
+            <CardContent className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
+                <Link href="/admin/view-data" passHref>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <Eye className="mr-2 h-4 w-4" /> View All Sales Data
                   </Button>
-                )}
-              </div>
-              {riderNames.length > 0 ? (
-                <div>
-                  <h4 className="text-md font-medium mb-2 mt-4">Current Riders:</h4>
-                  <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
-                    {riderNames.map(name => (
-                      <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
-                        <span className="text-sm">{name}</span>
-                        <div className="space-x-1">
-                          <Button size="sm" variant="outline" onClick={() => handleEditRiderSetup(name)} aria-label={`Edit ${name}`}>
-                            <Edit3 className="h-3 w-3" />
-                          </Button>
-                          <Button size="sm" variant="destructive" onClick={() => handleDeleteRider(name)} aria-label={`Delete ${name}`}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">No riders added yet. Add some riders to see them here and in the form dropdown.</p>
-              )}
-            </CardContent>
+                </Link>
+                <Link href="/admin/rider-monthly-report" passHref>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report
+                  </Button>
+                </Link>
+                <Link href="/admin/monthly-summary" passHref>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <BarChartHorizontal className="mr-2 h-4 w-4" /> Monthly Sales Summary
+                  </Button>
+                </Link>
+                 <Link href="/admin/user-monthly-cash-report" passHref>
+                  <Button variant="outline" className="w-full sm:w-auto">
+                    <Users className="mr-2 h-4 w-4" /> User Cash Report
+                  </Button>
+                </Link>
+              </CardContent>
           </Card>
 
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle className="text-xl text-primary flex items-center">
-                <DollarSign className="mr-2 h-5 w-5" />Manage Rider Salaries (Per Day)
-              </CardTitle>
-              <CardDescription>Set the per-day salary for each rider (for a full 9-hour day). Used for monthly report calculations.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:items-end">
-                <div className="flex-1">
-                  <Label htmlFor="selectRiderForSalary">Select Rider</Label>
-                  <Select value={selectedRiderForSalary} onValueChange={(value) => {
-                    setSelectedRiderForSalary(value);
-                    setSalaryInput(riderSalaries[value]?.toString() || '');
-                  }}>
-                    <SelectTrigger id="selectRiderForSalary">
-                      <SelectValue placeholder="Select a rider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {riderNames.length > 0 ? riderNames.map(name => (
-                        <SelectItem key={name} value={name}>{name}</SelectItem>
-                      )) : <SelectItem value="" disabled>No riders available</SelectItem>}
-                    </SelectContent>
-                  </Select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="text-xl text-primary flex items-center">
+                  <UserCog className="mr-2 h-5 w-5" />Manage Riders
+                </CardTitle>
+                <CardDescription>Add, edit, or delete rider names. Changes are saved in your browser.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex space-x-2 items-end">
+                  <div className="flex-grow">
+                    <Label htmlFor="riderNameInput">Rider Name</Label>
+                    <Input
+                      id="riderNameInput"
+                      type="text"
+                      value={riderNameInput}
+                      onChange={handleRiderNameInputChange}
+                      placeholder={editingRiderOriginalName ? "Enter new name" : "Enter new rider name"}
+                      className="text-base"
+                    />
+                  </div>
+                  <Button onClick={handleAddOrUpdateRider} className="h-10">
+                    {editingRiderOriginalName ? <Edit3 className="mr-2 h-4 w-4" /> : <UserPlus className="mr-2 h-4 w-4" />}
+                    {editingRiderOriginalName ? 'Update Rider' : 'Add Rider'}
+                  </Button>
+                  {editingRiderOriginalName && (
+                    <Button onClick={handleCancelEditRider} variant="outline" className="h-10">
+                      <XCircle className="mr-2 h-4 w-4" />
+                      Cancel Edit
+                    </Button>
+                  )}
                 </div>
-                <div className="sm:w-40">
-                  <Label htmlFor="salaryInput">Full Day Salary (₹)</Label>
-                  <Input
-                    id="salaryInput"
-                    type="number"
-                    value={salaryInput}
-                    onChange={(e) => setSalaryInput(e.target.value)}
-                    placeholder="e.g., 500"
-                    disabled={!selectedRiderForSalary}
-                    className="text-base"
-                  />
-                </div>
-              </div>
-              <div className="mt-2">
-                <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="w-full sm:w-auto">
-                  Set Full Day Salary
-                </Button>
-              </div>
-              {Object.keys(riderSalaries).length > 0 && (
-                 <div className="mt-4">
-                  <h4 className="text-md font-medium mb-2">Current Full Day Salaries:</h4>
+                {riderNames.length > 0 ? (
+                  <div>
+                    <h4 className="text-md font-medium mb-2 mt-4">Current Riders:</h4>
                     <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
-                      {riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (
+                      {riderNames.map(name => (
                         <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
                           <span className="text-sm">{name}</span>
-                          <span className="text-sm font-medium">₹{riderSalaries[name]}/day</span>
+                          <div className="space-x-1">
+                            <Button size="sm" variant="outline" onClick={() => handleEditRiderSetup(name)} aria-label={`Edit ${name}`}>
+                              <Edit3 className="h-3 w-3" />
+                            </Button>
+                            <Button size="sm" variant="destructive" onClick={() => handleDeleteRider(name)} aria-label={`Delete ${name}`}>
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
                         </li>
                       ))}
                     </ul>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No riders added yet. Add some riders to see them here and in the form dropdown.</p>
+                )}
+              </CardContent>
+            </Card>
 
-          <Card className="shadow-md">
-            <CardHeader>
-              <CardTitle className="text-xl text-primary flex items-center">
-                <IndianRupee className="mr-2 h-5 w-5" />Manage Global Rate Per Liter
-              </CardTitle>
-              <CardDescription>Set the default rate per liter used in new entries. Saved in your browser.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="globalRateInput">Global Rate (₹/Liter)</Label>
-                <div className="flex space-x-2 items-center">
-                  <Input
-                    id="globalRateInput"
-                    type="number"
-                    value={rateInput}
-                    onChange={(e) => setRateInput(e.target.value)}
-                    placeholder="e.g., 2.5"
-                    className="text-base"
-                  />
-                  <Button onClick={handleSetGlobalRate}>Set Rate</Button>
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="text-xl text-primary flex items-center">
+                  <DollarSign className="mr-2 h-5 w-5" />Manage Rider Salaries (Per Day)
+                </CardTitle>
+                <CardDescription>Set the per-day salary for each rider (for a full 9-hour day). Used for monthly report calculations.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:items-end">
+                  <div className="flex-1">
+                    <Label htmlFor="selectRiderForSalary">Select Rider</Label>
+                    <Select value={selectedRiderForSalary} onValueChange={(value) => {
+                      setSelectedRiderForSalary(value);
+                      setSalaryInput(riderSalaries[value]?.toString() || '');
+                    }}>
+                      <SelectTrigger id="selectRiderForSalary">
+                        <SelectValue placeholder="Select a rider" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {riderNames.length > 0 ? riderNames.map(name => (
+                          <SelectItem key={name} value={name}>{name}</SelectItem>
+                        )) : <SelectItem value="" disabled>No riders available</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="sm:w-40">
+                    <Label htmlFor="salaryInput">Full Day Salary (₹)</Label>
+                    <Input
+                      id="salaryInput"
+                      type="number"
+                      value={salaryInput}
+                      onChange={(e) => setSalaryInput(e.target.value)}
+                      placeholder="e.g., 500"
+                      disabled={!selectedRiderForSalary}
+                      className="text-base"
+                    />
+                  </div>
                 </div>
-                 <p className="text-sm text-muted-foreground mt-2">Current global rate: ₹{globalRatePerLiter.toFixed(2)}</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+                <div className="mt-2">
+                  <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="w-full sm:w-auto">
+                    Set Full Day Salary
+                  </Button>
+                </div>
+                {Object.keys(riderSalaries).length > 0 && (
+                   <div className="mt-4">
+                    <h4 className="text-md font-medium mb-2">Current Full Day Salaries:</h4>
+                      <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
+                        {riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (
+                          <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                            <span className="text-sm">{name}</span>
+                            <span className="text-sm font-medium">₹{riderSalaries[name]}/day</span>
+                          </li>
+                        ))}
+                      </ul>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card className="shadow-md">
+              <CardHeader>
+                <CardTitle className="text-xl text-primary flex items-center">
+                  <IndianRupee className="mr-2 h-5 w-5" />Manage Global Rate Per Liter
+                </CardTitle>
+                <CardDescription>Set the default rate per liter used in new entries. Saved in your browser.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <Label htmlFor="globalRateInput">Global Rate (₹/Liter)</Label>
+                  <div className="flex space-x-2 items-center">
+                    <Input
+                      id="globalRateInput"
+                      type="number"
+                      value={rateInput}
+                      onChange={(e) => setRateInput(e.target.value)}
+                      placeholder="e.g., 2.5"
+                      className="text-base"
+                    />
+                    <Button onClick={handleSetGlobalRate}>Set Rate</Button>
+                  </div>
+                   <p className="text-sm text-muted-foreground mt-2">Current global rate: ₹{globalRatePerLiter.toFixed(2)}</p>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
 
 
@@ -619,7 +684,7 @@ export default function AquaTrackPage() {
             <AquaTrackForm
               onSubmit={handleFormSubmit}
               isProcessing={isProcessing}
-              currentUserRole={currentUserRole}
+              currentUserRole={currentUserRole || 'Team Leader'} // Default to non-admin if role not set
               lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
               riderNames={riderNames}
               persistentRatePerLiter={globalRatePerLiter}
@@ -656,3 +721,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
