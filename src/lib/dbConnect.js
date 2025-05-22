@@ -1,8 +1,6 @@
+
 // src/lib/dbConnect.js
 import mongoose from 'mongoose';
-import dotenv from 'dotenv'; // Import dotenv
-
-dotenv.config(); // Load environment variables from .env file
 
 const MONGO_URI = process.env.MONGO_URI;
 
@@ -34,11 +32,14 @@ async function dbConnect() {
       bufferCommands: false, // Disable buffering if you want to handle connection errors explicitly on operations
     };
 
+    // console.log(`Attempting to connect to MongoDB with URI: ${MONGO_URI}`); // Optional: for debugging URI
     cached.promise = mongoose.connect(MONGO_URI, opts).then((mongooseInstance) => {
       console.log('✅ New MongoDB connected');
       return mongooseInstance;
     }).catch(err => {
         console.error('❌ MongoDB connection error:', err);
+        // Log more details if available
+        if (err.reason) console.error('Connection error reason:', err.reason);
         cached.promise = null; // Clear the promise on error so we can retry
         throw err; // Re-throw error to be caught by caller if needed
     });
