@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, TrendingUp, Banknote, IndianRupee, Coins, BarChart3, FileSpreadsheet } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
+import * as XLSX from 'xlsx';
 import {
   ChartContainer,
   ChartTooltip,
@@ -59,6 +60,25 @@ async function fetchSalesDataForReport(): Promise<SalesReportData[]> {
     firestoreDate: new Date(entry.firestoreDate)
   }));
 }
+
+const handleExcelExport = (sheetsData: Array<{data: any[], sheetName: string}>, fileName: string) => {
+  if (sheetsData.every(sheet => sheet.data.length === 0)) {
+    alert("No data available to export for the current selection.");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  sheetsData.forEach(sheetInfo => {
+    if (sheetInfo.data.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(sheetInfo.data);
+      XLSX.utils.book_append_sheet(wb, ws, sheetInfo.sheetName);
+    }
+  });
+  if (wb.SheetNames.length > 0) {
+    XLSX.writeFile(wb, `${fileName}_${formatDateFns(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  } else {
+    alert("No data available to export for the current selection.");
+  }
+};
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
@@ -173,6 +193,27 @@ export default function MonthlySummaryPage() {
       color: "hsl(var(--chart-1))",
     },
   } satisfies ChartConfig;
+
+  const exportCurrentReportData = () => {
+    const sheetsToExport = [];
+    if (reportData?.summaryStats) {
+        // Convert summaryStats object to an array of objects for json_to_sheet
+        const summaryArray = Object.entries(reportData.summaryStats).map(([key, value]) => ({
+            Statistic: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), // Prettify key
+            Value: typeof value === 'number' ? value.toFixed(2) : value
+        }));
+        sheetsToExport.push({ data: summaryArray, sheetName: "Summary Statistics" });
+    }
+    if (reportData?.monthlyChartData && reportData.monthlyChartData.length > 0) {
+        sheetsToExport.push({ data: reportData.monthlyChartData, sheetName: "Monthly Sales Chart Data" });
+    }
+    if (filteredEntries.length > 0 && sheetsToExport.length === 0) { // Fallback to raw if no specific report parts
+         sheetsToExport.push({data: filteredEntries, sheetName: "Filtered Raw Data"});
+    }
+    
+    handleExcelExport(sheetsToExport, "MonthlySummary_AquaTrack");
+  };
+
 
   if (isLoading && !reportData) {
     return (
@@ -316,7 +357,7 @@ export default function MonthlySummaryPage() {
           Monthly Sales Summary
         </h1>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => alert("Excel export functionality to be implemented.")}>
+          <Button variant="outline" onClick={exportCurrentReportData}>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>

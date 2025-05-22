@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, BarChart3, User, Droplets, IndianRupee, Clock, Briefcase, Gift } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
+import * as XLSX from 'xlsx';
 import {
   ChartContainer,
   ChartTooltip,
@@ -30,7 +31,7 @@ const formatDisplayDate = (dateInput: any): string => {
   if (isNaN(date.getTime())) {
     return 'Invalid Date';
   }
-  return formatDateFns(date, 'PPP p'); // Format like "Jun 21, 2024, 3:30 PM"
+  return formatDateFns(date, 'PPP p'); 
 };
 
 interface SalesReportDataWithId extends SalesReportData {
@@ -46,10 +47,30 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate), // Ensure it's a Date object
-    _id: entry._id // Assuming MongoDB returns _id
+    firestoreDate: new Date(entry.firestoreDate), 
+    _id: entry._id 
   }));
 }
+
+const handleExcelExport = (sheetsData: Array<{data: any[], sheetName: string}>, fileName: string) => {
+  if (sheetsData.every(sheet => sheet.data.length === 0)) {
+    alert("No data available to export for the current selection.");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  sheetsData.forEach(sheetInfo => {
+    if (sheetInfo.data.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(sheetInfo.data);
+      XLSX.utils.book_append_sheet(wb, ws, sheetInfo.sheetName);
+    }
+  });
+  if (wb.SheetNames.length > 0) {
+    XLSX.writeFile(wb, `${fileName}_${formatDateFns(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  } else {
+    alert("No data available to export for the current selection.");
+  }
+};
+
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
@@ -210,7 +231,7 @@ export default function AdminViewDataPage() {
           All Sales Entries (MongoDB)
         </h1>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => alert("Excel export functionality to be implemented.")}>
+          <Button variant="outline" onClick={() => handleExcelExport([{ data: sortedEntries, sheetName: "All Sales Data" }], "AllSalesData_AquaTrack")}>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>

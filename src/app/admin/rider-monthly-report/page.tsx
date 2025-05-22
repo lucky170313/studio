@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3, Clock, Briefcase, Gift, MinusCircle, PlusCircle } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth, parse, format } from 'date-fns';
+import * as XLSX from 'xlsx';
 import {
   ChartContainer,
   ChartTooltip,
@@ -90,11 +91,30 @@ async function fetchSalesDataForReport(): Promise<SalesReportData[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate), // Ensure this field is being correctly populated and is a Date
+    firestoreDate: new Date(entry.firestoreDate), 
     dailySalaryCalculated: entry.dailySalaryCalculated || 0,
     commissionEarned: entry.commissionEarned || 0,
   }));
 }
+
+const handleExcelExport = (sheetsData: Array<{data: any[], sheetName: string}>, fileName: string) => {
+  if (sheetsData.every(sheet => sheet.data.length === 0)) {
+    alert("No data available to export for the current selection.");
+    return;
+  }
+  const wb = XLSX.utils.book_new();
+  sheetsData.forEach(sheetInfo => {
+    if (sheetInfo.data.length > 0) {
+      const ws = XLSX.utils.json_to_sheet(sheetInfo.data);
+      XLSX.utils.book_append_sheet(wb, ws, sheetInfo.sheetName);
+    }
+  });
+  if (wb.SheetNames.length > 0) {
+    XLSX.writeFile(wb, `${fileName}_${formatDateFns(new Date(), 'yyyy-MM-dd')}.xlsx`);
+  } else {
+    alert("No data available to export for the current selection.");
+  }
+};
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
@@ -106,14 +126,13 @@ export default function RiderMonthlyReportPage() {
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({}); // Stores per-day salary for 9 hours
+  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
 
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
  useEffect(() => {
-    // This effect runs once on mount to load salaries from localStorage
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
@@ -129,7 +148,6 @@ export default function RiderMonthlyReportPage() {
 
 
   useEffect(() => {
-    // This effect runs on mount and when riderSalaries state changes
     setIsLoading(true);
     fetchSalesDataForReport()
       .then(fetchedEntries => {
@@ -148,7 +166,7 @@ export default function RiderMonthlyReportPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []); // Removed riderSalaries from dependency array if it's not directly needed for fetching. If it IS needed, ensure it's stable.
+  }, []); 
 
   const filteredEntries = useMemo(() => {
     if (isLoading || allSalesEntries.length === 0) return [];
@@ -161,7 +179,7 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0 && Object.keys(riderSalaries).length === 0) return; // Wait for salaries if they are being loaded
+    if (isLoading && allSalesEntries.length > 0 && Object.keys(riderSalaries).length === 0) return; 
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
@@ -196,12 +214,9 @@ export default function RiderMonthlyReportPage() {
         };
       }
       
-      // Use entry.dailySalaryCalculated and entry.commissionEarned directly as they are now saved
       const baseDailySalary = entry.dailySalaryCalculated || 0;
       const commissionEarned = entry.commissionEarned || 0;
       
-      // Discrepancy: Positive is shortage (rider owes), Negative is overage (rider has extra)
-      // Net Earning = Base Salary + Commission - Shortage (or + Overage)
       const netEarning = baseDailySalary + commissionEarned - entry.discrepancy;
 
       riderMonthlyData[rider][monthYear].dailyEntries.push({
@@ -235,12 +250,10 @@ export default function RiderMonthlyReportPage() {
       uniqueDaysWithEntriesGlobal.add(dayKey);
     });
 
-    // Calculate days active
     Object.keys(riderMonthlyData).forEach(rider => {
       Object.keys(riderMonthlyData[rider]).forEach(monthYear => {
         const uniqueDaysForRiderInMonth = new Set(riderMonthlyData[rider][monthYear].dailyEntries.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
         riderMonthlyData[rider][monthYear].daysActive = uniqueDaysForRiderInMonth.size;
-        // Sort daily entries by date
         riderMonthlyData[rider][monthYear].dailyEntries.sort((a,b) => a.firestoreDate.getTime() - b.firestoreDate.getTime());
       });
     });
@@ -259,6 +272,18 @@ export default function RiderMonthlyReportPage() {
 
   }, [filteredEntries, riderSalaries, isLoading, allSalesEntries, selectedYear, selectedMonth]);
 
+  const exportCurrentReportData = () => {
+    const sheetsToExport = [];
+    if (filteredEntries.length > 0) {
+         sheetsToExport.push({data: filteredEntries, sheetName: "Filtered Raw Data"});
+    }
+    if (reportData?.riderSalesChartData && reportData.riderSalesChartData.length > 0) {
+        sheetsToExport.push({ data: reportData.riderSalesChartData, sheetName: "Rider Sales Chart Data" });
+    }
+    // Add more sheets for detailed rider breakdown if needed
+    
+    handleExcelExport(sheetsToExport, "RiderMonthlyReport_AquaTrack");
+  };
 
   const riderSalesChartConfig = {
     total: {
@@ -440,7 +465,7 @@ export default function RiderMonthlyReportPage() {
           Rider Monthly Performance
         </h1>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => alert("Excel export functionality to be implemented.")}>
+          <Button variant="outline" onClick={exportCurrentReportData}>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>
