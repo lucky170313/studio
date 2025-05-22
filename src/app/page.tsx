@@ -17,10 +17,20 @@ import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { saveSalesReportAction } from './actions'; 
+import { saveSalesReportAction } from './actions';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
-const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
-const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp'; // Changed key to be more specific
+const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleAquaTrackApp';
+const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp';
 const DEFAULT_RIDER_NAMES = ['Rider A', 'Rider B', 'Rider C'];
 const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 
@@ -39,6 +49,9 @@ export default function AquaTrackPage() {
   const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
   const [selectedRiderForSalary, setSelectedRiderForSalary] = useState<string>('');
   const [salaryInput, setSalaryInput] = useState<string>('');
+
+  const [pendingFormValues, setPendingFormValues] = useState<SalesDataFormValues | null>(null);
+  const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
 
 
   useEffect(() => {
@@ -89,10 +102,19 @@ export default function AquaTrackPage() {
     setCurrentYear(new Date().getFullYear());
   }, []);
 
-
   const handleFormSubmit = async (values: SalesDataFormValues) => {
+    setPendingFormValues(values);
+    setIsConfirmationDialogOpen(true);
+    setReportData(null); // Clear previous report when new data is submitted
+  };
+
+  const executeReportGeneration = async () => {
+    if (!pendingFormValues) return;
+
     setIsProcessing(true);
-    setReportData(null);
+    // Report data is already nullified or will be set by this function
+
+    const values = pendingFormValues;
 
     try {
       let finalLitersSold: number;
@@ -111,6 +133,8 @@ export default function AquaTrackPage() {
           variant: 'destructive',
         });
         setIsProcessing(false);
+        setPendingFormValues(null);
+        setIsConfirmationDialogOpen(false);
         return;
       }
 
@@ -121,22 +145,24 @@ export default function AquaTrackPage() {
       const initialAdjustedExpected = 
         totalSale + 
         values.dueCollected - 
-        values.newDueAmount - 
+        values.newDueAmount - // Added newDueAmount here
         values.tokenMoney - 
         values.staffExpense - 
         values.extraAmount;
       
+      // AI Bypassed
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      const discrepancy = initialAdjustedExpected - actualReceived;
+      // Updated Discrepancy: (Total Sale + Due Collected) - Cash Received - Online Received - New Due Amount - Token Money - Extra Amount - Staff Expense
+      const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
-      } else if (discrepancy > 0) {
+      } else if (discrepancy > 0) { // Expected more than received
         status = 'Shortage';
-      } else { 
+      } else { // Received more than expected
         status = 'Overage';
       }
 
@@ -157,7 +183,7 @@ export default function AquaTrackPage() {
         tokenMoney: values.tokenMoney,
         staffExpense: values.staffExpense,
         extraAmount: values.extraAmount,
-        comment: values.comment,
+        comment: values.comment || "", // Ensure comment is a string, not undefined
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -167,7 +193,15 @@ export default function AquaTrackPage() {
         status,
       };
       
-      const reportToSaveForServer = { ...newReportData };
+      // Prepare data for MongoDB, excluding undefined fields for adminOverrideLitersSold and ensuring comment is always string
+      const reportToSaveForServer: any = { ...newReportData };
+      if (reportToSaveForServer.adminOverrideLitersSold === undefined) {
+        delete reportToSaveForServer.adminOverrideLitersSold;
+      }
+      if (reportToSaveForServer.comment === undefined) {
+         reportToSaveForServer.comment = "";
+      }
+
 
       const result = await saveSalesReportAction(reportToSaveForServer);
 
@@ -209,8 +243,11 @@ export default function AquaTrackPage() {
       });
     } finally {
       setIsProcessing(false);
+      setPendingFormValues(null);
+      setIsConfirmationDialogOpen(false);
     }
   };
+
 
   const handleRiderNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRiderNameInput(e.target.value);
@@ -316,6 +353,24 @@ export default function AquaTrackPage() {
           Daily Sales & Reconciliation Reporter (MongoDB)
         </p>
       </header>
+
+      <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Report Generation</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to generate and save this sales report? Please review the details before confirming.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => {
+              setPendingFormValues(null);
+              setIsConfirmationDialogOpen(false);
+            }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={executeReportGeneration}>Confirm & Generate</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card className="mb-8 shadow-md">
         <CardHeader>
@@ -508,7 +563,7 @@ export default function AquaTrackPage() {
               <CardContent className="text-center p-6">
                 <BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" />
                 <h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3>
-                <p className="text-muted-foreground">Submit the form to view the generated sales report. Data is saved to MongoDB.</p>
+                <p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved to MongoDB.</p>
               </CardContent>
             </Card>
           )}
@@ -521,3 +576,5 @@ export default function AquaTrackPage() {
   );
 }
 
+
+    
