@@ -4,73 +4,55 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+// import { db } from '@/lib/firebase'; // Firestore import removed
+// import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore'; // Firestore imports removed
 import type { SalesReportData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, AlertCircle, Edit3, FileSpreadsheet } from 'lucide-react'; // Added FileSpreadsheet
+import { Loader2, ArrowLeft, AlertCircle, Edit3, FileSpreadsheet } from 'lucide-react';
 import { format as formatDateFns } from 'date-fns';
 
-// Helper function to safely format Firestore Timestamp
-const formatFirestoreTimestamp = (timestamp: any): string => {
-  if (timestamp instanceof Timestamp) {
-    return formatDateFns(timestamp.toDate(), 'PPP p'); // Format as "Jan 1, 2023 12:00 PM"
+// Helper function to safely format Firestore Timestamp (now general Date)
+const formatDisplayDate = (dateInput: any): string => {
+  if (dateInput instanceof Date) {
+    return formatDateFns(dateInput, 'PPP p'); 
   }
-  if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-    const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+  if (typeof dateInput === 'string') { 
+    // Attempt to parse if it's a string that might be a date
+    const parsedDate = new Date(dateInput);
+    if (!isNaN(parsedDate.getTime())) {
+      return formatDateFns(parsedDate, 'PPP p');
+    }
+    return dateInput; // Return as is if it's already a formatted string or unparseable
+  }
+  // Handling for Firestore Timestamp-like objects if they sneak in, though they shouldn't with Firestore removed
+  if (dateInput && typeof dateInput.seconds === 'number' && typeof dateInput.nanoseconds === 'number') {
+    const date = new Date(dateInput.seconds * 1000 + dateInput.nanoseconds / 1000000);
     return formatDateFns(date, 'PPP p');
-  }
-  if (typeof timestamp === 'string') { // If it's already a formatted string (from local reportData)
-    return timestamp;
   }
   return 'Invalid Date';
 };
 
 
 interface SalesReportDataWithId extends SalesReportData {
-  id: string;
+  id: string; // id might come from a local source if data is not from DB
 }
 
 export default function AdminViewDataPage() {
   const [salesEntries, setSalesEntries] = useState<SalesReportDataWithId[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Set to false as no data is fetched initially
   const [error, setError] = useState<string | null>(null);
   const [sortConfig, setSortConfig] = useState<{ key: keyof SalesReportDataWithId | null; direction: 'ascending' | 'descending' }>({ key: 'firestoreDate', direction: 'descending' });
 
 
   useEffect(() => {
-    const fetchSalesData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // Default sort by firestoreDate descending
-        const q = query(collection(db, "salesEntries"), orderBy('firestoreDate', 'desc'));
-        const querySnapshot = await getDocs(q);
-        const entries = querySnapshot.docs.map(doc => {
-          const data = doc.data() as SalesReportData;
-          // Ensure firestoreDate is correctly handled
-          const firestoreDate = data.firestoreDate; // This should be a Timestamp object from Firestore
-          return { 
-            ...data, 
-            id: doc.id,
-            // Keep 'date' as the pre-formatted string for consistency if it exists, otherwise format firestoreDate
-            date: data.date || formatFirestoreTimestamp(firestoreDate),
-            // Ensure firestoreDate is passed along correctly if needed for sorting or other operations
-            firestoreDate: firestoreDate 
-          };
-        });
-        setSalesEntries(entries);
-      } catch (err) {
-        console.error("Error fetching sales data: ", err);
-        setError("Failed to fetch sales data. Please try again later.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSalesData();
+    // Data fetching logic from Firestore is removed.
+    // This page will now show "No sales entries found" or you can implement
+    // fetching from a new data source (e.g., localStorage or an API connected to MongoDB).
+    setIsLoading(false); 
+    // You could set an error or informational message here if desired
+    // setError("Data fetching from Firebase is disabled. Implement new data source.");
   }, []);
 
   const sortedEntries = React.useMemo(() => {
@@ -80,10 +62,9 @@ export default function AdminViewDataPage() {
         let valA = a[sortConfig.key!];
         let valB = b[sortConfig.key!];
 
-        // Handle Firestore Timestamps for date sorting
         if (sortConfig.key === 'firestoreDate') {
-          valA = (valA as Timestamp)?.toDate() || new Date(0);
-          valB = (valB as Timestamp)?.toDate() || new Date(0);
+          valA = (valA instanceof Date) ? valA : new Date(valA as string || 0);
+          valB = (valB instanceof Date) ? valB : new Date(valB as string || 0);
         }
 
         if (valA < valB) {
@@ -170,11 +151,11 @@ export default function AdminViewDataPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Sales Data Overview</CardTitle>
-          <CardDescription>Browse all recorded sales entries. Click column headers to sort.</CardDescription>
+          <CardDescription>Browse all recorded sales entries. Click column headers to sort. (Database connection removed, data will not be displayed from persistent storage)</CardDescription>
         </CardHeader>
         <CardContent>
           {salesEntries.length === 0 ? (
-            <p className="text-muted-foreground text-center py-10">No sales entries found.</p>
+            <p className="text-muted-foreground text-center py-10">No sales entries found. (Database connection removed)</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -198,7 +179,7 @@ export default function AdminViewDataPage() {
                       {tableHeaders.map((header) => {
                         let cellValue = entry[header.key as keyof SalesReportDataWithId];
                         if (header.key === 'firestoreDate') {
-                           cellValue = formatFirestoreTimestamp(entry.firestoreDate);
+                           cellValue = formatDisplayDate(entry.firestoreDate);
                         } else if (typeof cellValue === 'number' && (header.label.includes('(₹)') || header.key === 'litersSold')) {
                            cellValue = cellValue.toFixed(2);
                         } else if (cellValue === undefined || cellValue === null) {

@@ -1,6 +1,6 @@
 
 import { z } from 'zod';
-import type { Timestamp } from 'firebase/firestore';
+// import type { Timestamp } from 'firebase/firestore'; // Firestore Timestamp import removed
 
 export type UserRole = 'Admin' | 'Team Leader';
 
@@ -35,7 +35,7 @@ export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 export interface SalesReportData {
   id?: string; // Optional: for local display or if fetched with ID
   date: string; // Formatted string date for display
-  firestoreDate: Timestamp; // Firestore Timestamp for database storage and querying
+  firestoreDate: Date; // Changed from Firestore Timestamp to JavaScript Date
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -58,4 +58,3 @@ export interface SalesReportData {
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
 }
-

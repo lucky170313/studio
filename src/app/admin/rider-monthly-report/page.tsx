@@ -4,14 +4,14 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { db } from '@/lib/firebase';
-import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore';
+// import { db } from '@/lib/firebase'; // Firestore import removed
+// import { collection, getDocs, query, orderBy, Timestamp } from 'firebase/firestore'; // Firestore imports removed
 import type { SalesReportData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet } from 'lucide-react'; // Added FileSpreadsheet
-import { format as formatDateFns, getMonth, getYear } from 'date-fns';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet } from 'lucide-react';
+import { format as formatDateFns } from 'date-fns';
 
 interface MonthlyRiderStats {
   totalLitersSold: number;
@@ -30,24 +30,38 @@ interface AggregatedReportData {
   overallDailyAverageCollection: number;
 }
 
-const formatFirestoreTimestampToMonthYear = (timestamp: any): string => {
-  if (timestamp instanceof Timestamp) {
-    return formatDateFns(timestamp.toDate(), 'MMMM yyyy');
+const formatDisplayDateToMonthYear = (dateInput: any): string => {
+  if (dateInput instanceof Date) {
+    return formatDateFns(dateInput, 'MMMM yyyy');
   }
-  if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-    const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+   // Handling for Firestore Timestamp-like objects if they sneak in
+  if (dateInput && typeof dateInput.seconds === 'number' && typeof dateInput.nanoseconds === 'number') {
+    const date = new Date(dateInput.seconds * 1000 + dateInput.nanoseconds / 1000000);
     return formatDateFns(date, 'MMMM yyyy');
+  }
+  if (typeof dateInput === 'string') {
+    const parsedDate = new Date(dateInput);
+    if (!isNaN(parsedDate.getTime())) {
+      return formatDateFns(parsedDate, 'MMMM yyyy');
+    }
   }
   return 'Invalid Date';
 };
 
-const formatFirestoreTimestampToDayKey = (timestamp: any): string => {
-    if (timestamp instanceof Timestamp) {
-      return formatDateFns(timestamp.toDate(), 'yyyy-MM-dd');
+const formatDisplayDateToDayKey = (dateInput: any): string => {
+    if (dateInput instanceof Date) {
+      return formatDateFns(dateInput, 'yyyy-MM-dd');
     }
-    if (timestamp && typeof timestamp.seconds === 'number' && typeof timestamp.nanoseconds === 'number') {
-      const date = new Date(timestamp.seconds * 1000 + timestamp.nanoseconds / 1000000);
+    // Handling for Firestore Timestamp-like objects if they sneak in
+    if (dateInput && typeof dateInput.seconds === 'number' && typeof dateInput.nanoseconds === 'number') {
+      const date = new Date(dateInput.seconds * 1000 + dateInput.nanoseconds / 1000000);
       return formatDateFns(date, 'yyyy-MM-dd');
+    }
+    if (typeof dateInput === 'string') {
+      const parsedDate = new Date(dateInput);
+      if (!isNaN(parsedDate.getTime())) {
+        return formatDateFns(parsedDate, 'yyyy-MM-dd');
+      }
     }
     return 'Invalid Date Key';
   };
@@ -55,64 +69,15 @@ const formatFirestoreTimestampToDayKey = (timestamp: any): string => {
 
 export default function RiderMonthlyReportPage() {
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false); // Set to false initially
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAndAggregateData = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const q = query(collection(db, "salesEntries"), orderBy('firestoreDate', 'desc'));
-        const querySnapshot = await getDocs(q);
-        
-        const entries: SalesReportData[] = querySnapshot.docs.map(doc => doc.data() as SalesReportData);
-
-        const riderData: RiderMonthlyData = {};
-        let overallTotalCollected = 0;
-        const uniqueSalesDays = new Set<string>();
-
-        entries.forEach(entry => {
-          const riderName = entry.riderName;
-          const monthYear = formatFirestoreTimestampToMonthYear(entry.firestoreDate);
-          const dayKey = formatFirestoreTimestampToDayKey(entry.firestoreDate);
-
-          if (!riderName || monthYear === 'Invalid Date' || dayKey === 'Invalid Date Key') return;
-
-          // Overall stats
-          overallTotalCollected += entry.actualReceived;
-          uniqueSalesDays.add(dayKey);
-
-          // Rider-specific monthly stats
-          if (!riderData[riderName]) {
-            riderData[riderName] = {};
-          }
-          if (!riderData[riderName][monthYear]) {
-            riderData[riderName][monthYear] = {
-              totalLitersSold: 0,
-              totalMoneyCollected: 0,
-              totalTokenMoney: 0,
-            };
-          }
-
-          riderData[riderName][monthYear].totalLitersSold += entry.litersSold;
-          riderData[riderName][monthYear].totalMoneyCollected += entry.actualReceived;
-          riderData[riderName][monthYear].totalTokenMoney += entry.tokenMoney;
-        });
-        
-        const overallDailyAverageCollection = uniqueSalesDays.size > 0 ? overallTotalCollected / uniqueSalesDays.size : 0;
-
-        setReportData({ riderData, overallDailyAverageCollection });
-
-      } catch (err) {
-        console.error("Error fetching or aggregating sales data: ", err);
-        setError("Failed to generate rider monthly report. Please try again later.");
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchAndAggregateData();
+    // Data fetching logic from Firestore is removed.
+    // This page will now show "No sales data found" or you can implement
+    // fetching from a new data source (e.g., localStorage or an API connected to MongoDB).
+    setIsLoading(false);
+    // setError("Data fetching from Firebase is disabled. Implement new data source for reports.");
   }, []);
 
   if (isLoading) {
@@ -154,7 +119,7 @@ export default function RiderMonthlyReportPage() {
             </Link>
           </div>
         </div>
-        <p className="text-muted-foreground text-center py-10">No sales data found to generate the report.</p>
+        <p className="text-muted-foreground text-center py-10">No sales data found to generate the report. (Database connection removed)</p>
       </main>
     );
   }
@@ -218,12 +183,9 @@ export default function RiderMonthlyReportPage() {
                     </TableHeader>
                     <TableBody>
                       {Object.entries(reportData.riderData[riderName])
-                        // Sort months chronologically if needed, e.g. "January 2024" before "February 2024"
-                        // For simplicity, default object key order is used here, which might not be strictly chronological for all JS engines
-                        // A more robust sort would parse monthYear back to a Date object.
                         .sort(([monthYearA], [monthYearB]) => {
-                            const dateA = new Date(monthYearA);
-                            const dateB = new Date(monthYearB);
+                            const dateA = new Date(monthYearA.replace(/(\w+) (\d+)/, '$1 1, $2')); // Ensure consistent parsing
+                            const dateB = new Date(monthYearB.replace(/(\w+) (\d+)/, '$1 1, $2'));
                             return dateA.getTime() - dateB.getTime();
                         })
                         .map(([monthYear, stats]) => (

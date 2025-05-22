@@ -17,9 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-// Firestore imports
-import { db } from '@/lib/firebase';
-import { collection, addDoc, Timestamp } from 'firebase/firestore';
+// Firestore imports removed
+// import { db } from '@/lib/firebase';
+// import { collection, addDoc, Timestamp } from 'firebase/firestore';
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
 const RIDER_NAMES_KEY = 'riderNames';
@@ -55,7 +55,6 @@ export default function AquaTrackPage() {
       }
     } catch (error) {
       console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
-      // Initialize with empty object or handle error as needed
       setLastMeterReadingsByVehicle({});
     }
 
@@ -134,7 +133,7 @@ export default function AquaTrackPage() {
       const newReportData: SalesReportData = {
         ...values, 
         date: formatDateFns(submissionDateObject, 'PPP'), // For display
-        firestoreDate: Timestamp.fromDate(submissionDateObject), // For Firestore
+        firestoreDate: submissionDateObject, // Using JS Date object directly
         previousMeterReading: values.previousMeterReading,
         currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
@@ -146,40 +145,41 @@ export default function AquaTrackPage() {
         aiReasoning: aiOutput.reasoning,
         discrepancy,
         status,
-        // comment will be spread from `...values`
       };
       
-      // Save to Firestore
-      try {
-        // Prepare data for Firestore: remove any undefined fields.
-        const dataToSaveForFirestore: { [key: string]: any } = {};
-        for (const key of Object.keys(newReportData) as Array<keyof SalesReportData>) {
-            if (newReportData[key] !== undefined) {
-                dataToSaveForFirestore[key] = newReportData[key];
-            }
-        }
-        // Ensure 'id' is not included when adding a new document
-        if ('id' in dataToSaveForFirestore) {
-            delete dataToSaveForFirestore.id;
-        }
+      // Firestore saving logic removed
+      // try {
+      //   const dataToSaveForFirestore: { [key: string]: any } = {};
+      //   for (const key of Object.keys(newReportData) as Array<keyof SalesReportData>) {
+      //       if (newReportData[key] !== undefined) {
+      //           dataToSaveForFirestore[key] = newReportData[key];
+      //       }
+      //   }
+      //   if ('id' in dataToSaveForFirestore) {
+      //       delete dataToSaveForFirestore.id;
+      //   }
+      //   const docRef = await addDoc(collection(db, "salesEntries"), dataToSaveForFirestore);
+      //   console.log("Document written with ID: ", docRef.id);
+      //   toast({
+      //     title: 'Report Generated & Saved',
+      //     description: 'Sales report has been successfully generated and saved to the database.',
+      //     variant: 'default',
+      //   });
+      // } catch (e) {
+      //   console.error("Error adding document: ", e);
+      //   toast({
+      //     title: 'Database Error',
+      //     description: 'Failed to save sales report to the database. Report is generated locally.',
+      //     variant: 'destructive',
+      //   });
+      // }
+      toast({
+        title: 'Report Generated Locally',
+        description: 'Sales report has been generated. Database saving is disabled.',
+        variant: 'default',
+      });
 
-        const docRef = await addDoc(collection(db, "salesEntries"), dataToSaveForFirestore);
-        console.log("Document written with ID: ", docRef.id);
-        toast({
-          title: 'Report Generated & Saved',
-          description: 'Sales report has been successfully generated and saved to the database.',
-          variant: 'default',
-        });
-      } catch (e) {
-        console.error("Error adding document: ", e);
-        toast({
-          title: 'Database Error',
-          description: 'Failed to save sales report to the database. Report is generated locally.',
-          variant: 'destructive',
-        });
-      }
-
-      setReportData(newReportData); // Set report data for local display
+      setReportData(newReportData); 
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         const updatedReadings = {
@@ -376,7 +376,7 @@ export default function AquaTrackPage() {
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report. Data is saved to Firestore. Previous meter readings and rider list are persisted in browser.</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings and rider list are persisted in browser. Data saving to database is currently disabled.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
@@ -394,7 +394,7 @@ export default function AquaTrackPage() {
             <Card className="flex flex-col items-center justify-center h-96 shadow-xl">
               <CardContent className="text-center">
                 <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-                <p className="text-lg text-muted-foreground">Generating and saving report...</p>
+                <p className="text-lg text-muted-foreground">Generating report...</p>
               </CardContent>
             </Card>
           )}
@@ -406,7 +406,7 @@ export default function AquaTrackPage() {
               <CardContent className="text-center p-6">
                 <BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" />
                 <h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3>
-                <p className="text-muted-foreground">Submit the form to view the generated sales report. It will also be saved to the database.</p>
+                <p className="text-muted-foreground">Submit the form to view the generated sales report. Database saving is disabled.</p>
               </CardContent>
             </Card>
           )}
@@ -418,4 +418,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
