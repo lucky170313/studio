@@ -4,14 +4,13 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { SalesReportData } from '@/lib/types'; // Ensure this matches MongoDB structure
+import type { SalesReportData } from '@/lib/types'; 
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet } from 'lucide-react';
 import { format as formatDateFns } from 'date-fns';
 
-// Helper function to safely format Date objects
 const formatDisplayDate = (dateInput: any): string => {
   if (dateInput instanceof Date) {
     return formatDateFns(dateInput, 'PPP p');
@@ -27,7 +26,7 @@ const formatDisplayDate = (dateInput: any): string => {
 };
 
 interface SalesReportDataWithId extends SalesReportData {
-  _id: string; // MongoDB uses _id
+  _id: string; 
 }
 
 async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
@@ -37,11 +36,10 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
     throw new Error(errorData.message || 'Failed to fetch sales data');
   }
   const data = await response.json();
-  // Ensure firestoreDate is a Date object
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate),
-    _id: entry._id // ensure _id is correctly assigned
+    firestoreDate: new Date(entry.firestoreDate), // Ensure this is a Date object for consistency
+    _id: entry._id 
   }));
 }
 
@@ -79,6 +77,15 @@ export default function AdminViewDataPage() {
         if (sortConfig.key === 'firestoreDate') {
           valA = (valA instanceof Date) ? valA : new Date(valA as string || 0);
           valB = (valB instanceof Date) ? valB : new Date(valB as string || 0);
+        }
+
+        // Handle undefined or null values, pushing them to the bottom
+        if (valA === undefined || valA === null) return 1;
+        if (valB === undefined || valB === null) return -1;
+
+
+        if (typeof valA === 'string' && typeof valB === 'string') {
+          return sortConfig.direction === 'ascending' ? valA.localeCompare(valB) : valB.localeCompare(valA);
         }
 
         if (valA < valB) {
@@ -138,8 +145,10 @@ export default function AdminViewDataPage() {
     { key: 'litersSold', label: 'Liters Sold', sortable: true },
     { key: 'totalSale', label: 'Total Sale (₹)', sortable: true },
     { key: 'actualReceived', label: 'Actual Rcvd (₹)', sortable: true },
-    { key: 'aiAdjustedExpectedAmount', label: 'Adj. Expected (₹)', sortable: true },
-    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true },
+    { key: 'dueCollected', label: 'Due Collected (₹)', sortable: true },
+    { key: 'newDueAmount', label: 'New Due (₹)', sortable: true }, // New Column
+    { key: 'aiAdjustedExpectedAmount', label: 'Adj. Expected (₹)', sortable: true }, // This is now effectively initialAdjustedExpected
+    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true }, // Expected - Actual
     { key: 'status', label: 'Status', sortable: true },
     { key: 'comment', label: 'Comment' },
   ];

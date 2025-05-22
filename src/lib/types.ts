@@ -1,6 +1,5 @@
 
 import { z } from 'zod';
-// import type { Timestamp } from 'firebase/firestore'; // Firestore Timestamp import removed
 
 export type UserRole = 'Admin' | 'Team Leader';
 
@@ -15,6 +14,7 @@ export const salesDataSchema = z.object({
   cashReceived: z.coerce.number().min(0, 'Cash received must be a positive number.'),
   onlineReceived: z.coerce.number().min(0, 'Online received must be a positive number.'),
   dueCollected: z.coerce.number().min(0, 'Due collected must be a positive number.'),
+  newDueAmount: z.coerce.number().min(0, 'New due amount must be a positive number.'), // New field
   tokenMoney: z.coerce.number().min(0, 'Token money must be a positive number.'),
   staffExpense: z.coerce.number().min(0, 'Staff expense must be a positive number.'),
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
@@ -33,8 +33,8 @@ export const salesDataSchema = z.object({
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
-  id?: string; // Optional: for local display or if fetched with ID
-  date: string; // Formatted string date for display
+  id?: string; 
+  date: string; 
   firestoreDate: Date; // Changed from Firestore Timestamp to JavaScript Date
   riderName: string;
   vehicleName: string;
@@ -46,6 +46,7 @@ export interface SalesReportData {
   cashReceived: number;
   onlineReceived: number;
   dueCollected: number;
+  newDueAmount: number; // New field
   tokenMoney: number;
   staffExpense: number;
   extraAmount: number;

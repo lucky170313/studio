@@ -16,7 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { saveSalesReportAction } from './actions'; // Import the Server Action
+import { saveSalesReportAction } from './actions'; 
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
 const RIDER_NAMES_KEY = 'riderNames';
@@ -60,6 +60,7 @@ export default function AquaTrackPage() {
         }
       } else {
         setRiderNames(DEFAULT_RIDER_NAMES);
+        localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(DEFAULT_RIDER_NAMES));
       }
     } catch (error) {
       console.error("Failed to parse riderNames from localStorage", error);
@@ -98,29 +99,31 @@ export default function AquaTrackPage() {
       const actualReceived = values.cashReceived + values.onlineReceived;
       const submissionDateObject = values.date instanceof Date ? values.date : new Date();
       
-      const initialAdjustedExpected =
-        totalSale -
-        values.dueCollected -
-        values.tokenMoney -
-        values.staffExpense -
+      // New calculation for initialAdjustedExpected
+      const initialAdjustedExpected = 
+        totalSale + 
+        values.dueCollected - 
+        values.newDueAmount - 
+        values.tokenMoney - 
+        values.staffExpense - 
         values.extraAmount;
       
-      // AI Bypassed
-      const aiAdjustedExpectedAmount = initialAdjustedExpected;
+      const aiAdjustedExpectedAmount = initialAdjustedExpected; // AI Bypassed
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      const discrepancy = actualReceived - aiAdjustedExpectedAmount;
+      // New discrepancy calculation: Expected - Actual
+      const discrepancy = aiAdjustedExpectedAmount - actualReceived;
+      
       let status: SalesReportData['status'];
-      if (Math.abs(discrepancy) < 0.01) {
+      if (Math.abs(discrepancy) < 0.01) { // Match
         status = 'Match';
-      } else if (discrepancy < 0) {
+      } else if (discrepancy > 0) { // Expected > Actual => Shortage
         status = 'Shortage';
-      } else {
+      } else { // Actual > Expected (discrepancy is negative) => Overage
         status = 'Overage';
       }
 
       const newReportData: SalesReportData = {
-        // id will be assigned by MongoDB
         ...values, 
         date: formatDateFns(submissionDateObject, 'PPP'), 
         firestoreDate: submissionDateObject, 
@@ -128,6 +131,7 @@ export default function AquaTrackPage() {
         currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
         adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) ? values.overrideLitersSold : undefined,
+        newDueAmount: values.newDueAmount, // include new field
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -137,7 +141,6 @@ export default function AquaTrackPage() {
         status,
       };
       
-      // Data to save to MongoDB, excluding optional undefined fields for the model
       const reportToSaveForServer = {
         date: newReportData.date,
         firestoreDate: newReportData.firestoreDate,
@@ -150,6 +153,7 @@ export default function AquaTrackPage() {
         cashReceived: newReportData.cashReceived,
         onlineReceived: newReportData.onlineReceived,
         dueCollected: newReportData.dueCollected,
+        newDueAmount: newReportData.newDueAmount, // include new field
         tokenMoney: newReportData.tokenMoney,
         staffExpense: newReportData.staffExpense,
         extraAmount: newReportData.extraAmount,
@@ -164,26 +168,24 @@ export default function AquaTrackPage() {
         ...(newReportData.comment !== undefined && { comment: newReportData.comment }),
       };
 
-
-      // Save to MongoDB using Server Action
       const result = await saveSalesReportAction(reportToSaveForServer);
 
-      if (result.success) {
+      if (result.success && result.id) {
         toast({
-          title: 'Report Generated & Saved',
+          title: 'Report Generated & Saved to MongoDB',
           description: result.message,
           variant: 'default',
         });
-        setReportData({ ...newReportData, id: result.id }); // Set report data for local display with new ID
+        setReportData({ ...newReportData, id: result.id }); 
       } else {
         toast({
           title: 'Database Error',
-          description: result.message,
+          description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        setReportData(newReportData); // Show report locally even if DB save failed
+        // Display report locally even if save fails, ID will be missing.
+        setReportData(newReportData); 
       }
-
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         const updatedReadings = {
@@ -274,7 +276,7 @@ export default function AquaTrackPage() {
           AquaTrack
         </h1>
         <p className="mt-2 text-xl text-muted-foreground">
-          Daily Sales & Reconciliation Reporter
+          Daily Sales & Reconciliation Reporter (MongoDB)
         </p>
       </header>
 
@@ -369,7 +371,7 @@ export default function AquaTrackPage() {
                 </ul>
               </div>
             ) : (
-              <p className="text-sm text-muted-foreground">No riders added yet.</p>
+              <p className="text-sm text-muted-foreground">No riders added yet. Add some riders to see them here and in the form dropdown.</p>
             )}
           </CardContent>
         </Card>
@@ -417,7 +419,7 @@ export default function AquaTrackPage() {
         </div>
       </div>
       <footer className="mt-12 text-center text-sm text-muted-foreground">
-         {currentYear !== null ? <p>&copy; {currentYear} AquaTrack. Streamlining your water delivery business.</p> : <p>Loading year...</p>}
+         {currentYear !== null ? <p>&copy; {currentYear} AquaTrack. Streamlining your water delivery business. (MongoDB Version)</p> : <p>Loading year...</p>}
       </footer>
     </main>
   );

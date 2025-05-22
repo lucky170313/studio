@@ -19,7 +19,7 @@ const ReportItem: React.FC<{ icon: React.ElementType; label: string; value: stri
       <span>{label}</span>
     </div>
     <span className="text-sm font-medium text-foreground text-right">
-      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount')) ? `₹${value.toFixed(2)}` : value}
+      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount') || label.toLowerCase().includes('new due')) ? `₹${value.toFixed(2)}` : value}
       {unit && <span className="text-xs text-muted-foreground ml-1">{unit}</span>}
     </span>
   </div>
@@ -27,17 +27,18 @@ const ReportItem: React.FC<{ icon: React.ElementType; label: string; value: stri
 
 
 export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
-  const getStatusBadge = (status: SalesReportData['status']) => {
-    switch (status) {
-      case 'Match':
-        return <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white"><CheckCircle className="mr-1 h-4 w-4" />Match</Badge>;
-      case 'Shortage':
-        return <Badge variant="destructive"><AlertTriangle className="mr-1 h-4 w-4" />Shortage</Badge>;
-      case 'Overage':
-        return <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-black"><Info className="mr-1 h-4 w-4" />Overage</Badge>;
-      default:
-        return <Badge>{status}</Badge>;
+  const getStatusBadge = (status: SalesReportData['status'], discrepancy: number) => {
+    // Discrepancy = Expected - Actual
+    // Positive discrepancy = Shortage
+    // Negative discrepancy = Overage
+    if (status === 'Match') {
+      return <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white"><CheckCircle className="mr-1 h-4 w-4" />Match</Badge>;
+    } else if (status === 'Shortage') { // Corresponds to discrepancy > 0
+      return <Badge variant="destructive"><AlertTriangle className="mr-1 h-4 w-4" />Shortage</Badge>;
+    } else if (status === 'Overage') { // Corresponds to discrepancy < 0
+      return <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-black"><Info className="mr-1 h-4 w-4" />Overage</Badge>;
     }
+    return <Badge>{status}</Badge>; // Fallback
   };
 
   const litersSoldLabel = (reportData.adminOverrideLitersSold && reportData.adminOverrideLitersSold > 0)
@@ -82,7 +83,8 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
 
         <h3 className="text-lg font-semibold text-primary flex items-center"><Edit3 className="mr-2 h-5 w-5" />Adjustments & Expenses</h3>
          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 pl-2">
-          <ReportItem icon={DollarSign} label="Due Collected" value={reportData.dueCollected} />
+          <ReportItem icon={DollarSign} label="Due Collected (Past Dues)" value={reportData.dueCollected} />
+          <ReportItem icon={DollarSign} label="New Due Amount (Today's Sale)" value={reportData.newDueAmount} />
           <ReportItem icon={DollarSign} label="Token Money" value={reportData.tokenMoney} />
           <ReportItem icon={DollarSign} label="Staff Expense" value={reportData.staffExpense} />
           <ReportItem icon={DollarSign} label="Extra Amount (Entered)" value={reportData.extraAmount} />
@@ -108,13 +110,19 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
         <Separator />
         
         <div className="space-y-3 pt-2">
-          <ReportItem icon={DollarSign} label="Discrepancy" value={Math.abs(reportData.discrepancy)} className="text-lg font-bold" />
+          {/* Discrepancy is Expected - Actual. Positive means shortage, Negative means overage. */}
+          <ReportItem 
+            icon={DollarSign} 
+            label="Discrepancy" 
+            value={reportData.discrepancy} // Show actual signed discrepancy
+            className="text-lg font-bold" 
+          />
           <div className="flex items-center justify-between py-2">
             <div className="flex items-center text-sm text-muted-foreground">
               <Info className="mr-2 h-4 w-4" />
               <span>Status</span>
             </div>
-            {getStatusBadge(reportData.status)}
+            {getStatusBadge(reportData.status, reportData.discrepancy)}
           </div>
         </div>
 

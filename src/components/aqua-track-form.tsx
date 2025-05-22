@@ -2,7 +2,7 @@
 "use client";
 
 import * as React from 'react';
-import { useEffect, useState } from 'react'; // Added useState
+import { useEffect, useState } from 'react'; 
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
@@ -50,6 +50,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
       cashReceived: 0,
       onlineReceived: 0,
       dueCollected: 0,
+      newDueAmount: 0, // Default for new field
       tokenMoney: 0,
       staffExpense: 0,
       extraAmount: 0,
@@ -77,18 +78,17 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   }, [currentUserRole, setValue, getValues]);
 
   useEffect(() => {
-    if (selectedVehicleName) {
+    if (isClient && selectedVehicleName) { // Ensure this runs client-side
       const lastReading = lastMeterReadingsByVehicle[selectedVehicleName];
       if (lastReading !== undefined) {
         setValue('previousMeterReading', lastReading, { shouldValidate: true, shouldDirty: true });
       } else {
         setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
       }
-    } else {
-       // If no vehicle is selected, or vehicle is cleared, reset previous meter reading
+    } else if (isClient) {
        setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
-  }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue]);
+  }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue, isClient]);
 
 
   const previousMeterReadingValue = useWatch({ control: form.control, name: 'previousMeterReading' });
@@ -112,7 +112,8 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input' },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
     { name: 'onlineReceived', label: 'Online Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
-    { name: 'dueCollected', label: 'Due Collected', icon: IndianRupee, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
+    { name: 'dueCollected', label: 'Due Collected (Past Dues)', icon: IndianRupee, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
+    { name: 'newDueAmount', label: 'New Due Amount (Today\'s Sale)', icon: IndianRupee, type: 'number', placeholder: 'e.g., 30', componentType: 'input' },
     { name: 'tokenMoney', label: 'Token Money', icon: IndianRupee, type: 'number', placeholder: 'e.g., 50', componentType: 'input' },
     { name: 'staffExpense', label: 'Staff Expense', icon: IndianRupee, type: 'number', placeholder: 'e.g., 20', componentType: 'input' },
     { name: 'extraAmount', label: 'Extra Amount', icon: IndianRupee, type: 'number', placeholder: 'e.g., 10', componentType: 'input' },
@@ -176,7 +177,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
           {inputFields.map((inputField) => {
             const isPrevMeterReading = inputField.name === 'previousMeterReading';
             const isDisabled = isPrevMeterReading && currentUserRole === 'Team Leader';
-            // Use riderNames prop directly for rider name options, otherwise use inputField.options
             const currentOptions = inputField.name === 'riderName' ? riderNames : inputField.options;
 
             return (
@@ -195,6 +195,9 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                         <Select 
                           onValueChange={(value) => {
                             field.onChange(value);
+                            if (inputField.name === 'vehicleName') {
+                              // This logic is now handled by useEffect based on selectedVehicleName
+                            }
                           }}
                           value={field.value as string || ""}
                         >
@@ -221,7 +224,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                           placeholder={inputField.placeholder}
                           {...field}
                           disabled={isDisabled}
-                          value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' ? "" : field.value }
+                          value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' && inputField.name !== 'newDueAmount' ? "" : field.value }
                           onChange={event => {
                             if (inputField.type === 'number') {
                               const numValue = parseFloat(event.target.value);
@@ -235,7 +238,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReading && currentUserRole === 'Team Leader' && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
+                    {isPrevMeterReading && currentUserRole === 'Team Leader' && isClient && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -321,4 +324,3 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     </Form>
   );
 }
-
