@@ -1,4 +1,3 @@
-
 // src/lib/dbConnect.js
 import mongoose from 'mongoose';
 
@@ -6,7 +5,7 @@ const MONGO_URI = process.env.MONGO_URI;
 
 if (!MONGO_URI) {
   throw new Error(
-    'Please define the MONGO_URI environment variable inside .env'
+    'MONGO_URI environment variable is not defined. Ensure it is set in your .env file (for local development) or in your deployment environment variables (e.g., Netlify site settings).'
   );
 }
 
@@ -30,14 +29,14 @@ async function dbConnect() {
   if (!cached.promise) {
     const opts = {
       bufferCommands: false, // Disable buffering if you want to handle connection errors explicitly on operations
+      // useNewUrlParser and useUnifiedTopology are true by default in Mongoose 6+ and are no longer needed.
     };
 
-    // console.log(`Attempting to connect to MongoDB with URI: ${MONGO_URI}`); // Optional: for debugging URI
     cached.promise = mongoose.connect(MONGO_URI, opts).then((mongooseInstance) => {
       console.log('✅ New MongoDB connected');
       return mongooseInstance;
     }).catch(err => {
-        console.error('❌ MongoDB connection error:', err);
+        console.error('❌ MongoDB connection error:', err.message);
         // Log more details if available
         if (err.reason) console.error('Connection error reason:', err.reason);
         cached.promise = null; // Clear the promise on error so we can retry
