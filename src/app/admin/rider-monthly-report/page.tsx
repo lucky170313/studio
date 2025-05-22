@@ -10,17 +10,27 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3 } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth, parse } from 'date-fns';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import type { ChartConfig } from "@/components/ui/chart";
 
 const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 
 interface MonthlyRiderStats {
   totalLitersSold: number;
-  totalMoneyCollected: number;
+  totalMoneyCollected: number; // actualReceived
   totalTokenMoney: number;
   daysActive: number;
   calculatedSalary: number;
+  totalSales: number; // New for rider-specific total sales
 }
 
 interface RiderMonthlyData {
@@ -32,6 +42,7 @@ interface RiderMonthlyData {
 interface AggregatedReportData {
   riderData: RiderMonthlyData;
   overallDailyAverageCollection: number;
+  riderSalesChartData: { name: string; total: number }[]; // For the new chart
 }
 
 const formatDisplayDateToMonthYear = (dateInput: any): string => {
@@ -127,15 +138,16 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0) return;
+    if (isLoading && allSalesEntries.length > 0) return; // Ensure allSalesEntries is populated before processing
     if (allSalesEntries.length === 0 && !isLoading) {
-        setReportData({ riderData: {}, overallDailyAverageCollection: 0 });
+        setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
     }
 
     const riderMonthlyData: RiderMonthlyData = {};
     let totalCollectionAcrossAllDays = 0;
     const uniqueDaysWithEntriesGlobal = new Set<string>();
+    const salesByRiderForChart: { [key: string]: number } = {};
 
     filteredEntries.forEach(entry => {
       const rider = entry.riderName;
@@ -153,6 +165,7 @@ export default function RiderMonthlyReportPage() {
           totalTokenMoney: 0,
           daysActive: 0,
           calculatedSalary: 0,
+          totalSales: 0, // Initialize totalSales
         };
       }
 
@@ -160,6 +173,9 @@ export default function RiderMonthlyReportPage() {
       const actualReceived = typeof entry.actualReceived === 'number' ? entry.actualReceived : 0;
       riderMonthlyData[rider][monthYear].totalMoneyCollected += actualReceived;
       riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney || 0;
+      riderMonthlyData[rider][monthYear].totalSales += entry.totalSale || 0; // Accumulate total sales
+
+      salesByRiderForChart[rider] = (salesByRiderForChart[rider] || 0) + (entry.totalSale || 0);
 
       totalCollectionAcrossAllDays += actualReceived;
       uniqueDaysWithEntriesGlobal.add(dayKey);
@@ -183,10 +199,22 @@ export default function RiderMonthlyReportPage() {
       ? totalCollectionAcrossAllDays / uniqueDaysWithEntriesGlobal.size
       : 0;
 
-    setReportData({ riderData: riderMonthlyData, overallDailyAverageCollection });
+    const riderSalesChartData = Object.entries(salesByRiderForChart)
+      .map(([name, total]) => ({ name, total: parseFloat(total.toFixed(2)) }))
+      .sort((a,b) => b.total - a.total);
+
+    setReportData({ riderData: riderMonthlyData, overallDailyAverageCollection, riderSalesChartData });
     setError(null);
 
   }, [filteredEntries, riderSalaries, isLoading, allSalesEntries, selectedYear, selectedMonth]);
+
+
+  const riderSalesChartConfig = {
+    total: {
+      label: "Total Sales (₹)",
+      color: "hsl(var(--chart-1))",
+    },
+  } satisfies ChartConfig;
 
   if (isLoading && !reportData) {
     return (
@@ -240,6 +268,44 @@ export default function RiderMonthlyReportPage() {
           </CardContent>
         </Card>
 
+        {reportData.riderSalesChartData.length > 0 && (
+         <Card className="mb-8 shadow-lg">
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <BarChart3 className="mr-2 h-5 w-5 text-primary" />
+              Total Sales per Rider
+            </CardTitle>
+            <CardDescription>
+              Showing total sales for {selectedMonth === "all" ? "all months" : monthNames[parseInt(selectedMonth)]}
+              {selectedYear === "all" ? "" : ` in ${selectedYear}`}.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pl-2 pr-6">
+            <div style={{ height: '300px' }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <ChartContainer config={riderSalesChartConfig} className="min-h-[200px] w-full">
+                  <BarChart accessibilityLayer data={reportData.riderSalesChartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
+                    <CartesianGrid vertical={false} />
+                    <XAxis
+                      dataKey="name"
+                      tickLine={false}
+                      tickMargin={10}
+                      axisLine={false}
+                    />
+                    <YAxis 
+                      tickFormatter={(value) => `₹${value}`}
+                    />
+                    <ChartTooltip content={<ChartTooltipContent />} />
+                    <ChartLegend content={<ChartLegendContent />} />
+                    <Bar dataKey="total" fill="var(--color-total)" radius={4} />
+                  </BarChart>
+                </ChartContainer>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
         <div className="space-y-8">
           {sortedRiderNames.map(riderName => {
             const riderMonths = Object.entries(reportData.riderData[riderName])
@@ -265,12 +331,13 @@ export default function RiderMonthlyReportPage() {
                       <TableHeader>
                         <TableRow>
                           <TableHead><CalendarDays className="inline-block mr-1 h-4 w-4"/>Month</TableHead>
-                          <TableHead className="text-right"><Droplets className="inline-block mr-1 h-4 w-4"/>Total Liters Sold</TableHead>
-                          <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Total Money Collected</TableHead>
-                          <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Total Token Money</TableHead>
+                          <TableHead className="text-right"><Droplets className="inline-block mr-1 h-4 w-4"/>Liters Sold</TableHead>
+                          <TableHead className="text-right"><TrendingUp className="inline-block mr-1 h-4 w-4"/>Total Sales (₹)</TableHead>
+                          <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Money Collected (₹)</TableHead>
+                          <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Token Money (₹)</TableHead>
                           <TableHead className="text-right"><CalendarDays className="inline-block mr-1 h-4 w-4"/>Days Active</TableHead>
-                          <TableHead className="text-right"><TrendingUp className="inline-block mr-1 h-4 w-4"/>Avg. Daily Collection</TableHead>
-                          <TableHead className="text-right"><Wallet className="inline-block mr-1 h-4 w-4"/>Calculated Salary</TableHead>
+                          <TableHead className="text-right"><TrendingUp className="inline-block mr-1 h-4 w-4"/>Avg. Daily Collection (₹)</TableHead>
+                          <TableHead className="text-right"><Wallet className="inline-block mr-1 h-4 w-4"/>Calculated Salary (₹)</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -280,6 +347,7 @@ export default function RiderMonthlyReportPage() {
                             <TableRow key={monthYear}>
                               <TableCell className="font-medium">{monthYear}</TableCell>
                               <TableCell className="text-right">{stats.totalLitersSold.toFixed(2)} L</TableCell>
+                              <TableCell className="text-right">₹{stats.totalSales.toFixed(2)}</TableCell>
                               <TableCell className="text-right">₹{stats.totalMoneyCollected.toFixed(2)}</TableCell>
                               <TableCell className="text-right">₹{stats.totalTokenMoney.toFixed(2)}</TableCell>
                               <TableCell className="text-right">{stats.daysActive}</TableCell>
@@ -363,5 +431,3 @@ export default function RiderMonthlyReportPage() {
     </main>
   );
 }
-
-    

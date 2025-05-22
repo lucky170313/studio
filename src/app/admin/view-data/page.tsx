@@ -4,23 +4,14 @@
 import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import type { SalesReportData } from '@/lib/types'; 
+import type { SalesReportData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Label } from '@/components/ui/label'; // Added missing import
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, BarChart3, CalendarDays } from 'lucide-react';
+import { Label } from '@/components/ui/label';
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
-import type { ChartConfig } from "@/components/ui/chart";
 
 const formatDisplayDate = (dateInput: any): string => {
   if (!dateInput) return 'Invalid Date';
@@ -32,7 +23,7 @@ const formatDisplayDate = (dateInput: any): string => {
 };
 
 interface SalesReportDataWithId extends SalesReportData {
-  _id: string; 
+  _id: string;
 }
 
 async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
@@ -44,13 +35,13 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate), 
-    _id: entry._id 
+    firestoreDate: new Date(entry.firestoreDate),
+    _id: entry._id
   }));
 }
 
 const monthNames = [
-  "January", "February", "March", "April", "May", "June", 
+  "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
 ];
 
@@ -121,24 +112,6 @@ export default function AdminViewDataPage() {
     return sortableItems;
   }, [filteredEntries, sortConfig]);
 
-  const chartData = useMemo(() => {
-    const salesByRider: { [key: string]: number } = {};
-    filteredEntries.forEach(entry => {
-      salesByRider[entry.riderName] = (salesByRider[entry.riderName] || 0) + entry.totalSale;
-    });
-    return Object.entries(salesByRider)
-      .map(([name, total]) => ({ name, total: parseFloat(total.toFixed(2)) }))
-      .sort((a,b) => b.total - a.total);
-  }, [filteredEntries]);
-
-  const chartConfig = {
-    total: {
-      label: "Total Sales (₹)",
-      color: "hsl(var(--chart-1))",
-    },
-  } satisfies ChartConfig;
-
-
   const requestSort = (key: keyof SalesReportDataWithId) => {
     let direction: 'ascending' | 'descending' = 'ascending';
     if (sortConfig.key === key && sortConfig.direction === 'ascending') {
@@ -195,7 +168,10 @@ export default function AdminViewDataPage() {
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-primary">All Sales Entries (MongoDB)</h1>
+        <h1 className="text-3xl font-bold text-primary flex items-center">
+          <CalendarDays className="mr-3 h-8 w-8" />
+          All Sales Entries (MongoDB)
+        </h1>
         <div className="flex space-x-2">
           <Button variant="outline" onClick={() => alert("Google Sheets export functionality to be implemented.")}>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Export to Google Sheets
@@ -243,46 +219,6 @@ export default function AdminViewDataPage() {
           </div>
         </CardContent>
       </Card>
-
-      {chartData.length > 0 && (
-         <Card className="mb-8 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BarChart3 className="mr-2 h-5 w-5 text-primary" />
-              Total Sales per Rider
-            </CardTitle>
-            <CardDescription>
-              Showing total sales for {selectedMonth === "all" ? "all months" : monthNames[parseInt(selectedMonth)]}
-              {selectedYear === "all" ? "" : ` in ${selectedYear}`}.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2 pr-6">
-            <div style={{ height: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                  <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tickLine={false}
-                      tickMargin={10}
-                      axisLine={false}
-                      // tickFormatter={(value) => value.slice(0, 3)}
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `₹${value}`}
-                    />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Bar dataKey="total" fill="var(--color-total)" radius={4} />
-                  </BarChart>
-                </ChartContainer>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
 
       <Card className="shadow-lg">
         <CardHeader>
