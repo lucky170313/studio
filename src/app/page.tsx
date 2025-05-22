@@ -37,10 +37,12 @@ const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 
-// --- Simulated Admin Credentials ---
+// --- Simulated Credentials ---
 const ADMIN_USER_ID = "lucky170313";
 const ADMIN_PASSWORD = "northpole";
-// --- End Simulated Admin Credentials ---
+const TEAM_LEADER_USER_ID = "leader01";
+const TEAM_LEADER_PASSWORD = "leaderpass";
+// --- End Simulated Credentials ---
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -145,6 +147,13 @@ export default function AquaTrackPage() {
       setLoginError(null);
       setUsernameInput('');
       setPasswordInput('');
+    } else if (usernameInput === TEAM_LEADER_USER_ID && passwordInput === TEAM_LEADER_PASSWORD) {
+      setIsLoggedIn(true);
+      setCurrentUserRole('Team Leader');
+      setLoggedInUsername(TEAM_LEADER_USER_ID);
+      setLoginError(null);
+      setUsernameInput('');
+      setPasswordInput('');
     } else {
       setLoginError("Invalid User ID or Password.");
       setIsLoggedIn(false);
@@ -191,30 +200,34 @@ export default function AquaTrackPage() {
       const actualReceived = values.cashReceived + values.onlineReceived;
       const submissionDateObject = values.date instanceof Date ? values.date : new Date();
 
+      // Updated formula for initialAdjustedExpected & discrepancy
       const initialAdjustedExpected =
         totalSale +
         values.dueCollected -
-        values.newDueAmount -
+        values.newDueAmount - // Added newDueAmount
         values.tokenMoney -
         values.staffExpense -
         values.extraAmount;
+      
+      const discrepancy = 
+        (totalSale + values.dueCollected) - 
+        (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
 
+      // AI is bypassed, use initial values
       const aiAdjustedExpectedAmount = initialAdjustedExpected;
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
-
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
-      } else if (discrepancy > 0) {
+      } else if (discrepancy > 0) { // Expected more than received -> Shortage
         status = 'Shortage';
-      } else {
+      } else { // Received more than expected -> Overage
         status = 'Overage';
       }
 
       const riderPerDaySalary = riderSalaries[values.riderName] || 0;
-      const hoursWorked = values.hoursWorked || 9; // Default to 9 if not provided
+      const hoursWorked = values.hoursWorked || 9; 
       const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
 
       let commissionEarned = 0;
@@ -224,7 +237,7 @@ export default function AquaTrackPage() {
 
       const newReportData: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject, // Use JavaScript Date for MongoDB
+        firestoreDate: submissionDateObject, 
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
@@ -243,7 +256,7 @@ export default function AquaTrackPage() {
         dailySalaryCalculated: dailySalaryCalculated,
         commissionEarned: commissionEarned,
         comment: values.comment || "",
-        recordedBy: loggedInUsername, // Use logged-in admin's username
+        recordedBy: loggedInUsername, // Use logged-in user's username
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -253,22 +266,21 @@ export default function AquaTrackPage() {
         status,
       };
 
-      const reportToSave: any = { ...newReportData };
-      if (reportToSave.adminOverrideLitersSold === undefined) {
-        delete reportToSave.adminOverrideLitersSold;
+      const reportToSaveForMongoDB = { ...newReportData };
+      if (reportToSaveForMongoDB.adminOverrideLitersSold === undefined) {
+        delete reportToSaveForMongoDB.adminOverrideLitersSold;
       }
-      if (reportToSave.comment === undefined || reportToSave.comment === "") {
-         delete reportToSave.comment;
+      if (reportToSaveForMongoDB.comment === undefined || reportToSaveForMongoDB.comment === "") {
+         delete reportToSaveForMongoDB.comment;
       }
-       if (reportToSave.dailySalaryCalculated === undefined) {
-        reportToSave.dailySalaryCalculated = 0;
+       if (reportToSaveForMongoDB.dailySalaryCalculated === undefined) {
+        reportToSaveForMongoDB.dailySalaryCalculated = 0;
       }
-      if (reportToSave.commissionEarned === undefined) {
-        reportToSave.commissionEarned = 0;
+      if (reportToSaveForMongoDB.commissionEarned === undefined) {
+        reportToSaveForMongoDB.commissionEarned = 0;
       }
 
-
-      const result = await saveSalesReportAction(reportToSave);
+      const result = await saveSalesReportAction(reportToSaveForMongoDB);
 
       if (result.success && result.id) {
         toast({
@@ -283,7 +295,6 @@ export default function AquaTrackPage() {
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        // Display the report locally even if DB save fails for preview
         setReportData({ ...newReportData, id: `local-preview-${Date.now()}` });
       }
 
@@ -459,7 +470,7 @@ export default function AquaTrackPage() {
               <LogIn className="mr-2 h-5 w-5" /> Login
             </Button>
             <CardDescription className="text-xs text-center pt-2">
-              This is a simulated login for prototyping. Use User ID: lucky170313, Password: northpole.
+              Prototype Login: Admin (lucky170313/northpole) or Team Leader (leader01/leaderpass).
             </CardDescription>
           </CardContent>
         </Card>
@@ -684,7 +695,7 @@ export default function AquaTrackPage() {
             <AquaTrackForm
               onSubmit={handleFormSubmit}
               isProcessing={isProcessing}
-              currentUserRole={currentUserRole || 'Team Leader'} // Default to non-admin if role not set
+              currentUserRole={currentUserRole || 'Team Leader'} 
               lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
               riderNames={riderNames}
               persistentRatePerLiter={globalRatePerLiter}
@@ -722,3 +733,4 @@ export default function AquaTrackPage() {
   );
 }
 
+    
