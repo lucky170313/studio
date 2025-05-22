@@ -31,10 +31,10 @@ import {
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleAquaTrackApp';
 const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp';
-const DEFAULT_RIDER_NAMES = ['Rider A', 'Rider B', 'Rider C'];
+const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie'];
 const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterAquaTrackApp';
-const DEFAULT_GLOBAL_RATE = 2.5; // Default rate if nothing in localStorage
+const DEFAULT_GLOBAL_RATE = 0.0; 
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -60,7 +60,8 @@ export default function AquaTrackPage() {
 
 
   useEffect(() => {
-    // Load last meter readings
+    setCurrentYear(new Date().getFullYear());
+
     try {
       const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
       if (storedReadings) {
@@ -73,7 +74,6 @@ export default function AquaTrackPage() {
       console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
     }
 
-    // Load rider names
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -92,7 +92,6 @@ export default function AquaTrackPage() {
       setRiderNames(DEFAULT_RIDER_NAMES);
     }
 
-    // Load rider salaries
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
@@ -105,7 +104,6 @@ export default function AquaTrackPage() {
       console.error("Failed to parse riderSalaries from localStorage", error);
     }
     
-    // Load global rate per liter
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
       if (storedRate) {
@@ -113,13 +111,16 @@ export default function AquaTrackPage() {
         if (!isNaN(parsedRate)) {
           setGlobalRatePerLiter(parsedRate);
           setRateInput(String(parsedRate));
+        } else {
+          setRateInput(String(DEFAULT_GLOBAL_RATE));
         }
+      } else {
+         setRateInput(String(DEFAULT_GLOBAL_RATE));
       }
     } catch (error) {
       console.error("Failed to parse globalRatePerLiter from localStorage", error);
+       setRateInput(String(DEFAULT_GLOBAL_RATE));
     }
-
-    setCurrentYear(new Date().getFullYear());
   }, []);
 
   const handleFormSubmit = async (values: SalesDataFormValues) => {
@@ -171,7 +172,6 @@ export default function AquaTrackPage() {
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      // Discrepancy = (Total Sale + Due Collected) - (Cash Received + Online Received + New Due Amount + Token Money + Extra Amount + Staff Expense)
       const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       let status: SalesReportData['status'];
@@ -210,15 +210,15 @@ export default function AquaTrackPage() {
         status,
       };
       
-      const reportToSaveForServer: any = { ...newReportData };
-      if (reportToSaveForServer.adminOverrideLitersSold === undefined) {
-        delete reportToSaveForServer.adminOverrideLitersSold;
+      const reportToSave: any = { ...newReportData };
+      if (reportToSave.adminOverrideLitersSold === undefined) {
+        delete reportToSave.adminOverrideLitersSold;
       }
-      if (reportToSaveForServer.comment === undefined || reportToSaveForServer.comment === "") {
-         delete reportToSaveForServer.comment;
+      if (reportToSave.comment === undefined || reportToSave.comment === "") {
+         delete reportToSave.comment;
       }
 
-      const result = await saveSalesReportAction(reportToSaveForServer);
+      const result = await saveSalesReportAction(reportToSave);
 
       if (result.success && result.id) {
         toast({
@@ -233,11 +233,9 @@ export default function AquaTrackPage() {
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        // Still show report locally even if DB save fails for review
         setReportData({ ...newReportData, id: `local-preview-${Date.now()}` }); 
       }
 
-      // Update last meter reading for the vehicle
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         const updatedReadings = {
           ...lastMeterReadingsByVehicle,
@@ -506,8 +504,8 @@ export default function AquaTrackPage() {
               <CardDescription>Set the per-day salary for each rider. Used for monthly report calculations.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex space-x-2 items-end">
-                <div className="flex-grow">
+              <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:items-end">
+                <div className="flex-1">
                   <Label htmlFor="selectRiderForSalary">Select Rider</Label>
                   <Select value={selectedRiderForSalary} onValueChange={(value) => {
                     setSelectedRiderForSalary(value);
@@ -523,7 +521,7 @@ export default function AquaTrackPage() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="w-1/3">
+                <div className="sm:w-40">
                   <Label htmlFor="salaryInput">Salary (₹/Day)</Label>
                   <Input
                     id="salaryInput"
@@ -535,13 +533,15 @@ export default function AquaTrackPage() {
                     className="text-base"
                   />
                 </div>
-                <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="h-10">
-                  Set Salary
-                </Button>
+                <div>
+                  <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="h-10 w-full sm:w-auto">
+                    Set Salary
+                  </Button>
+                </div>
               </div>
               {Object.keys(riderSalaries).length > 0 && (
                  <div>
-                  <h4 className="text-md font-medium mb-2">Current Salaries:</h4>
+                  <h4 className="text-md font-medium mb-2 mt-4">Current Salaries:</h4>
                     <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
                       {riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (
                         <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
@@ -631,4 +631,6 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+    
+
     
