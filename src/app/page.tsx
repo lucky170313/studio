@@ -185,13 +185,13 @@ export default function AquaTrackPage() {
   };
 
   const handleLogin = () => {
-    let currentAdminPassword = adminPassword;
+    let currentAdminPassword = adminPassword; // Default if not found
     try {
         const storedAdminCreds = localStorage.getItem(ADMIN_CREDENTIALS_KEY);
         if (storedAdminCreds) currentAdminPassword = JSON.parse(storedAdminCreds).password;
     } catch (e) { console.error("Error reading admin creds for login", e); }
 
-    let currentTeamLeaders: Array<{ userId: string; password: string }> = [...DEFAULT_TEAM_LEADERS];
+    let currentTeamLeaders: Array<{ userId: string; password: string }> = [...DEFAULT_TEAM_LEADERS]; // Default if not found
      try {
         const storedTlAccounts = localStorage.getItem(TEAM_LEADER_ACCOUNTS_KEY);
         if (storedTlAccounts) currentTeamLeaders = JSON.parse(storedTlAccounts);
@@ -445,7 +445,7 @@ export default function AquaTrackPage() {
     }
     const newPassword = newAdminPasswordInput.trim();
     localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ userId: DEFAULT_ADMIN_USER_ID, password: newPassword }));
-    setAdminPassword(newPassword); // Update local state if needed, though login re-reads
+    setAdminPassword(newPassword); // Update local state for current session login check
     setNewAdminPasswordInput('');
     toast({ title: "Success", description: "Admin password updated. (This is insecure, for prototype only)" });
   };
@@ -461,7 +461,7 @@ export default function AquaTrackPage() {
 
     if (editingTlOriginalUserId) { // Editing existing TL
       updatedTeamLeaders = teamLeaders.map(tl =>
-        tl.userId === editingTlOriginalUserId ? { userId, password } : tl // Allow editing User ID too for this prototype
+        tl.userId === editingTlOriginalUserId ? { userId, password } : tl 
       );
       if (editingTlOriginalUserId !== userId && teamLeaders.some(tl => tl.userId === userId)) {
          toast({ title: "Error", description: `User ID "${userId}" already exists. Choose a different User ID.`, variant: "destructive" });
@@ -541,9 +541,6 @@ export default function AquaTrackPage() {
             <Button onClick={handleLogin} className="w-full text-lg py-3">
               <LogIn className="mr-2 h-5 w-5" /> Login
             </Button>
-            <CardDescription className="text-xs text-center pt-2">
-              Prototype Login (INSECURE): Admin (Default: lucky170313/northpole) or Team Leader (Default: leader01/leaderpass). Manage in Admin panel after login.
-            </CardDescription>
           </CardContent>
         </Card>
       </main>
