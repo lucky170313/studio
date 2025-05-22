@@ -172,7 +172,8 @@ export default function AquaTrackPage() {
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
+      // Discrepancy = (Total Sale + Due Collected) - (Cash Received + Online Received + New Due Amount + Token Money + Extra Amount + Staff Expense)
+      const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
@@ -533,15 +534,15 @@ export default function AquaTrackPage() {
                     className="text-base"
                   />
                 </div>
-                <div>
-                  <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="h-10 w-full sm:w-auto">
-                    Set Salary
-                  </Button>
-                </div>
+              </div>
+              <div>
+                <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="w-full sm:w-auto">
+                  Set Salary
+                </Button>
               </div>
               {Object.keys(riderSalaries).length > 0 && (
                  <div>
-                  <h4 className="text-md font-medium mb-2 mt-4">Current Salaries:</h4>
+                  <h4 className="text-md font-medium mb-2">Current Salaries:</h4>
                     <ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">
                       {riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (
                         <li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
