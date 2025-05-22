@@ -17,9 +17,9 @@ import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 
-// Firestore imports removed
-// import { db } from '@/lib/firebase';
-// import { collection, addDoc, Timestamp } from 'firebase/firestore';
+// MongoDB specific imports
+import dbConnect from '@/lib/dbConnect';
+import SalesReportModel from '@/models/SalesReport.js'; // Using .js extension as per the model file
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
 const RIDER_NAMES_KEY = 'riderNames';
@@ -113,8 +113,7 @@ export default function AquaTrackPage() {
         values.tokenMoney -
         values.staffExpense -
         values.extraAmount;
-
-      // Bypassing AI call as per user request to avoid API/billing issues
+      
       const aiOutput: AdjustExpectedAmountOutput = {
         adjustedExpectedAmount: initialAdjustedExpected,
         reasoning: "AI analysis bypassed. Using initial system calculation.",
@@ -132,8 +131,8 @@ export default function AquaTrackPage() {
 
       const newReportData: SalesReportData = {
         ...values, 
-        date: formatDateFns(submissionDateObject, 'PPP'), // For display
-        firestoreDate: submissionDateObject, // Using JS Date object directly
+        date: formatDateFns(submissionDateObject, 'PPP'), 
+        firestoreDate: submissionDateObject, 
         previousMeterReading: values.previousMeterReading,
         currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
@@ -147,37 +146,34 @@ export default function AquaTrackPage() {
         status,
       };
       
-      // Firestore saving logic removed
-      // try {
-      //   const dataToSaveForFirestore: { [key: string]: any } = {};
-      //   for (const key of Object.keys(newReportData) as Array<keyof SalesReportData>) {
-      //       if (newReportData[key] !== undefined) {
-      //           dataToSaveForFirestore[key] = newReportData[key];
-      //       }
-      //   }
-      //   if ('id' in dataToSaveForFirestore) {
-      //       delete dataToSaveForFirestore.id;
-      //   }
-      //   const docRef = await addDoc(collection(db, "salesEntries"), dataToSaveForFirestore);
-      //   console.log("Document written with ID: ", docRef.id);
-      //   toast({
-      //     title: 'Report Generated & Saved',
-      //     description: 'Sales report has been successfully generated and saved to the database.',
-      //     variant: 'default',
-      //   });
-      // } catch (e) {
-      //   console.error("Error adding document: ", e);
-      //   toast({
-      //     title: 'Database Error',
-      //     description: 'Failed to save sales report to the database. Report is generated locally.',
-      //     variant: 'destructive',
-      //   });
-      // }
-      toast({
-        title: 'Report Generated Locally',
-        description: 'Sales report has been generated. Database saving is disabled.',
-        variant: 'default',
-      });
+      // Save to MongoDB
+      try {
+        await dbConnect();
+        const reportToSave = { ...newReportData };
+        // Remove optional fields if they are undefined, as Mongoose might handle them, but explicit is safer
+        if (reportToSave.adminOverrideLitersSold === undefined) delete reportToSave.adminOverrideLitersSold;
+        if (reportToSave.comment === undefined) delete reportToSave.comment;
+
+        const salesReportEntry = new SalesReportModel(reportToSave);
+        await salesReportEntry.save();
+        
+        toast({
+          title: 'Report Generated & Saved to MongoDB',
+          description: 'Sales report has been successfully generated and saved to MongoDB.',
+          variant: 'default',
+        });
+      } catch (e) {
+        console.error("Error saving document to MongoDB: ", e);
+        let dbErrorMessage = 'Failed to save sales report to MongoDB. Report is generated locally.';
+        if (e instanceof Error) {
+            dbErrorMessage = `MongoDB Error: ${e.message}. Report generated locally.`;
+        }
+        toast({
+          title: 'Database Error',
+          description: dbErrorMessage,
+          variant: 'destructive',
+        });
+      }
 
       setReportData(newReportData); 
 
@@ -376,7 +372,7 @@ export default function AquaTrackPage() {
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings and rider list are persisted in browser. Data saving to database is currently disabled.</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings and rider list are persisted in browser. Data is saved to MongoDB.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
@@ -406,7 +402,7 @@ export default function AquaTrackPage() {
               <CardContent className="text-center p-6">
                 <BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" />
                 <h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3>
-                <p className="text-muted-foreground">Submit the form to view the generated sales report. Database saving is disabled.</p>
+                <p className="text-muted-foreground">Submit the form to view the generated sales report. Data is saved to MongoDB.</p>
               </CardContent>
             </Card>
           )}
