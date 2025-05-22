@@ -16,20 +16,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-
-// MongoDB specific imports
-import dbConnect from '@/lib/dbConnect';
-import SalesReportModel from '@/models/SalesReport.js'; // Using .js extension as per the model file
+import { saveSalesReportAction } from './actions'; // Import the Server Action
 
 const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicle';
 const RIDER_NAMES_KEY = 'riderNames';
 const DEFAULT_RIDER_NAMES = ['Rider John', 'Rider Jane', 'Rider Alex'];
-
-interface AdjustExpectedAmountOutput {
-  adjustedExpectedAmount: number;
-  reasoning: string;
-}
-
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -114,12 +105,11 @@ export default function AquaTrackPage() {
         values.staffExpense -
         values.extraAmount;
       
-      const aiOutput: AdjustExpectedAmountOutput = {
-        adjustedExpectedAmount: initialAdjustedExpected,
-        reasoning: "AI analysis bypassed. Using initial system calculation.",
-      };
+      // AI Bypassed
+      const aiAdjustedExpectedAmount = initialAdjustedExpected;
+      const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      const discrepancy = actualReceived - aiOutput.adjustedExpectedAmount;
+      const discrepancy = actualReceived - aiAdjustedExpectedAmount;
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
@@ -130,6 +120,7 @@ export default function AquaTrackPage() {
       }
 
       const newReportData: SalesReportData = {
+        // id will be assigned by MongoDB
         ...values, 
         date: formatDateFns(submissionDateObject, 'PPP'), 
         firestoreDate: submissionDateObject, 
@@ -140,42 +131,59 @@ export default function AquaTrackPage() {
         totalSale,
         actualReceived,
         initialAdjustedExpected,
-        aiAdjustedExpectedAmount: aiOutput.adjustedExpectedAmount,
-        aiReasoning: aiOutput.reasoning,
+        aiAdjustedExpectedAmount: aiAdjustedExpectedAmount,
+        aiReasoning: aiReasoning,
         discrepancy,
         status,
       };
       
-      // Save to MongoDB
-      try {
-        await dbConnect();
-        const reportToSave = { ...newReportData };
-        // Remove optional fields if they are undefined, as Mongoose might handle them, but explicit is safer
-        if (reportToSave.adminOverrideLitersSold === undefined) delete reportToSave.adminOverrideLitersSold;
-        if (reportToSave.comment === undefined) delete reportToSave.comment;
+      // Data to save to MongoDB, excluding optional undefined fields for the model
+      const reportToSaveForServer = {
+        date: newReportData.date,
+        firestoreDate: newReportData.firestoreDate,
+        riderName: newReportData.riderName,
+        vehicleName: newReportData.vehicleName,
+        previousMeterReading: newReportData.previousMeterReading,
+        currentMeterReading: newReportData.currentMeterReading,
+        litersSold: newReportData.litersSold,
+        ratePerLiter: newReportData.ratePerLiter,
+        cashReceived: newReportData.cashReceived,
+        onlineReceived: newReportData.onlineReceived,
+        dueCollected: newReportData.dueCollected,
+        tokenMoney: newReportData.tokenMoney,
+        staffExpense: newReportData.staffExpense,
+        extraAmount: newReportData.extraAmount,
+        totalSale: newReportData.totalSale,
+        actualReceived: newReportData.actualReceived,
+        initialAdjustedExpected: newReportData.initialAdjustedExpected,
+        aiAdjustedExpectedAmount: newReportData.aiAdjustedExpectedAmount,
+        aiReasoning: newReportData.aiReasoning,
+        discrepancy: newReportData.discrepancy,
+        status: newReportData.status,
+        ...(newReportData.adminOverrideLitersSold !== undefined && { adminOverrideLitersSold: newReportData.adminOverrideLitersSold }),
+        ...(newReportData.comment !== undefined && { comment: newReportData.comment }),
+      };
 
-        const salesReportEntry = new SalesReportModel(reportToSave);
-        await salesReportEntry.save();
-        
+
+      // Save to MongoDB using Server Action
+      const result = await saveSalesReportAction(reportToSaveForServer);
+
+      if (result.success) {
         toast({
-          title: 'Report Generated & Saved to MongoDB',
-          description: 'Sales report has been successfully generated and saved to MongoDB.',
+          title: 'Report Generated & Saved',
+          description: result.message,
           variant: 'default',
         });
-      } catch (e) {
-        console.error("Error saving document to MongoDB: ", e);
-        let dbErrorMessage = 'Failed to save sales report to MongoDB. Report is generated locally.';
-        if (e instanceof Error) {
-            dbErrorMessage = `MongoDB Error: ${e.message}. Report generated locally.`;
-        }
+        setReportData({ ...newReportData, id: result.id }); // Set report data for local display with new ID
+      } else {
         toast({
           title: 'Database Error',
-          description: dbErrorMessage,
+          description: result.message,
           variant: 'destructive',
         });
+        setReportData(newReportData); // Show report locally even if DB save failed
       }
 
-      setReportData(newReportData); 
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         const updatedReadings = {
