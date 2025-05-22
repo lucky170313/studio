@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -105,15 +105,13 @@ export default function AquaTrackPage() {
   const handleFormSubmit = async (values: SalesDataFormValues) => {
     setPendingFormValues(values);
     setIsConfirmationDialogOpen(true);
-    setReportData(null); // Clear previous report when new data is submitted
+    setReportData(null); 
   };
 
   const executeReportGeneration = async () => {
     if (!pendingFormValues) return;
 
     setIsProcessing(true);
-    // Report data is already nullified or will be set by this function
-
     const values = pendingFormValues;
 
     try {
@@ -145,24 +143,22 @@ export default function AquaTrackPage() {
       const initialAdjustedExpected = 
         totalSale + 
         values.dueCollected - 
-        values.newDueAmount - // Added newDueAmount here
+        values.newDueAmount - 
         values.tokenMoney - 
         values.staffExpense - 
         values.extraAmount;
       
-      // AI Bypassed
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      // Updated Discrepancy: (Total Sale + Due Collected) - Cash Received - Online Received - New Due Amount - Token Money - Extra Amount - Staff Expense
       const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
         status = 'Match';
-      } else if (discrepancy > 0) { // Expected more than received
+      } else if (discrepancy > 0) { 
         status = 'Shortage';
-      } else { // Received more than expected
+      } else { 
         status = 'Overage';
       }
 
@@ -183,7 +179,7 @@ export default function AquaTrackPage() {
         tokenMoney: values.tokenMoney,
         staffExpense: values.staffExpense,
         extraAmount: values.extraAmount,
-        comment: values.comment || "", // Ensure comment is a string, not undefined
+        comment: values.comment || "",
         totalSale,
         actualReceived,
         initialAdjustedExpected,
@@ -193,7 +189,6 @@ export default function AquaTrackPage() {
         status,
       };
       
-      // Prepare data for MongoDB, excluding undefined fields for adminOverrideLitersSold and ensuring comment is always string
       const reportToSaveForServer: any = { ...newReportData };
       if (reportToSaveForServer.adminOverrideLitersSold === undefined) {
         delete reportToSaveForServer.adminOverrideLitersSold;
@@ -201,7 +196,6 @@ export default function AquaTrackPage() {
       if (reportToSaveForServer.comment === undefined) {
          reportToSaveForServer.comment = "";
       }
-
 
       const result = await saveSalesReportAction(reportToSaveForServer);
 
@@ -248,7 +242,6 @@ export default function AquaTrackPage() {
     }
   };
 
-
   const handleRiderNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setRiderNameInput(e.target.value);
   };
@@ -268,7 +261,6 @@ export default function AquaTrackPage() {
       updatedRiderNames = riderNames.map(name =>
         name === editingRiderOriginalName ? trimmedRiderName : name
       );
-      // Update salary key if rider name changed
       if (editingRiderOriginalName !== trimmedRiderName && riderSalaries[editingRiderOriginalName] !== undefined) {
         const updatedSalaries = { ...riderSalaries };
         updatedSalaries[trimmedRiderName] = updatedSalaries[editingRiderOriginalName];
@@ -307,7 +299,6 @@ export default function AquaTrackPage() {
       setRiderNames(updatedRiderNames);
       localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(updatedRiderNames));
 
-      // Remove salary for the deleted rider
       const updatedSalaries = { ...riderSalaries };
       delete updatedSalaries[nameToDelete];
       setRiderSalaries(updatedSalaries);
@@ -338,7 +329,6 @@ export default function AquaTrackPage() {
     setRiderSalaries(updatedSalaries);
     localStorage.setItem(RIDER_SALARIES_KEY, JSON.stringify(updatedSalaries));
     toast({ title: "Success", description: `Salary for ${selectedRiderForSalary} set to ₹${salaryValue}/day.` });
-    // setSalaryInput(''); // Optionally clear input after setting
   };
   
 
@@ -395,7 +385,7 @@ export default function AquaTrackPage() {
             </div>
           </RadioGroup>
           {currentUserRole === 'Admin' && (
-            <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mt-4 sm:mt-0">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
               <Link href="/admin/view-data" passHref>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <Eye className="mr-2 h-4 w-4" /> View All Sales Data
@@ -404,6 +394,11 @@ export default function AquaTrackPage() {
               <Link href="/admin/rider-monthly-report" passHref>
                 <Button variant="outline" className="w-full sm:w-auto">
                   <PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report
+                </Button>
+              </Link>
+              <Link href="/admin/monthly-summary" passHref>
+                <Button variant="outline" className="w-full sm:w-auto">
+                  <BarChartHorizontal className="mr-2 h-4 w-4" /> Monthly Sales Summary
                 </Button>
               </Link>
             </div>
@@ -575,6 +570,5 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
 
     
