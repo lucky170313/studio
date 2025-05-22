@@ -32,11 +32,12 @@ interface AquaTrackFormProps {
   currentUserRole: UserRole;
   lastMeterReadingsByVehicle: Record<string, number>;
   riderNames: string[];
+  persistentRatePerLiter: number;
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
 
-export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle, riderNames }: AquaTrackFormProps) {
+export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
@@ -46,7 +47,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
       previousMeterReading: 0,
       currentMeterReading: 0,
       overrideLitersSold: undefined,
-      ratePerLiter: 0,
+      ratePerLiter: persistentRatePerLiter, // Initialize with persistent rate
       cashReceived: 0,
       onlineReceived: 0,
       dueCollected: 0,
@@ -59,7 +60,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   });
 
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
-  const { setValue, getValues } = form;
+  const { setValue, getValues, watch } = form; // Added watch
 
   const [isClient, setIsClient] = useState(false);
 
@@ -68,14 +69,25 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   }, []);
 
   useEffect(() => {
+    // Update form's ratePerLiter if the persistentRatePerLiter prop changes
+    // or on initial load to ensure it's set correctly.
+    if (isClient) {
+        setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
+    }
+  }, [persistentRatePerLiter, setValue, isClient]);
+
+  useEffect(() => {
     if (currentUserRole === 'Team Leader') {
       setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
       setValue('overrideLitersSold', undefined);
+      // For Team Leader, always ensure the ratePerLiter is from the persistent prop and field is disabled later
+      setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
     }
     if (currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
       setValue('overrideLitersSold', undefined, { shouldValidate: true });
     }
-  }, [currentUserRole, setValue, getValues]);
+  }, [currentUserRole, setValue, getValues, persistentRatePerLiter]);
+
 
   useEffect(() => {
     if (isClient && selectedVehicleName) {
@@ -86,69 +98,69 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
         setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
       }
     } else if (isClient) {
+      // If no vehicle is selected yet, or if on initial load without a selected vehicle
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
   }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue, isClient]);
 
   const [
-    previousMeterReading,
-    currentMeterReading,
-    overrideLitersSold,
-    ratePerLiter,
-    cashReceived,
-    onlineReceived,
-    dueCollected,
-    newDueAmount,
-    tokenMoney,
-    staffExpense,
-    extraAmount,
-  ] = useWatch({
-    control: form.control,
-    name: [
-      'previousMeterReading',
-      'currentMeterReading',
-      'overrideLitersSold',
-      'ratePerLiter',
-      'cashReceived',
-      'onlineReceived',
-      'dueCollected',
-      'newDueAmount',
-      'tokenMoney',
-      'staffExpense',
-      'extraAmount',
-    ],
-  });
+    watchedPreviousMeterReading, // Renamed from previousMeterReading
+    watchedCurrentMeterReading,  // Renamed from currentMeterReading
+    watchedOverrideLitersSold, // Renamed from overrideLitersSold
+    watchedRatePerLiter,       // Renamed from ratePerLiter
+    watchedCashReceived,       // Renamed from cashReceived
+    watchedOnlineReceived,     // Renamed from onlineReceived
+    watchedDueCollected,       // Renamed from dueCollected
+    watchedNewDueAmount,       // Renamed from newDueAmount
+    watchedTokenMoney,         // Renamed from tokenMoney
+    watchedStaffExpense,       // Renamed from staffExpense
+    watchedExtraAmount,        // Renamed from extraAmount
+  ] = watch([ // Use watch to get live updates for calculations
+    'previousMeterReading',
+    'currentMeterReading',
+    'overrideLitersSold',
+    'ratePerLiter',
+    'cashReceived',
+    'onlineReceived',
+    'dueCollected',
+    'newDueAmount',
+    'tokenMoney',
+    'staffExpense',
+    'extraAmount',
+  ]);
+
 
   const liveCalculatedLitersSold = React.useMemo(() => {
-    const prev = Number(previousMeterReading);
-    const curr = Number(currentMeterReading);
-    const override = Number(overrideLitersSold);
+    const prev = Number(watchedPreviousMeterReading);
+    const curr = Number(watchedCurrentMeterReading);
+    const override = Number(watchedOverrideLitersSold);
 
-    if (currentUserRole === 'Admin' && typeof overrideLitersSold === 'number' && overrideLitersSold > 0) {
+    if (currentUserRole === 'Admin' && typeof watchedOverrideLitersSold === 'number' && watchedOverrideLitersSold > 0) {
       return override;
     }
     if (!isNaN(prev) && !isNaN(curr) && curr >= prev) {
       return curr - prev;
     }
     return 0;
-  }, [previousMeterReading, currentMeterReading, overrideLitersSold, currentUserRole]);
+  }, [watchedPreviousMeterReading, watchedCurrentMeterReading, watchedOverrideLitersSold, currentUserRole]);
 
   const liveTotalSale = React.useMemo(() => {
-    return liveCalculatedLitersSold * (Number(ratePerLiter) || 0);
-  }, [liveCalculatedLitersSold, ratePerLiter]);
+    return liveCalculatedLitersSold * (Number(watchedRatePerLiter) || 0);
+  }, [liveCalculatedLitersSold, watchedRatePerLiter]);
 
   const liveDiscrepancy = React.useMemo(() => {
     const totalSaleVal = liveTotalSale;
-    const dueCollectedVal = Number(dueCollected) || 0;
-    const cashReceivedVal = Number(cashReceived) || 0;
-    const onlineReceivedVal = Number(onlineReceived) || 0;
-    const newDueAmountVal = Number(newDueAmount) || 0;
-    const tokenMoneyVal = Number(tokenMoney) || 0;
-    const extraAmountVal = Number(extraAmount) || 0;
-    const staffExpenseVal = Number(staffExpense) || 0;
-
-    return (totalSaleVal + dueCollectedVal) - cashReceivedVal - onlineReceivedVal - newDueAmountVal - tokenMoneyVal - extraAmountVal - staffExpenseVal;
-  }, [liveTotalSale, cashReceived, onlineReceived, dueCollected, newDueAmount, tokenMoney, staffExpense, extraAmount]);
+    const dueCollectedVal = Number(watchedDueCollected) || 0;
+    const cashReceivedVal = Number(watchedCashReceived) || 0;
+    const onlineReceivedVal = Number(watchedOnlineReceived) || 0;
+    const newDueAmountVal = Number(watchedNewDueAmount) || 0;
+    const tokenMoneyVal = Number(watchedTokenMoney) || 0;
+    const extraAmountVal = Number(watchedExtraAmount) || 0;
+    const staffExpenseVal = Number(watchedStaffExpense) || 0;
+    
+    // Discrepancy = (Total Sale + Due Collected) - (Cash Received + Online Received + New Due Amount + Token Money + Extra Amount + Staff Expense)
+    return (totalSaleVal + dueCollectedVal) - (cashReceivedVal + onlineReceivedVal + newDueAmountVal + tokenMoneyVal + extraAmountVal + staffExpenseVal);
+  }, [liveTotalSale, watchedCashReceived, watchedOnlineReceived, watchedDueCollected, watchedNewDueAmount, watchedTokenMoney, watchedStaffExpense, watchedExtraAmount]);
 
 
   const inputFields = [
@@ -229,12 +241,11 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
             if (isPrevMeterReadingField && currentUserRole === 'Team Leader') {
               fieldIsDisabled = true;
             }
-            if (isRatePerLiterField && currentUserRole === 'Team Leader') {
-              fieldIsDisabled = true;
+             if (isRatePerLiterField && currentUserRole === 'Team Leader') {
+              fieldIsDisabled = true; // Team Leaders cannot change the rate
             }
             
             const currentOptions = inputField.name === 'riderName' ? riderNames : (inputField.options || []);
-
 
             return (
               <FormField
@@ -252,6 +263,10 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                         <Select
                           onValueChange={(value) => {
                             field.onChange(value);
+                             if (inputField.name === 'vehicleName') {
+                                const lastReading = lastMeterReadingsByVehicle[value];
+                                setValue('previousMeterReading', lastReading !== undefined ? lastReading : 0, { shouldValidate: true, shouldDirty: true });
+                            }
                           }}
                           value={field.value as string || ""}
                         >
@@ -292,7 +307,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isRatePerLiterField && currentUserRole === 'Team Leader' && <FormDescription>Rate per liter is set by Admin and cannot be changed by Team Leader.</FormDescription>}
+                    {isRatePerLiterField && currentUserRole === 'Team Leader' && <FormDescription>Rate per liter is set by Admin and cannot be changed by Team Leader. Current rate: ₹{persistentRatePerLiter.toFixed(2)}</FormDescription>}
                     {isPrevMeterReadingField && currentUserRole === 'Team Leader' && isClient && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle in session.</FormDescription>}
                     <FormMessage />
                   </FormItem>
@@ -339,7 +354,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
             </FormLabel>
             <p className="text-2xl font-bold mt-1">{liveCalculatedLitersSold.toFixed(2)} L</p>
             <FormDescription>
-              {currentUserRole === 'Admin' && typeof overrideLitersSold === 'number' && overrideLitersSold > 0
+              {currentUserRole === 'Admin' && typeof watchedOverrideLitersSold === 'number' && watchedOverrideLitersSold > 0
                 ? "Using admin override value."
                 : "Calculated from meter readings."}
             </FormDescription>

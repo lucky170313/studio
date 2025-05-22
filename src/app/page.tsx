@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -33,6 +33,8 @@ const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleAquaTrackApp';
 const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp';
 const DEFAULT_RIDER_NAMES = ['Rider A', 'Rider B', 'Rider C'];
 const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
+const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterAquaTrackApp';
+const DEFAULT_GLOBAL_RATE = 2.5; // Default rate if nothing in localStorage
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -50,11 +52,15 @@ export default function AquaTrackPage() {
   const [selectedRiderForSalary, setSelectedRiderForSalary] = useState<string>('');
   const [salaryInput, setSalaryInput] = useState<string>('');
 
+  const [globalRatePerLiter, setGlobalRatePerLiter] = useState<number>(DEFAULT_GLOBAL_RATE);
+  const [rateInput, setRateInput] = useState<string>(String(DEFAULT_GLOBAL_RATE));
+
   const [pendingFormValues, setPendingFormValues] = useState<SalesDataFormValues | null>(null);
   const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
 
 
   useEffect(() => {
+    // Load last meter readings
     try {
       const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
       if (storedReadings) {
@@ -65,9 +71,9 @@ export default function AquaTrackPage() {
       }
     } catch (error) {
       console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error);
-      setLastMeterReadingsByVehicle({});
     }
 
+    // Load rider names
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -86,6 +92,7 @@ export default function AquaTrackPage() {
       setRiderNames(DEFAULT_RIDER_NAMES);
     }
 
+    // Load rider salaries
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
@@ -96,9 +103,22 @@ export default function AquaTrackPage() {
       }
     } catch (error) {
       console.error("Failed to parse riderSalaries from localStorage", error);
-      setRiderSalaries({});
     }
     
+    // Load global rate per liter
+    try {
+      const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
+      if (storedRate) {
+        const parsedRate = parseFloat(storedRate);
+        if (!isNaN(parsedRate)) {
+          setGlobalRatePerLiter(parsedRate);
+          setRateInput(String(parsedRate));
+        }
+      }
+    } catch (error) {
+      console.error("Failed to parse globalRatePerLiter from localStorage", error);
+    }
+
     setCurrentYear(new Date().getFullYear());
   }, []);
 
@@ -143,7 +163,7 @@ export default function AquaTrackPage() {
       const initialAdjustedExpected = 
         totalSale + 
         values.dueCollected - 
-        values.newDueAmount - 
+        values.newDueAmount -
         values.tokenMoney - 
         values.staffExpense - 
         values.extraAmount;
@@ -151,7 +171,8 @@ export default function AquaTrackPage() {
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
-      const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
+      // Discrepancy = (Total Sale + Due Collected) - (Cash Received + Online Received + New Due Amount + Token Money + Extra Amount + Staff Expense)
+      const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) {
@@ -193,8 +214,8 @@ export default function AquaTrackPage() {
       if (reportToSaveForServer.adminOverrideLitersSold === undefined) {
         delete reportToSaveForServer.adminOverrideLitersSold;
       }
-      if (reportToSaveForServer.comment === undefined) {
-         reportToSaveForServer.comment = "";
+      if (reportToSaveForServer.comment === undefined || reportToSaveForServer.comment === "") {
+         delete reportToSaveForServer.comment;
       }
 
       const result = await saveSalesReportAction(reportToSaveForServer);
@@ -212,9 +233,11 @@ export default function AquaTrackPage() {
           description: result.message || "Failed to save to MongoDB.",
           variant: 'destructive',
         });
-        setReportData({ ...newReportData, id: 'local-preview-only' }); 
+        // Still show report locally even if DB save fails for review
+        setReportData({ ...newReportData, id: `local-preview-${Date.now()}` }); 
       }
 
+      // Update last meter reading for the vehicle
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
         const updatedReadings = {
           ...lastMeterReadingsByVehicle,
@@ -330,6 +353,17 @@ export default function AquaTrackPage() {
     localStorage.setItem(RIDER_SALARIES_KEY, JSON.stringify(updatedSalaries));
     toast({ title: "Success", description: `Salary for ${selectedRiderForSalary} set to ₹${salaryValue}/day.` });
   };
+
+  const handleSetGlobalRate = () => {
+    const newRate = parseFloat(rateInput);
+    if (isNaN(newRate) || newRate < 0) {
+      toast({ title: "Error", description: "Please enter a valid positive rate.", variant: "destructive" });
+      return;
+    }
+    setGlobalRatePerLiter(newRate);
+    localStorage.setItem(GLOBAL_RATE_PER_LITER_KEY, String(newRate));
+    toast({ title: "Success", description: `Global rate per liter set to ₹${newRate.toFixed(2)}.` });
+  };
   
 
   return (
@@ -407,7 +441,7 @@ export default function AquaTrackPage() {
       </Card>
 
       {currentUserRole === 'Admin' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
           <Card className="shadow-md">
             <CardHeader>
               <CardTitle className="text-xl text-primary flex items-center">
@@ -520,6 +554,32 @@ export default function AquaTrackPage() {
               )}
             </CardContent>
           </Card>
+
+          <Card className="shadow-md">
+            <CardHeader>
+              <CardTitle className="text-xl text-primary flex items-center">
+                <IndianRupee className="mr-2 h-5 w-5" />Manage Global Rate Per Liter
+              </CardTitle>
+              <CardDescription>Set the default rate per liter used in new entries. Saved in your browser.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div>
+                <Label htmlFor="globalRateInput">Global Rate (₹/Liter)</Label>
+                <div className="flex space-x-2 items-center">
+                  <Input
+                    id="globalRateInput"
+                    type="number"
+                    value={rateInput}
+                    onChange={(e) => setRateInput(e.target.value)}
+                    placeholder="e.g., 2.5"
+                    className="text-base"
+                  />
+                  <Button onClick={handleSetGlobalRate}>Set Rate</Button>
+                </div>
+                 <p className="text-sm text-muted-foreground mt-2">Current global rate: ₹{globalRatePerLiter.toFixed(2)}</p>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -528,7 +588,7 @@ export default function AquaTrackPage() {
         <Card className="lg:col-span-3 shadow-xl">
           <CardHeader className="bg-primary/10 rounded-t-lg">
             <CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle>
-            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings and rider list are persisted in browser. Data is saved to MongoDB.</CardDescription>
+            <CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved to MongoDB.</CardDescription>
           </CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm 
@@ -537,6 +597,7 @@ export default function AquaTrackPage() {
               currentUserRole={currentUserRole}
               lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
               riderNames={riderNames}
+              persistentRatePerLiter={globalRatePerLiter}
             />
           </CardContent>
         </Card>
@@ -570,5 +631,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
     
