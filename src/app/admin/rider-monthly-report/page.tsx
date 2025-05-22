@@ -78,18 +78,33 @@ export default function RiderMonthlyReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
 
+  // Effect 1: Load salaries from localStorage on initial mount
   useEffect(() => {
-    // Load rider salaries from localStorage
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
         const parsedSalaries = JSON.parse(storedSalaries);
         if (typeof parsedSalaries === 'object' && parsedSalaries !== null) {
-          setRiderSalaries(parsedSalaries);
+          // Only set if different to avoid potential re-renders if not strictly necessary,
+          // though with an empty dependency array this effect itself only runs once.
+           if (JSON.stringify(riderSalaries) !== JSON.stringify(parsedSalaries)) { // Check to prevent unnecessary set if values are same
+            setRiderSalaries(parsedSalaries);
+          }
         }
       }
     } catch (e) {
       console.error("Failed to load rider salaries from localStorage", e);
+    }
+  }, []); // Empty dependency array: runs only once on mount.
+
+  // Effect 2: Fetch and process sales data when riderSalaries is available/updated
+  useEffect(() => {
+    // If riderSalaries is still the initial empty object, we might wait or handle.
+    // For now, calculations in .then() will use `riderSalaries[rider] || 0` which gracefully handles missing salaries.
+    if (Object.keys(riderSalaries).length === 0 && localStorage.getItem(RIDER_SALARIES_KEY)) {
+      // Salaries might still be loading from the first effect if it hasn't completed yet.
+      // We could add a small delay or a loading state for salaries if this becomes an issue.
+      // For simplicity now, we let it run.
     }
 
     setIsLoading(true);
@@ -119,15 +134,17 @@ export default function RiderMonthlyReportPage() {
               totalMoneyCollected: 0,
               totalTokenMoney: 0,
               daysActive: 0,
-              calculatedSalary: 0, // Initialize salary
+              calculatedSalary: 0,
             };
           }
 
           riderMonthlyData[rider][monthYear].totalLitersSold += entry.litersSold;
-          riderMonthlyData[rider][monthYear].totalMoneyCollected += entry.actualReceived; 
-          riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney;
+          // Ensure actualReceived is a number, default to 0 if not
+          const actualReceived = typeof entry.actualReceived === 'number' ? entry.actualReceived : 0;
+          riderMonthlyData[rider][monthYear].totalMoneyCollected += actualReceived; 
+          riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney || 0;
           
-          totalCollectionAcrossAllDays += entry.actualReceived;
+          totalCollectionAcrossAllDays += actualReceived;
           uniqueDaysWithEntries.add(dayKey);
         });
         
@@ -140,7 +157,6 @@ export default function RiderMonthlyReportPage() {
                 const daysActive = uniqueDaysForRiderInMonth.size;
                 riderMonthlyData[rider][monthYear].daysActive = daysActive;
 
-                // Calculate salary
                 const perDaySalary = riderSalaries[rider] || 0;
                 riderMonthlyData[rider][monthYear].calculatedSalary = perDaySalary * daysActive;
             });
@@ -161,7 +177,7 @@ export default function RiderMonthlyReportPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, [riderSalaries]); // Add riderSalaries to dependency array to re-trigger if salaries change (though unlikely in this view)
+  }, [riderSalaries]); // This effect runs when riderSalaries changes.
 
   if (isLoading) {
     return (
@@ -248,7 +264,7 @@ export default function RiderMonthlyReportPage() {
                 <User className="mr-2 h-6 w-6 text-primary" />
                 {riderName}
               </CardTitle>
-              <CardDescription>Monthly sales performance for {riderName}. Per-day salary: ₹{riderSalaries[riderName]?.toFixed(2) || 'Not Set'}</CardDescription>
+              <CardDescription>Monthly sales performance for {riderName}. Per-day salary: ₹{(riderSalaries[riderName] || 0).toFixed(2) || 'Not Set'}</CardDescription>
             </CardHeader>
             <CardContent>
               {Object.keys(reportData.riderData[riderName]).length === 0 ? (
@@ -303,3 +319,5 @@ export default function RiderMonthlyReportPage() {
   );
 }
 
+
+    
