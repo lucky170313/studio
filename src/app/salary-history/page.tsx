@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, History, CalendarDays, User, IndianRupee, FileSpreadsheet, Users, MinusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, History, CalendarDays, User, IndianRupee, FileSpreadsheet, Users, MinusCircle, DollarSign } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { getSalaryPaymentsAction } from '@/app/actions';
@@ -97,6 +97,11 @@ export default function SalaryHistoryPage() {
     return filteredPayments.reduce((sum, p) => sum + (p.deductionAmount || 0), 0);
   }, [filteredPayments]);
 
+  const totalAdvancePaidFiltered = useMemo(() => {
+    return filteredPayments.reduce((sum, p) => sum + (p.advancePayment || 0), 0);
+  }, [filteredPayments]);
+
+
   const handleExcelExport = () => {
     if (filteredPayments.length === 0) {
       alert("No data available to export for the current selection.");
@@ -110,6 +115,7 @@ export default function SalaryHistoryPage() {
       "Salary Amount for Period (₹)": p.salaryAmountForPeriod.toFixed(2),
       "Amount Paid (₹)": p.amountPaid.toFixed(2),
       "Deduction Amount (₹)": (p.deductionAmount || 0).toFixed(2),
+      "Advance Paid (₹)": (p.advancePayment || 0).toFixed(2),
       "Remaining Amount (₹)": p.remainingAmount.toFixed(2),
       "Comment": p.comment || "",
       "Recorded By": p.recordedBy,
@@ -227,6 +233,7 @@ export default function SalaryHistoryPage() {
                     <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Salary For Period (₹)</TableHead>
                     <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Amount Paid (₹)</TableHead>
                     <TableHead className="text-right"><MinusCircle className="inline-block mr-1 h-4 w-4"/>Deduction (₹)</TableHead>
+                    <TableHead className="text-right"><DollarSign className="inline-block mr-1 h-4 w-4"/>Advance Paid (₹)</TableHead>
                     <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Remaining (₹)</TableHead>
                     <TableHead>Comment</TableHead>
                     <TableHead>Recorded By</TableHead>
@@ -241,6 +248,7 @@ export default function SalaryHistoryPage() {
                       <TableCell className="text-right">₹{payment.salaryAmountForPeriod.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-semibold">₹{payment.amountPaid.toFixed(2)}</TableCell>
                       <TableCell className="text-right">₹{(payment.deductionAmount || 0).toFixed(2)}</TableCell>
+                      <TableCell className="text-right">₹{(payment.advancePayment || 0).toFixed(2)}</TableCell>
                       <TableCell className={`text-right ${payment.remainingAmount > 0 ? 'text-orange-600' : payment.remainingAmount < 0 ? 'text-green-600' : ''}`}>
                         ₹{payment.remainingAmount.toFixed(2)}
                       </TableCell>
@@ -254,6 +262,7 @@ export default function SalaryHistoryPage() {
                     <TableCell colSpan={4}>Totals for Filtered Payments:</TableCell>
                     <TableCell className="text-right text-lg">₹{totalAmountPaidFiltered.toFixed(2)}</TableCell>
                     <TableCell className="text-right text-lg">₹{totalDeductionsFiltered.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-lg">₹{totalAdvancePaidFiltered.toFixed(2)}</TableCell>
                     <TableCell colSpan={3}></TableCell>
                   </TableRow>
                 </TableFooter>

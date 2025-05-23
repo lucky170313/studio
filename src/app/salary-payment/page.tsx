@@ -7,7 +7,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import Link from 'next/link';
-import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon, MinusCircle } from 'lucide-react';
+import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon, MinusCircle, DollarSign } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -27,8 +27,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
-const currentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => currentYear - i); // Last 5 years
+const defaultCurrentYear = new Date().getFullYear();
+const years = Array.from({ length: 5 }, (_, i) => defaultCurrentYear - i); // Last 5 years
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
@@ -47,11 +47,12 @@ export default function SalaryPaymentPage() {
       paymentDate: new Date(),
       riderName: '',
       salaryGiverName: '', 
-      selectedYear: String(currentYear),
+      selectedYear: String(defaultCurrentYear),
       selectedMonth: String(getMonth(new Date())), 
       salaryAmountForPeriod: 0,
       amountPaid: 0,
       deductionAmount: 0,
+      advancePayment: 0,
       comment: '',
     },
   });
@@ -60,6 +61,7 @@ export default function SalaryPaymentPage() {
   const watchedSalaryAmount = watch('salaryAmountForPeriod');
   const watchedAmountPaid = watch('amountPaid');
   const watchedDeductionAmount = watch('deductionAmount');
+  const watchedAdvancePayment = watch('advancePayment'); // Watch the new field
   const watchedRiderName = watch('riderName');
   const watchedSelectedYear = watch('selectedYear');
   const watchedSelectedMonth = watch('selectedMonth');
@@ -68,6 +70,7 @@ export default function SalaryPaymentPage() {
     const salary = Number(watchedSalaryAmount) || 0;
     const paid = Number(watchedAmountPaid) || 0;
     const deduction = Number(watchedDeductionAmount) || 0;
+    // Advance payment does not affect the remaining amount of the current period's salary
     return salary - paid - deduction;
   }, [watchedSalaryAmount, watchedAmountPaid, watchedDeductionAmount]);
 
@@ -142,10 +145,11 @@ export default function SalaryPaymentPage() {
       const paymentDataToServer = {
         paymentDate: values.paymentDate,
         riderName: values.riderName,
-        salaryGiverName: loggedInUsername, // Use the loggedInUsername state
+        salaryGiverName: loggedInUsername, 
         salaryAmountForPeriod: values.salaryAmountForPeriod,
         amountPaid: values.amountPaid,
         deductionAmount: values.deductionAmount || 0,
+        advancePayment: values.advancePayment || 0, // Include advance payment
         comment: values.comment,
         recordedBy: loggedInUsername,
       };
@@ -158,11 +162,12 @@ export default function SalaryPaymentPage() {
           paymentDate: new Date(),
           riderName: '',
           salaryGiverName: loggedInUsername,
-          selectedYear: String(currentYear),
+          selectedYear: String(defaultCurrentYear),
           selectedMonth: String(getMonth(new Date())),
           salaryAmountForPeriod: 0,
           amountPaid: 0,
           deductionAmount: 0,
+          advancePayment: 0,
           comment: '',
         });
       } else {
@@ -209,9 +214,10 @@ export default function SalaryPaymentPage() {
             <div class="field"><span class="label">Salary Giver:</span><span class="value">${values.salaryGiverName}</span></div>
             <hr/>
             <div class="field"><span class="label">Salary Amount for Period:</span><span class="value">₹${(values.salaryAmountForPeriod || 0).toFixed(2)}</span></div>
-            <div class="field"><span class="label">Amount Paid:</span><span class="value">₹${(values.amountPaid || 0).toFixed(2)}</span></div>
+            <div class="field"><span class="label">Amount Paid (This Period):</span><span class="value">₹${(values.amountPaid || 0).toFixed(2)}</span></div>
             <div class="field"><span class="label">Deduction Amount:</span><span class="value">₹${(values.deductionAmount || 0).toFixed(2)}</span></div>
-            <div class="field"><span class="label">Remaining Amount:</span><span class="value">₹${remainingAmount.toFixed(2)}</span></div>
+            <div class="field"><span class="label">Advance Payment (Given Now):</span><span class="value">₹${(values.advancePayment || 0).toFixed(2)}</span></div>
+            <div class="field"><span class="label">Remaining Salary (This Period):</span><span class="value">₹${remainingAmount.toFixed(2)}</span></div>
             ${values.comment ? `<div class="field"><span class="label">Comment:</span><span class="value">${values.comment}</span></div>` : ''}
             <div class="footer">Drop Aqua Track - Payment Summary</div>
           </div>
@@ -397,7 +403,7 @@ export default function SalaryPaymentPage() {
                 name="amountPaid"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Amount Paid (₹)</FormLabel>
+                    <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Amount Paid (for current salary period) (₹)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -406,7 +412,7 @@ export default function SalaryPaymentPage() {
                         onChange={event => field.onChange(parseFloat(event.target.value) || 0)}
                       />
                     </FormControl>
-                    <FormDescription>Enter the actual amount paid to the rider (can be full or partial).</FormDescription>
+                    <FormDescription>Enter the actual amount paid to the rider towards this period's salary.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -433,10 +439,31 @@ export default function SalaryPaymentPage() {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="advancePayment"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><DollarSign className="mr-2 h-4 w-4 text-primary" />Advance Payment (Given Now) (₹)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 2000"
+                        {...field}
+                        onChange={event => field.onChange(parseFloat(event.target.value) || 0)}
+                        value={field.value ?? 0}
+                      />
+                    </FormControl>
+                    <FormDescription>Enter any advance given to the rider in this transaction (for future salary). Optional.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormItem>
-                <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Remaining Amount (₹)</FormLabel>
+                <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Remaining Salary (This Period) (₹)</FormLabel>
                 <Input type="text" value={`₹${remainingAmount.toFixed(2)}`} readOnly className="bg-muted/50 font-semibold" />
-                <FormDescription>Calculated as: Salary Amount for Period - Amount Paid - Deduction Amount.</FormDescription>
+                <FormDescription>Calculated as: Salary Amount for Period - Amount Paid (for this period) - Deduction Amount.</FormDescription>
               </FormItem>
               
               <FormField

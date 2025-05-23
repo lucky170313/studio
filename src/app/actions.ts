@@ -58,18 +58,18 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
 
     return {
       success: true,
-      message: 'Sales report has been successfully generated and saved to MongoDB.',
+      message: 'Sales report has been successfully generated and saved to database.',
       id: savedEntry._id.toString()
     };
   } catch (e: any) {
-    console.error("Error saving sales report to MongoDB via Server Action: ", e);
-    let dbErrorMessage = 'Failed to save sales report to MongoDB.';
+    console.error("Error saving sales report to database via Server Action: ", e);
+    let dbErrorMessage = 'Failed to save sales report to database.';
     if (e instanceof Error) {
-        dbErrorMessage = `MongoDB Error: ${e.message}.`;
+        dbErrorMessage = `Database Error: ${e.message}.`;
     }
     if (e.name === 'ValidationError') {
         let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
-        dbErrorMessage = `MongoDB Validation Error: ${validationErrors}`;
+        dbErrorMessage = `Database Validation Error: ${validationErrors}`;
     }
     return {
       success: false,
@@ -117,9 +117,9 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
         role: 'Admin',
       });
       await adminUser.save();
-      return { success: true, message: 'Default admin initialized in MongoDB.' };
+      return { success: true, message: 'Default admin initialized in database.' };
     }
-    return { success: true, message: 'Default admin already exists in MongoDB.' };
+    return { success: true, message: 'Default admin already exists in database.' };
   } catch (error: any) {
     console.error("Error initializing default admin:", error);
     return { success: false, message: `Error initializing default admin: ${error.message}` };
@@ -154,7 +154,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     }
     admin.password = newPasswordInput; 
     await admin.save();
-    return { success: true, message: 'Admin password updated successfully in MongoDB.' };
+    return { success: true, message: 'Admin password updated successfully in database.' };
   } catch (error: any) {
     console.error("Error changing admin password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
@@ -178,7 +178,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
-    return { success: true, message: `Team Leader "${userIdInput}" added successfully to MongoDB.`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
+    return { success: true, message: `Team Leader "${userIdInput}" added successfully to database.`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
   } catch (error: any) {
     console.error("Error adding team leader:", error);
     return { success: false, message: `Error adding team leader: ${error.message}` };
@@ -194,7 +194,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     }
     teamLeader.password = newPasswordInput; 
     await teamLeader.save();
-    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
+    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database.` };
   } catch (error: any) {
     console.error("Error updating team leader password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
@@ -206,9 +206,9 @@ export async function deleteTeamLeaderAction(userIdToDelete: string): Promise<{ 
     await dbConnect();
     const result = await UserModel.deleteOne({ userId: userIdToDelete, role: 'TeamLeader' });
     if (result.deletedCount === 0) {
-      return { success: false, message: `Team Leader "${userIdToDelete}" not found or not deleted from MongoDB.` };
+      return { success: false, message: `Team Leader "${userIdToDelete}" not found or not deleted from database.` };
     }
-    return { success: true, message: `Team Leader "${userIdToDelete}" deleted successfully from MongoDB.` };
+    return { success: true, message: `Team Leader "${userIdToDelete}" deleted successfully from database.` };
   } catch (error: any) {
     console.error("Error deleting team leader:", error);
     return { success: false, message: `Error deleting team leader: ${error.message}` };
@@ -220,7 +220,7 @@ export async function getTeamLeadersAction(): Promise<{ success: boolean; teamLe
     await dbConnect();
     const leaders = await UserModel.find({ role: 'TeamLeader' }).select('userId role').lean();
     const mappedLeaders = leaders.map(leader => ({ userId: leader.userId, role: leader.role as 'TeamLeader' } ));
-    return { success: true, teamLeaders: mappedLeaders, message: 'Team leaders fetched successfully from MongoDB.' };
+    return { success: true, teamLeaders: mappedLeaders, message: 'Team leaders fetched successfully from database.' };
   } catch (error: any) {
     console.error("Error fetching team leaders:", error);
     return { success: false, message: `Error fetching team leaders: ${error.message}` };
@@ -239,12 +239,13 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
   try {
     await dbConnect();
     const dataToSave: Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'> & { remainingAmount: number } = {
-      paymentDate: paymentData.paymentDate, // paymentDate is already a Date from client
+      paymentDate: paymentData.paymentDate, 
       riderName: paymentData.riderName,
       salaryGiverName: paymentData.salaryGiverName,
       salaryAmountForPeriod: paymentData.salaryAmountForPeriod,
       amountPaid: paymentData.amountPaid,
       deductionAmount: paymentData.deductionAmount || 0,
+      advancePayment: paymentData.advancePayment || 0, // Include advance payment
       comment: paymentData.comment,
       recordedBy: paymentData.recordedBy,
       remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid - (paymentData.deductionAmount || 0),
@@ -257,14 +258,14 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
       id: savedEntry._id.toString(),
     };
   } catch (e: any) {
-    console.error("Error saving salary payment to MongoDB: ", e);
-    let dbErrorMessage = 'Failed to save salary payment to MongoDB.';
+    console.error("Error saving salary payment to database: ", e);
+    let dbErrorMessage = 'Failed to save salary payment to database.';
      if (e instanceof Error) {
-        dbErrorMessage = `MongoDB Error: ${e.message}.`;
+        dbErrorMessage = `Database Error: ${e.message}.`;
     }
     if (e.name === 'ValidationError') {
         let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
-        dbErrorMessage = `MongoDB Validation Error: ${validationErrors}`;
+        dbErrorMessage = `Database Validation Error: ${validationErrors}`;
     }
     return {
       success: false,
@@ -278,6 +279,9 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
   try {
     await dbConnect();
     const payments = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
+    // Ensure Date objects are correctly handled if needed, though .lean() typically returns plain objects.
+    // Mongoose might stringify dates, client-side might need to parse them back.
+    // However, for passing to client components, plain objects are fine.
     return { success: true, payments: payments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);

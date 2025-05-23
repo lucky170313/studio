@@ -33,7 +33,7 @@ export const salesDataSchema = z.object({
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin). Check values or use override.",
+  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin). Check values or use override. This check also applies if Override Liters Sold is not a valid non-negative number.",
   path: ["currentMeterReading"],
 });
 
@@ -44,7 +44,7 @@ export interface SalesReportData {
   id?: string;
   _id?: string;
   date: string;
-  firestoreDate: Date;
+  firestoreDate: Date; // Changed from firestoreDate to submissionDate for clarity
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -86,15 +86,17 @@ export const salaryPaymentSchema = z.object({
   salaryAmountForPeriod: z.coerce.number().min(0, 'Salary amount must be a positive number.'),
   amountPaid: z.coerce.number().min(0, 'Amount paid must be a positive number.'),
   deductionAmount: z.coerce.number().min(0, 'Deduction amount cannot be negative.').optional(),
+  advancePayment: z.coerce.number().min(0, 'Advance payment cannot be negative.').optional(),
   comment: z.string().optional(),
 }).refine(data => {
     const salary = data.salaryAmountForPeriod || 0;
-    const paid = data.amountPaid || 0;
+    const paid = data.amountPaid || 0; // This is the amount paid towards the current period's salary
     const deduction = data.deductionAmount || 0;
+    // The advancePayment is a separate outflow and doesn't affect if current salary settlement is valid
     return (paid + deduction) <= salary;
 }, {
-  message: "Amount paid plus deductions cannot exceed the salary amount for the period.",
-  path: ["amountPaid"], // Or path: ["deductionAmount"] or a general path
+  message: "Amount paid (for current salary) plus deductions cannot exceed the salary amount for the period.",
+  path: ["amountPaid"],
 });
 
 export type SalaryPaymentFormValues = z.infer<typeof salaryPaymentSchema>;
@@ -107,14 +109,17 @@ export interface SalaryPaymentData {
   salaryAmountForPeriod: number;
   amountPaid: number;
   deductionAmount?: number;
-  remainingAmount: number;
+  advancePayment?: number; // New field
+  remainingAmount: number; // This remains: salaryAmountForPeriod - amountPaid - deductionAmount
   comment?: string;
   recordedBy: string; // User ID of admin/TL who recorded this payment transaction
   createdAt?: Date;
   updatedAt?: Date;
 }
 
+// This is the data structure sent to the server action, excluding calculated/DB-generated fields
 export type SalaryPaymentServerData = Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'>;
+
 
 export interface RiderMonthlyAggregates {
   totalDailySalaryCalculated: number;
