@@ -181,8 +181,9 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled from DB, editable by Admin." : "Auto-filled from DB for selected vehicle." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB for selected vehicle. Admin can edit." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
+    // Meter Reading Image will be inserted after this field
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: currentUserRole === 'TeamLeader' ? `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Set by Admin)` : `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Editable by Admin).` },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
     { name: 'onlineReceived', label: 'Online Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
@@ -218,7 +219,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                       {isClient && field.value ? (
                         format(field.value, "PPP")
                       ) : (
-                        <span>{field.value ? "Initializing date..." : "Pick a date"}</span>
+                        <span>{isClient && field.value ? "Initializing date..." : "Pick a date"}</span>
                       )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
@@ -269,8 +270,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                 currentOptions = hoursWorkedOptions;
             }
 
-
-            return (
+            const fieldElement = (
               <FormField
                 key={inputField.name}
                 control={form.control}
@@ -335,37 +335,45 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                 )}
               />
             );
+
+            if (inputField.name === 'currentMeterReading') {
+              return (
+                <React.Fragment key={`${inputField.name}-fragment`}>
+                  {fieldElement}
+                  <FormField
+                    key="meterReadingImageField"
+                    control={form.control}
+                    name="meterReadingImage"
+                    render={({ field: imageField }) => (
+                        <FormItem>
+                            <FormLabel className="flex items-center">
+                                <ImageIcon className="mr-2 h-4 w-4 text-primary" />
+                                Meter Reading Image (Optional)
+                            </FormLabel>
+                            <FormControl>
+                                <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => imageField.onChange(e.target.files ? e.target.files[0] : undefined)}
+                                    className="text-base"
+                                />
+                            </FormControl>
+                            <FormDescription>Upload an image of the meter reading. Actual Google Drive upload not yet implemented.</FormDescription>
+                            {imagePreview && (
+                                <div className="mt-2">
+                                    <Image src={imagePreview} alt="Meter reading preview" width={200} height={200} className="rounded-md border" />
+                                </div>
+                            )}
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                  />
+                </React.Fragment>
+              );
+            }
+            return fieldElement;
           })}
         </div>
-
-        <FormField
-            control={form.control}
-            name="meterReadingImage"
-            render={({ field }) => (
-                <FormItem>
-                    <FormLabel className="flex items-center">
-                        <ImageIcon className="mr-2 h-4 w-4 text-primary" />
-                        Meter Reading Image (Optional)
-                    </FormLabel>
-                    <FormControl>
-                        <Input
-                            type="file"
-                            accept="image/*"
-                            onChange={(e) => field.onChange(e.target.files ? e.target.files[0] : undefined)}
-                            className="text-base"
-                        />
-                    </FormControl>
-                    <FormDescription>Upload an image of the meter reading. This will not be uploaded to Google Drive yet.</FormDescription>
-                    {imagePreview && (
-                        <div className="mt-2">
-                            <Image src={imagePreview} alt="Meter reading preview" width={200} height={200} className="rounded-md border" />
-                        </div>
-                    )}
-                    <FormMessage />
-                </FormItem>
-            )}
-        />
-
 
         {currentUserRole === 'Admin' && (
           <FormField
@@ -462,3 +470,4 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     </Form>
   );
 }
+
