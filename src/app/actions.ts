@@ -1,11 +1,10 @@
-
 'use server';
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
 import UserModel from '@/models/User';
-import SalaryPaymentModel from '@/models/SalaryPayment'; // New Import
-import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData } from '@/lib/types';
+import SalaryPaymentModel from '@/models/SalaryPayment';
+import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, SalesReportServerSaveData } from '@/lib/types';
 
 
 interface SaveReportResult {
@@ -15,13 +14,14 @@ interface SaveReportResult {
   id?: string;
 }
 
-export async function saveSalesReportAction(reportData: SalesReportServerData): Promise<SaveReportResult> {
+export async function saveSalesReportAction(reportData: SalesReportServerSaveData): Promise<SaveReportResult> {
   try {
     await dbConnect();
 
-    const dataToSave: SalesReportServerData = {
+    // Explicitly map fields to ensure all are present and undefined are handled if necessary
+    const dataToSave: Omit<SalesReportData, 'id' | '_id'> = {
       date: reportData.date,
-      firestoreDate: new Date(reportData.firestoreDate),
+      firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
       riderName: reportData.riderName,
       vehicleName: reportData.vehicleName,
       previousMeterReading: reportData.previousMeterReading,
@@ -48,14 +48,16 @@ export async function saveSalesReportAction(reportData: SalesReportServerData): 
       aiReasoning: reportData.aiReasoning,
       discrepancy: reportData.discrepancy,
       status: reportData.status,
+      // meterReadingImageDriveLink: reportData.meterReadingImageDriveLink, // Feature removed
     };
+
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
 
     return {
       success: true,
-      message: 'Sales report has been successfully generated and saved.',
+      message: 'Sales report has been successfully generated and saved to MongoDB.',
       id: savedEntry._id.toString()
     };
   } catch (e: any) {
@@ -83,14 +85,14 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
   try {
     await dbConnect();
     const lastReport = await SalesReportModel.findOne({ vehicleName: vehicleName })
-      .sort({ firestoreDate: -1 })
+      .sort({ firestoreDate: -1 }) // firestoreDate is the field we sort by for recency
       .select('currentMeterReading')
-      .lean();
+      .lean(); // Use lean for plain JS object
 
     if (lastReport) {
       return { success: true, reading: lastReport.currentMeterReading || 0 };
     }
-    return { success: true, reading: 0 };
+    return { success: true, reading: 0 }; // No previous report for this vehicle
   } catch (error: any) {
     console.error("Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
@@ -100,17 +102,17 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
 
 // --- User Management Actions ---
 
-const DEFAULT_ADMIN_USER_ID = "lucky170313";
-const DEFAULT_ADMIN_PASSWORD = "northpole"; // INSECURE PLAINTEXT
-
 export async function initializeDefaultAdminAction(): Promise<{ success: boolean; message: string }> {
   try {
     await dbConnect();
-    const existingAdmin = await UserModel.findOne({ userId: DEFAULT_ADMIN_USER_ID, role: 'Admin' });
+    const adminUserId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole";
+
+    const existingAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' });
     if (!existingAdmin) {
       const adminUser = new UserModel({
-        userId: DEFAULT_ADMIN_USER_ID,
-        password: DEFAULT_ADMIN_PASSWORD,
+        userId: adminUserId,
+        password: adminPassword, // WARNING: Storing plaintext password
         role: 'Admin',
       });
       await adminUser.save();
@@ -126,9 +128,9 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
 export async function verifyUserAction(userIdInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserCredentials | null; message: string }> {
   try {
     await dbConnect();
-    const user = await UserModel.findOne({ userId: userIdInput }).lean();
+    const user = await UserModel.findOne({ userId: userIdInput }).lean(); // Use .lean()
 
-    if (user && user.password === passwordInput) {
+    if (user && user.password === passwordInput) { // WARNING: Plaintext password comparison
       return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
     }
     return { success: false, message: 'Invalid User ID or Password.' };
@@ -139,7 +141,8 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
 }
 
 export async function changeAdminPasswordAction(adminUserId: string, newPasswordInput: string): Promise<{ success: boolean; message: string }> {
-  if (adminUserId !== DEFAULT_ADMIN_USER_ID) {
+  const defaultAdminId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
+  if (adminUserId !== defaultAdminId) {
     return { success: false, message: "Unauthorized: Only the default admin can change their password through this action." };
   }
   try {
@@ -148,7 +151,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput;
+    admin.password = newPasswordInput; // WARNING: Storing plaintext password
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
@@ -158,18 +161,19 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
 }
 
 export async function addTeamLeaderAction(userIdInput: string, passwordInput: string): Promise<{ success: boolean; message: string, user?: UserCredentials }> {
+  const defaultAdminId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
   try {
     await dbConnect();
     const existingUser = await UserModel.findOne({ userId: userIdInput });
     if (existingUser) {
       return { success: false, message: `User ID "${userIdInput}" already exists.` };
     }
-    if (userIdInput === DEFAULT_ADMIN_USER_ID) {
+    if (userIdInput === defaultAdminId) {
       return { success: false, message: 'Cannot use Admin User ID for a Team Leader.' };
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput,
+      password: passwordInput, // WARNING: Storing plaintext password
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -187,7 +191,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput;
+    teamLeader.password = newPasswordInput; // WARNING: Storing plaintext password
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {
@@ -234,7 +238,7 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
   try {
     await dbConnect();
     const dataToSave: SalaryPaymentData = {
-      ...paymentData,
+      ...paymentData, // paymentDate is already a Date from client
       remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid,
     };
     const salaryPaymentEntry = new SalaryPaymentModel(dataToSave);
@@ -266,11 +270,22 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
   try {
     await dbConnect();
     const payments = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
-    // Mongoose lean() returns plain JS objects, dates might need conversion if not already Date objects.
-    // For this schema, paymentDate should be a Date object.
+    // Using .lean() returns plain JS objects. Dates should be fine, but _id will be an ObjectId that needs stringifying on client if used as key.
+    // For passing to client components, ensure all complex Mongoose types are converted.
+    // Mongoose .lean() converts ObjectId to string for _id automatically in newer versions if no schema transformation is applied.
+    // If issues persist, manually map and stringify:
+    // const plainPayments = payments.map(p => ({
+    //   ...p,
+    //   _id: p._id.toString(),
+    //   paymentDate: p.paymentDate.toISOString(), // Or keep as Date object if client reconstructs
+    //   createdAt: p.createdAt?.toISOString(),
+    //   updatedAt: p.updatedAt?.toISOString(),
+    // }));
+    // return { success: true, payments: plainPayments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
     return { success: true, payments: payments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);
     return { success: false, message: `Error fetching salary payments: ${error.message}` };
   }
 }
+
