@@ -45,7 +45,9 @@ const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
-const DEFAULT_ADMIN_USER_ID = "lucky170313";
+const DEFAULT_ADMIN_USER_ID = "lucky170313"; // Default admin user ID
+const DEFAULT_ADMIN_PASSWORD = "northpole"; // Default admin password
+const DEFAULT_TEAM_LEADERS: UserCredentials[] = [{ userId: 'leader01', password: 'leaderpass', role: 'TeamLeader' }];
 
 
 export default function AquaTrackPage() {
@@ -97,7 +99,6 @@ export default function AquaTrackPage() {
     setCurrentYear(new Date().getFullYear());
     initializeDefaultAdminAction().then(res => {
       console.log(res.message);
-      // After default admin is initialized (or confirmed to exist), check login session
       try {
         const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
         if (storedSession) {
@@ -156,10 +157,9 @@ export default function AquaTrackPage() {
       console.error("Failed to parse globalRatePerLiter from localStorage", error);
       setRateInput(String(DEFAULT_GLOBAL_RATE));
     }
-  }, []); // Empty dependency array ensures this runs once on mount
+  }, []);
 
 
-  // Effect to fetch team leaders when admin logs in
   useEffect(() => {
     if (isLoggedIn && currentUserRole === 'Admin') {
       fetchTeamLeaders();
@@ -188,7 +188,6 @@ export default function AquaTrackPage() {
       setLoggedInUsername(result.user.userId);
       setLoginError(null);
       saveLoginSession(true, result.user.role, result.user.userId);
-      // No need to call fetchTeamLeaders here, useEffect will handle it
       setUsernameInput('');
       setPasswordInput('');
     } else {
@@ -219,18 +218,24 @@ export default function AquaTrackPage() {
     const values = pendingFormValues;
 
     try {
-      // TODO: Implement actual image upload to Google Drive and get link
-      // For now, meterReadingImageDriveLink will be a placeholder or empty
-      let meterReadingImageDriveLinkPlaceholder = "";
+      let finalMeterReadingImageDriveLink: string | undefined = undefined;
       if (values.meterReadingImage) {
-        // In a real scenario, you'd call an upload function here.
-        // For this example, we'll just note that an image was selected.
-        meterReadingImageDriveLinkPlaceholder = `placeholder_drive_link_for_${values.meterReadingImage.name}`;
-        console.log("Meter reading image selected:", values.meterReadingImage.name);
-        // You would typically pass `values.meterReadingImage` (File object)
-        // to a server action/API route that handles the upload.
+        // TODO: Implement actual image upload to Google Drive
+        // This would involve:
+        // 1. Creating a Server Action or API route.
+        // 2. Passing `values.meterReadingImage` (File object) to that server-side function.
+        // 3. In the server-side function:
+        //    a. Use the Google Drive API (e.g., with 'googleapis' and a Service Account).
+        //    b. Upload the file to a designated folder in Google Drive.
+        //    c. Get the shareable link or file ID of the uploaded image.
+        //    d. Return this link/ID.
+        // 4. Replace `finalMeterReadingImageDriveLink` below with the actual link returned from the server.
+        
+        console.warn(
+          `Image selected (${values.meterReadingImage.name}), but Google Drive upload is not implemented. Saving a placeholder link. You need to implement a backend service to upload to Google Drive and then use the returned link here.`
+        );
+        finalMeterReadingImageDriveLink = `PLACEHOLDER_DRIVE_LINK_FOR_${values.meterReadingImage.name.replace(/\s+/g, '_')}`;
       }
-
 
       let finalLitersSold: number;
       const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
@@ -300,7 +305,7 @@ export default function AquaTrackPage() {
         aiAdjustedExpectedAmount, 
         aiReasoning, 
         discrepancy, status,
-        meterReadingImageDriveLink: meterReadingImageDriveLinkPlaceholder,
+        meterReadingImageDriveLink: finalMeterReadingImageDriveLink,
       };
       
       const dbResult = await saveSalesReportAction(reportToSave);
@@ -435,8 +440,8 @@ export default function AquaTrackPage() {
       toast({ title: "Error", description: "New password cannot be empty.", variant: "destructive" });
       return;
     }
-    if (!loggedInUsername || currentUserRole !== 'Admin') {
-         toast({ title: "Error", description: "Admin not logged in.", variant: "destructive" });
+    if (!loggedInUsername || loggedInUsername !== DEFAULT_ADMIN_USER_ID) {
+         toast({ title: "Error", description: "Only the default admin can change their password.", variant: "destructive" });
         return;
     }
     const result = await changeAdminPasswordAction(loggedInUsername, adminPasswordInput.trim());
@@ -703,3 +708,5 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
+    
