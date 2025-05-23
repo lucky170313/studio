@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3, Clock, Briefcase, Gift, MinusCircle, PlusCircle } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3, Clock, Briefcase, Gift, MinusCircle, PlusCircle, Printer } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth, parse, format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import {
@@ -34,21 +34,21 @@ interface DailyEntryDetail {
   baseDailySalary: number;
   commissionEarned: number;
   discrepancy: number;
-  netEarning: number; 
+  netEarning: number;
   totalSale: number;
-  actualReceived: number; 
+  actualReceived: number;
 }
 
 interface MonthlyRiderDetailedStats {
   dailyEntries: DailyEntryDetail[];
   totalLitersSold: number;
-  totalMoneyCollected: number; 
-  totalTokenMoney: number; 
-  totalSalesGenerated: number; 
+  totalMoneyCollected: number;
+  totalTokenMoney: number;
+  totalSalesGenerated: number;
   totalBaseSalary: number;
   totalCommissionEarned: number;
   totalDiscrepancy: number;
-  netMonthlyEarning: number; 
+  netMonthlyEarning: number;
   daysActive: number;
 }
 
@@ -91,7 +91,7 @@ async function fetchSalesDataForReport(): Promise<SalesReportData[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate), 
+    firestoreDate: new Date(entry.firestoreDate),
     dailySalaryCalculated: entry.dailySalaryCalculated || 0,
     commissionEarned: entry.commissionEarned || 0,
   }));
@@ -166,7 +166,7 @@ export default function RiderMonthlyReportPage() {
       .finally(() => {
         setIsLoading(false);
       });
-  }, []); 
+  }, []);
 
   const filteredEntries = useMemo(() => {
     if (isLoading || allSalesEntries.length === 0) return [];
@@ -179,7 +179,7 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0 && Object.keys(riderSalaries).length === 0) return; 
+    if (isLoading && allSalesEntries.length > 0 && Object.keys(riderSalaries).length === 0) return;
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
@@ -213,11 +213,11 @@ export default function RiderMonthlyReportPage() {
           daysActive: 0,
         };
       }
-      
+
       const baseDailySalary = entry.dailySalaryCalculated || 0;
       const commissionEarned = entry.commissionEarned || 0;
-      
-      const netEarning = baseDailySalary + commissionEarned - entry.discrepancy;
+
+      const netEarning = baseDailySalary + commissionEarned - (entry.discrepancy || 0);
 
       riderMonthlyData[rider][monthYear].dailyEntries.push({
         id: entry._id || `entry-${Math.random()}`,
@@ -227,20 +227,20 @@ export default function RiderMonthlyReportPage() {
         hoursWorked: entry.hoursWorked,
         baseDailySalary: baseDailySalary,
         commissionEarned: commissionEarned,
-        discrepancy: entry.discrepancy,
+        discrepancy: entry.discrepancy || 0,
         netEarning: netEarning,
-        totalSale: entry.totalSale,
-        actualReceived: entry.actualReceived,
+        totalSale: entry.totalSale || 0,
+        actualReceived: entry.actualReceived || 0,
       });
 
-      riderMonthlyData[rider][monthYear].totalLitersSold += entry.litersSold;
+      riderMonthlyData[rider][monthYear].totalLitersSold += entry.litersSold || 0;
       const actualReceived = typeof entry.actualReceived === 'number' ? entry.actualReceived : 0;
       riderMonthlyData[rider][monthYear].totalMoneyCollected += actualReceived;
       riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney || 0;
       riderMonthlyData[rider][monthYear].totalSalesGenerated += entry.totalSale || 0;
       riderMonthlyData[rider][monthYear].totalBaseSalary += baseDailySalary;
       riderMonthlyData[rider][monthYear].totalCommissionEarned += commissionEarned;
-      riderMonthlyData[rider][monthYear].totalDiscrepancy += entry.discrepancy;
+      riderMonthlyData[rider][monthYear].totalDiscrepancy += entry.discrepancy || 0;
       riderMonthlyData[rider][monthYear].netMonthlyEarning += netEarning;
 
 
@@ -257,7 +257,7 @@ export default function RiderMonthlyReportPage() {
         riderMonthlyData[rider][monthYear].dailyEntries.sort((a,b) => a.firestoreDate.getTime() - b.firestoreDate.getTime());
       });
     });
-    
+
 
     const overallDailyAverageCollection = uniqueDaysWithEntriesGlobal.size > 0
       ? totalCollectionAcrossAllDays / uniqueDaysWithEntriesGlobal.size
@@ -280,9 +280,98 @@ export default function RiderMonthlyReportPage() {
     if (reportData?.riderSalesChartData && reportData.riderSalesChartData.length > 0) {
         sheetsToExport.push({ data: reportData.riderSalesChartData, sheetName: "Rider Sales Chart Data" });
     }
-    
+
     handleExcelExport(sheetsToExport, "RiderMonthlyReport_DropAquaTrack");
   };
+
+  const handleDownloadSalarySlip = (riderName: string, monthYear: string, stats: MonthlyRiderDetailedStats) => {
+    const riderBaseSalaryPerDay = riderSalaries[riderName] || 0;
+
+    let dailyEntriesHtml = '';
+    stats.dailyEntries.forEach(day => {
+      dailyEntriesHtml += `
+        <tr>
+          <td>${format(day.firestoreDate, "dd-MMM")}</td>
+          <td style="text-align: right;">${day.litersSold.toFixed(2)} L</td>
+          <td style="text-align: right;">${day.hoursWorked} hr</td>
+          <td style="text-align: right;">${day.totalSale.toFixed(2)}</td>
+          <td style="text-align: right;">${day.actualReceived.toFixed(2)}</td>
+          <td style="text-align: right;">${day.baseDailySalary.toFixed(2)}</td>
+          <td style="text-align: right;">${day.commissionEarned.toFixed(2)}</td>
+          <td style="text-align: right;">${day.discrepancy > 0 ? '-' : day.discrepancy < 0 ? '+' : ''}${Math.abs(day.discrepancy).toFixed(2)}</td>
+          <td style="text-align: right; font-weight: bold;">${day.netEarning.toFixed(2)}</td>
+        </tr>
+      `;
+    });
+
+    const slipContent = `
+      <html>
+        <head>
+          <title>Salary Slip - ${riderName} - ${monthYear}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; font-size: 10pt; }
+            .slip-container { border: 1px solid #ccc; padding: 15px; max-width: 800px; margin: auto; }
+            h2, h3 { text-align: center; color: #333; }
+            h3 { margin-top: 15px; margin-bottom: 5px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .summary-table td { font-weight: bold; }
+            .text-right { text-align: right; }
+            .footer { margin-top: 20px; text-align: center; font-size: 0.8em; color: #777; }
+            .header-info { margin-bottom: 15px; }
+            .header-info div { margin-bottom: 3px; }
+            .header-info span { display: inline-block; min-width: 150px; }
+          </style>
+        </head>
+        <body>
+          <div class="slip-container">
+            <h2>Drop Aqua Track - Salary Slip</h2>
+            <div class="header-info">
+              <div><span>Rider Name:</span> <strong>${riderName}</strong></div>
+              <div><span>Month/Year:</span> <strong>${monthYear}</strong></div>
+              <div><span>Per Day Salary (9hr):</span> <strong>₹${riderBaseSalaryPerDay.toFixed(2)}</strong></div>
+              <div><span>Days Active:</span> <strong>${stats.daysActive}</strong></div>
+            </div>
+
+            <h3>Daily Performance & Earnings</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th class="text-right">Liters Sold</th>
+                  <th class="text-right">Hours</th>
+                  <th class="text-right">Total Sale (₹)</th>
+                  <th class="text-right">Actual Rcvd (₹)</th>
+                  <th class="text-right">Base Salary (₹)</th>
+                  <th class="text-right">Commission (₹)</th>
+                  <th class="text-right">Discrepancy (₹)</th>
+                  <th class="text-right">Net Earning (₹)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${dailyEntriesHtml}
+              </tbody>
+            </table>
+
+            <h3>Monthly Summary</h3>
+            <table class="summary-table">
+              <tr><td>Total Base Salary:</td><td class="text-right">₹${stats.totalBaseSalary.toFixed(2)}</td></tr>
+              <tr><td>Total Commission Earned:</td><td class="text-right">₹${stats.totalCommissionEarned.toFixed(2)}</td></tr>
+              <tr><td>Total Discrepancy:</td><td class="text-right">${stats.totalDiscrepancy > 0 ? '-' : stats.totalDiscrepancy < 0 ? '+' : ''}₹${Math.abs(stats.totalDiscrepancy).toFixed(2)}</td></tr>
+              <tr><td><strong>Net Monthly Earning:</strong></td><td class="text-right"><strong>₹${stats.netMonthlyEarning.toFixed(2)}</strong></td></tr>
+            </table>
+
+             <div class="footer">Generated on: ${formatDateFns(new Date(), 'PPP p')}</div>
+          </div>
+        </body>
+      </html>
+    `;
+    const slipWindow = window.open('', '_blank');
+    slipWindow?.document.write(slipContent);
+    slipWindow?.document.close();
+  };
+
 
   const riderSalesChartConfig = {
     total: {
@@ -367,7 +456,7 @@ export default function RiderMonthlyReportPage() {
                       tickMargin={10}
                       axisLine={false}
                     />
-                    <YAxis 
+                    <YAxis
                       tickFormatter={(value) => `₹${value}`}
                     />
                     <ChartTooltip content={<ChartTooltipContent />} />
@@ -403,7 +492,19 @@ export default function RiderMonthlyReportPage() {
                 <CardContent className="space-y-6">
                   {riderMonths.map(([monthYear, stats]) => (
                     <div key={monthYear}>
-                      <h4 className="text-lg font-semibold mb-2">{monthYear} (Active Days: {stats.daysActive})</h4>
+                      <div className="flex justify-between items-center mb-2">
+                        <h4 className="text-lg font-semibold">
+                            {monthYear} (Active Days: {stats.daysActive})
+                        </h4>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleDownloadSalarySlip(riderName, monthYear, stats)}
+                            disabled={stats.dailyEntries.length === 0}
+                        >
+                           <Printer className="mr-2 h-4 w-4" /> Download Full Salary Slip
+                        </Button>
+                      </div>
                       <div className="overflow-x-auto border rounded-md">
                         <Table>
                           <TableHeader>
@@ -440,7 +541,15 @@ export default function RiderMonthlyReportPage() {
                           </TableBody>
                           <TableFooter>
                             <TableRow className="bg-muted/50 font-semibold">
-                              <TableCell colSpan={1}>Month Totals:</TableCell><TableCell className="text-right">{stats.totalLitersSold.toFixed(2)} L</TableCell><TableCell className="text-right">-</TableCell><TableCell className="text-right">₹{stats.totalSalesGenerated.toFixed(2)}</TableCell><TableCell className="text-right">₹{stats.totalMoneyCollected.toFixed(2)}</TableCell><TableCell className="text-right">₹{stats.totalBaseSalary.toFixed(2)}</TableCell><TableCell className="text-right">₹{stats.totalCommissionEarned.toFixed(2)}</TableCell><TableCell className={`text-right ${stats.totalDiscrepancy > 0 ? 'text-red-600' : stats.totalDiscrepancy < 0 ? 'text-green-600' : ''}`}>{stats.totalDiscrepancy > 0 && <MinusCircle className="inline-block mr-1 h-3 w-3"/>}{stats.totalDiscrepancy < 0 && <PlusCircle className="inline-block mr-1 h-3 w-3"/>}₹{Math.abs(stats.totalDiscrepancy).toFixed(2)}</TableCell><TableCell className="text-right text-lg">₹{stats.netMonthlyEarning.toFixed(2)}</TableCell>
+                              <TableCell colSpan={5}>Month Totals:</TableCell>
+                              <TableCell className="text-right">₹{stats.totalBaseSalary.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">₹{stats.totalCommissionEarned.toFixed(2)}</TableCell>
+                              <TableCell className={`text-right ${stats.totalDiscrepancy > 0 ? 'text-red-600' : stats.totalDiscrepancy < 0 ? 'text-green-600' : ''}`}>
+                                {stats.totalDiscrepancy > 0 && <MinusCircle className="inline-block mr-1 h-3 w-3"/>}
+                                {stats.totalDiscrepancy < 0 && <PlusCircle className="inline-block mr-1 h-3 w-3"/>}
+                                ₹{Math.abs(stats.totalDiscrepancy).toFixed(2)}
+                              </TableCell>
+                              <TableCell className="text-right text-lg">₹{stats.netMonthlyEarning.toFixed(2)}</TableCell>
                             </TableRow>
                           </TableFooter>
                         </Table>
@@ -519,3 +628,4 @@ export default function RiderMonthlyReportPage() {
     </main>
   );
 }
+
