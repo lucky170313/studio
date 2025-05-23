@@ -46,6 +46,11 @@ const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
+const ADMIN_CREDENTIALS_KEY = 'adminCredentialsDropAquaTrackApp';
+const TEAM_LEADER_ACCOUNTS_KEY = 'teamLeaderAccountsDropAquaTrackApp';
+
+const SERVICE_ACCOUNT_EMAIL = "aquatrack@aquatrack-d2b66.iam.gserviceaccount.com";
+
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -70,6 +75,7 @@ export default function AquaTrackPage() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
+  
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
@@ -94,23 +100,23 @@ export default function AquaTrackPage() {
   
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
+    
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message); // Log result of admin initialization
-      // Load login session
-      try {
-        const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
-        if (storedSession) {
-          const session = JSON.parse(storedSession);
-          if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole) {
-            setIsLoggedIn(true);
-            setCurrentUserRole(session.currentUserRole);
-            setLoggedInUsername(session.loggedInUsername);
-          }
-        }
-      } catch (error) { console.error("Failed to parse login session from localStorage", error); }
+      console.log(res.message);
     });
+
+    try {
+      const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
+      if (storedSession) {
+        const session = JSON.parse(storedSession);
+        if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole) {
+          setIsLoggedIn(true);
+          setCurrentUserRole(session.currentUserRole);
+          setLoggedInUsername(session.loggedInUsername);
+        }
+      }
+    } catch (error) { console.error("Failed to parse login session from localStorage", error); }
   
-    // Load rider names
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -130,7 +136,6 @@ export default function AquaTrackPage() {
       setRiderNames([...DEFAULT_RIDER_NAMES]);
     }
   
-    // Load rider salaries
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
@@ -141,7 +146,6 @@ export default function AquaTrackPage() {
       }
     } catch (error) { console.error("Failed to parse riderSalaries from localStorage", error); }
   
-    // Load global rate
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
       if (storedRate) {
@@ -197,7 +201,7 @@ export default function AquaTrackPage() {
       setCurrentUserRole(null);
       setLoggedInUsername(null);
       saveLoginSession(false, null, null);
-      setUsernameInput('');
+      // Clear password input on failed login for security
       setPasswordInput('');
     }
   };
@@ -219,13 +223,13 @@ export default function AquaTrackPage() {
     const values = pendingFormValues;
 
     try {
-      let finalMeterReadingImageDriveLink: string | undefined = undefined;
+      let finalMeterReadingImageDriveLink: string | null = null;
       if (values.meterReadingImage) {
         console.warn(
           `Image selected (${values.meterReadingImage.name}). Google Drive upload is NOT IMPLEMENTED. 
           A backend service (e.g., Next.js API Route or Server Action) is required. 
-          This backend service would use a Service Account (like 'aquatrack@aquatrack-d2b66.iam.gserviceaccount.com') 
-          and its JSON key (stored securely as an environment variable on the server) 
+          This backend service would use a Service Account (like '${SERVICE_ACCOUNT_EMAIL}') 
+          and its JSON key (stored securely as an environment variable on the server, which you may have downloaded) 
           to authenticate with the Google Drive API and upload the file. 
           The service would then return the shareable link. 
           Saving a placeholder link for now.`
@@ -259,7 +263,7 @@ export default function AquaTrackPage() {
       const submissionDateObject = values.date instanceof Date ? values.date : new Date(values.date);
 
       const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
-      const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
+      const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
@@ -311,7 +315,7 @@ export default function AquaTrackPage() {
         const fullReportDataForDisplay: SalesReportData = {
           ...reportToSave,
           _id: dbResult.id, 
-          id: dbResult.id,
+          id: dbResult.id, // Keep 'id' for consistency if used elsewhere client-side
         };
         setReportData(fullReportDataForDisplay);
       } else {
@@ -704,6 +708,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
-    
-

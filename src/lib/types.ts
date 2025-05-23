@@ -6,7 +6,7 @@ export type UserRole = 'Admin' | 'TeamLeader';
 export interface UserCredentials {
   userId: string;
   role: UserRole;
-  password?: string; // Only present on the server for storage, not sent to client
+  password?: string; 
 }
 
 
@@ -29,14 +29,12 @@ export const salesDataSchema = z.object({
   comment: z.string().optional(),
   meterReadingImage: z.custom<File | undefined>((val) => val === undefined || val instanceof File, "Invalid image file").optional(),
 }).refine(data => {
-  // If overrideLitersSold is provided and is a positive number, skip meter reading check.
-  if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold > 0) {
+  if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) { // Allow 0 for override
     return true;
   }
-  // Otherwise (overrideLitersSold is undefined, 0, or not positive), meter readings must be consistent.
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous meter reading (unless Liters Sold are positively overridden by Admin).",
+  message: "Current meter reading cannot be less than previous meter reading (unless Liters Sold are overridden by Admin).",
   path: ["currentMeterReading"],
 });
 
@@ -44,10 +42,10 @@ export const salesDataSchema = z.object({
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
-  id?: string; // Client-side identifier
-  _id?: string; // For MongoDB
+  id?: string; 
+  _id?: string; 
   date: string; 
-  firestoreDate: Date; // JS Date object for DB compatibility
+  firestoreDate: Date; 
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -74,5 +72,5 @@ export interface SalesReportData {
   aiReasoning: string; 
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  meterReadingImageDriveLink?: string; // Link to the image on Google Drive
+  meterReadingImageDriveLink?: string | null; 
 }
