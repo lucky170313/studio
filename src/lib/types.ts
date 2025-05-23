@@ -1,13 +1,12 @@
 
 import { z } from 'zod';
 
-export type UserRole = 'Admin' | 'TeamLeader'; // Changed Team Leader capitalization
+export type UserRole = 'Admin' | 'TeamLeader';
 
 export interface UserCredentials {
   userId: string;
   role: UserRole;
-  // Password is not typically sent to client, but needed for some prototype admin interactions
-  password?: string; 
+  password?: string;
 }
 
 
@@ -17,8 +16,8 @@ export const salesDataSchema = z.object({
   vehicleName: z.string().min(1, 'Vehicle name is required.'),
   previousMeterReading: z.coerce.number().min(0, 'Previous meter reading must be a positive number.'),
   currentMeterReading: z.coerce.number().min(0, 'Current meter reading must be a positive number.'),
-  overrideLitersSold: z.coerce.number().min(0, "Override liters sold must be a positive number.").optional(),
-  ratePerLiter: z.coerce.number().min(0, 'Rate per liter must be a positive number.'),
+  overrideLitersSold: z.coerce.number().min(0, "Override liters sold cannot be negative.").optional(),
+  ratePerLiter: z.coerce.number().min(0, 'Rate per liter cannot be negative.'),
   cashReceived: z.coerce.number().min(0, 'Cash received must be a positive number.'),
   onlineReceived: z.coerce.number().min(0, 'Online received must be a positive number.'),
   dueCollected: z.coerce.number().min(0, 'Due collected must be a positive number.'),
@@ -29,12 +28,14 @@ export const salesDataSchema = z.object({
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
 }).refine(data => {
-  if (data.overrideLitersSold === undefined || data.overrideLitersSold <= 0) {
-    return data.currentMeterReading >= data.previousMeterReading;
+  // If overrideLitersSold is provided and is a positive number, skip meter reading check.
+  if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold > 0) {
+    return true;
   }
-  return true;
+  // Otherwise (overrideLitersSold is undefined, 0, or not positive), meter readings must be consistent.
+  return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous meter reading (when not overriding liters sold).",
+  message: "Current meter reading cannot be less than previous meter reading (unless Liters Sold are positively overridden by Admin).",
   path: ["currentMeterReading"],
 });
 
@@ -44,8 +45,8 @@ export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 export interface SalesReportData {
   id?: string;
   _id?: string; // For MongoDB
-  date: string; // This is the formatted string date for display
-  firestoreDate: Date; // JS Date object for DB, named for backward compat but stores JS Date
+  date: string; 
+  firestoreDate: Date; // JS Date object for DB compatibility, storing JS Date
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -68,8 +69,8 @@ export interface SalesReportData {
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
-  aiAdjustedExpectedAmount: number; // Value used in report, may be same as initialAdjustedExpected if AI is bypassed
-  aiReasoning: string; // Reasoning for aiAdjustedExpectedAmount
+  aiAdjustedExpectedAmount: number; 
+  aiReasoning: string; 
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
 }
