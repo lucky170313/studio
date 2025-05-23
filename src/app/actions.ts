@@ -3,10 +3,9 @@
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
-import ImageModel from '@/models/Image'; // Import the new Image model
+// import ImageModel from '@/models/Image'; // ImageModel import removed
 import UserModel from '@/models/User';
-import type { SalesReportWithOptionalImage, UserCredentials } from '@/lib/types'; // Updated type
-import type { SalesReportData } from '@/lib/types';
+import type { SalesReportData, UserCredentials } from '@/lib/types'; // Updated type, SalesReportWithOptionalImage might be simplified
 
 
 interface SaveReportResult {
@@ -16,22 +15,17 @@ interface SaveReportResult {
   id?: string;
 }
 
-export async function saveSalesReportAction(reportData: SalesReportWithOptionalImage): Promise<SaveReportResult> {
+export async function saveSalesReportAction(reportData: Omit<SalesReportData, '_id' | 'id'>): Promise<SaveReportResult> {
   try {
     await dbConnect();
 
-    // Separate image data from the rest of the report data
-    const {
-      meterReadingImageBase64,
-      meterReadingImageMimetype,
-      meterReadingImageFilename,
-      ...salesData
-    } = reportData;
+    // Image related properties removed from reportData destructuring
+    const salesData = reportData;
 
     // Explicitly map fields to ensure all are included
     const dataToSave: Omit<SalesReportData, '_id' | 'id'> = {
       date: salesData.date,
-      firestoreDate: new Date(salesData.firestoreDate),
+      firestoreDate: new Date(salesData.firestoreDate), // Ensure it's a Date object
       riderName: salesData.riderName,
       vehicleName: salesData.vehicleName,
       previousMeterReading: salesData.previousMeterReading,
@@ -58,33 +52,12 @@ export async function saveSalesReportAction(reportData: SalesReportWithOptionalI
       aiReasoning: salesData.aiReasoning,
       discrepancy: salesData.discrepancy,
       status: salesData.status,
-      // meterReadingImageDriveLink is removed
     };
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
 
-    // If image data is provided, save it to the Image collection
-    if (meterReadingImageBase64 && meterReadingImageMimetype && meterReadingImageFilename && savedEntry._id) {
-      // IMPORTANT: Storing raw image data in MongoDB is generally not recommended for production.
-      // This is for prototyping purposes. Consider using a dedicated file storage service.
-      console.warn("Attempting to save image data directly to MongoDB. This is not recommended for production.");
-      try {
-        const imageBuffer = Buffer.from(meterReadingImageBase64.split(',')[1], 'base64'); // Remove 'data:image/png;base64,' part
-        const imageDoc = new ImageModel({
-          salesReportId: savedEntry._id,
-          filename: meterReadingImageFilename,
-          mimetype: meterReadingImageMimetype,
-          data: imageBuffer,
-        });
-        await imageDoc.save();
-        console.log(`Image for sales report ${savedEntry._id} saved to images collection.`);
-      } catch (imageError: any) {
-        // Log image saving error but don't fail the whole sales report saving
-        console.error(`Failed to save image for sales report ${savedEntry._id}:`, imageError.message);
-        // Optionally, you could add a field to salesReportEntry to indicate image saving failure
-      }
-    }
+    // Image saving logic removed
 
     return {
       success: true,
@@ -172,7 +145,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
 }
 
 export async function changeAdminPasswordAction(adminUserId: string, newPasswordInput: string): Promise<{ success: boolean; message: string }> {
-  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { // Simple check, can be more robust
+  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { 
     return { success: false, message: "Unauthorized: Only the default admin can change their password through this action." };
   }
   try {
@@ -181,7 +154,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; // Storing plaintext password - HIGHLY INSECURE
+    admin.password = newPasswordInput; 
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
@@ -202,7 +175,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, // Storing plaintext password - HIGHLY INSECURE
+      password: passwordInput, 
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -220,7 +193,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; // Storing plaintext password - HIGHLY INSECURE
+    teamLeader.password = newPasswordInput; 
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {

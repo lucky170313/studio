@@ -27,7 +27,7 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  meterReadingImage: z.custom<File>((val) => val instanceof File, "Meter reading image must be a file.").optional(),
+  // meterReadingImage removed
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true; // If override is used, meter reading consistency is not strictly enforced here
@@ -69,16 +69,14 @@ export interface SalesReportData {
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
-  aiAdjustedExpectedAmount: number; // Still present, but AI flow is bypassed
-  aiReasoning: string; // Still present, but AI flow is bypassed
+  aiAdjustedExpectedAmount: number;
+  aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  // meterReadingImageDriveLink is removed
 }
 
-// For server action, to pass optional image data
+// For server action, if optional data needs to be passed beyond SalesReportData
 export interface SalesReportWithOptionalImage extends Omit<SalesReportData, '_id' | 'id'> {
-  meterReadingImageBase64?: string | null;
-  meterReadingImageMimetype?: string | null;
-  meterReadingImageFilename?: string | null;
+  // This interface can be simplified or removed if no other optional fields are needed
+  // For now, it's the same as Omit<SalesReportData, '_id' | 'id'> since image fields are removed
 }
