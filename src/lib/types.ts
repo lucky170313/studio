@@ -27,13 +27,14 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
+  // meterReadingImage: z.custom<File | undefined>((val) => val === undefined || val instanceof File, "Meter reading image is required.").optional(),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true;
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin). Clearer message.",
+  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin).",
   path: ["currentMeterReading"],
 });
 
@@ -71,9 +72,10 @@ export interface SalesReportData {
   aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
+  // meterReadingImageDriveLink?: string | null;
 }
 
-export type SalesReportServerData = Omit<SalesReportData, '_id' | 'id'>;
+export type SalesReportServerSaveData = Omit<SalesReportData, 'id' | '_id'>;
 
 
 // Salary Payment Types
@@ -81,6 +83,8 @@ export const salaryPaymentSchema = z.object({
   paymentDate: z.date({ required_error: 'Payment date is required.' }),
   riderName: z.string().min(1, 'Rider name is required.'),
   salaryGiverName: z.string().min(1, 'Salary giver name is required.'),
+  selectedYear: z.string().min(1, 'Year for salary calculation is required.'),
+  selectedMonth: z.string().min(1, 'Month for salary calculation is required.'),
   salaryAmountForPeriod: z.coerce.number().min(0, 'Salary amount must be a positive number.'),
   amountPaid: z.coerce.number().min(0, 'Amount paid must be a positive number.'),
   comment: z.string().optional(),
@@ -106,3 +110,10 @@ export interface SalaryPaymentData {
 }
 
 export type SalaryPaymentServerData = Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'>;
+
+export interface RiderMonthlyAggregates {
+  totalDailySalaryCalculated: number;
+  totalCommissionEarned: number;
+  totalDiscrepancy: number;
+  netMonthlyEarning: number;
+}

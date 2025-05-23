@@ -1,10 +1,12 @@
+
 'use server';
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
 import UserModel from '@/models/User';
 import SalaryPaymentModel from '@/models/SalaryPayment';
-import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, SalesReportServerSaveData } from '@/lib/types';
+import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, SalesReportServerSaveData, RiderMonthlyAggregates } from '@/lib/types';
+import { startOfMonth, endOfMonth } from 'date-fns';
 
 
 interface SaveReportResult {
@@ -270,22 +272,76 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
   try {
     await dbConnect();
     const payments = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
-    // Using .lean() returns plain JS objects. Dates should be fine, but _id will be an ObjectId that needs stringifying on client if used as key.
-    // For passing to client components, ensure all complex Mongoose types are converted.
-    // Mongoose .lean() converts ObjectId to string for _id automatically in newer versions if no schema transformation is applied.
-    // If issues persist, manually map and stringify:
-    // const plainPayments = payments.map(p => ({
-    //   ...p,
-    //   _id: p._id.toString(),
-    //   paymentDate: p.paymentDate.toISOString(), // Or keep as Date object if client reconstructs
-    //   createdAt: p.createdAt?.toISOString(),
-    //   updatedAt: p.updatedAt?.toISOString(),
-    // }));
-    // return { success: true, payments: plainPayments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
     return { success: true, payments: payments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);
     return { success: false, message: `Error fetching salary payments: ${error.message}` };
+  }
+}
+
+
+export async function getRiderMonthlyAggregatesAction(
+  riderName: string,
+  year: number,
+  month: number // 0-indexed (0 for January, 11 for December)
+): Promise<{ success: boolean; aggregates?: RiderMonthlyAggregates; message: string }> {
+  if (!riderName || year == null || month == null) {
+    return { success: false, message: "Rider name, year, and month are required." };
+  }
+
+  try {
+    await dbConnect();
+
+    const startDate = startOfMonth(new Date(year, month));
+    const endDate = endOfMonth(new Date(year, month));
+
+    const reports = await SalesReportModel.find({
+      riderName: riderName,
+      firestoreDate: {
+        $gte: startDate,
+        $lte: endDate,
+      },
+    }).lean();
+
+    if (!reports || reports.length === 0) {
+      return { 
+        success: true, 
+        aggregates: { 
+          totalDailySalaryCalculated: 0, 
+          totalCommissionEarned: 0, 
+          totalDiscrepancy: 0,
+          netMonthlyEarning: 0,
+        },
+        message: "No sales data found for this rider in the selected period."
+      };
+    }
+
+    let totalDailySalaryCalculated = 0;
+    let totalCommissionEarned = 0;
+    let totalDiscrepancy = 0;
+
+    reports.forEach(report => {
+      totalDailySalaryCalculated += report.dailySalaryCalculated || 0;
+      totalCommissionEarned += report.commissionEarned || 0;
+      totalDiscrepancy += report.discrepancy || 0;
+    });
+    
+    const netMonthlyEarning = totalDailySalaryCalculated + totalCommissionEarned - totalDiscrepancy;
+
+    return {
+      success: true,
+      aggregates: {
+        totalDailySalaryCalculated,
+        totalCommissionEarned,
+        totalDiscrepancy,
+        netMonthlyEarning,
+      },
+      message: 'Aggregates fetched successfully.'
+    };
+
+  } catch (error: any) {
+    console.error("Error fetching rider monthly aggregates:", error);
+    return { success: false, message: `Error fetching aggregates: ${error.message}` };
   }
 }
 

@@ -5,9 +5,9 @@ import * as React from 'react';
 import { useState, useEffect, useMemo } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { format as formatDateFns } from 'date-fns';
+import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import Link from 'next/link';
-import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download } from 'lucide-react';
+import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,35 +19,49 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { SalaryPaymentFormValues, UserRole } from '@/lib/types';
+import type { SalaryPaymentFormValues, UserRole, RiderMonthlyAggregates } from '@/lib/types';
 import { salaryPaymentSchema } from '@/lib/types';
-import { saveSalaryPaymentAction } from '@/app/actions';
+import { saveSalaryPaymentAction, getRiderMonthlyAggregatesAction } from '@/app/actions';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
+const currentYear = new Date().getFullYear();
+const years = Array.from({ length: 5 }, (_, i) => currentYear - i); // Last 5 years
+const monthNames = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December"
+];
+
 export default function SalaryPaymentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isFetchingSalary, setIsFetchingSalary] = useState(false);
   const { toast } = useToast();
   const [riderNames, setRiderNames] = useState<string[]>([]);
   const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
-  const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
+  // const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null); // Not directly used for restrictions on this page
 
   const form = useForm<SalaryPaymentFormValues>({
     resolver: zodResolver(salaryPaymentSchema),
     defaultValues: {
       paymentDate: new Date(),
       riderName: '',
-      salaryGiverName: '', // Will be auto-filled
+      salaryGiverName: '', 
+      selectedYear: String(currentYear),
+      selectedMonth: String(getMonth(new Date())), // Default to current month (0-indexed)
       salaryAmountForPeriod: 0,
       amountPaid: 0,
       comment: '',
     },
   });
 
-  const { watch, setValue } = form;
+  const { watch, setValue, getValues, trigger } = form;
   const watchedSalaryAmount = watch('salaryAmountForPeriod');
   const watchedAmountPaid = watch('amountPaid');
+  const watchedRiderName = watch('riderName');
+  const watchedSelectedYear = watch('selectedYear');
+  const watchedSelectedMonth = watch('selectedMonth');
 
   const remainingAmount = useMemo(() => {
     const salary = Number(watchedSalaryAmount) || 0;
@@ -56,7 +70,6 @@ export default function SalaryPaymentPage() {
   }, [watchedSalaryAmount, watchedAmountPaid]);
 
   useEffect(() => {
-    // Load rider names from localStorage
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -69,19 +82,16 @@ export default function SalaryPaymentPage() {
       console.error("Failed to parse riderNames from localStorage", error);
     }
 
-    // Load logged-in user from localStorage
     try {
       const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
       if (storedSession) {
         const session = JSON.parse(storedSession);
-        if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole) {
+        if (session.isLoggedIn && session.loggedInUsername) {
           setLoggedInUsername(session.loggedInUsername);
-          setCurrentUserRole(session.currentUserRole);
+          // setCurrentUserRole(session.currentUserRole); // Not strictly needed for this page's logic
           setValue('salaryGiverName', session.loggedInUsername, { shouldValidate: true });
         } else {
-          // Redirect or show error if not logged in
           toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
-          // Consider redirecting: router.push('/');
         }
       } else {
          toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
@@ -91,6 +101,34 @@ export default function SalaryPaymentPage() {
        toast({ title: "Error", description: "Could not verify login status.", variant: "destructive" });
     }
   }, [setValue, toast]);
+
+  useEffect(() => {
+    const fetchAndSetSalary = async () => {
+      if (watchedRiderName && watchedSelectedYear && watchedSelectedMonth) {
+        setIsFetchingSalary(true);
+        setValue('salaryAmountForPeriod', 0); // Reset while fetching
+        try {
+          const result = await getRiderMonthlyAggregatesAction(
+            watchedRiderName,
+            parseInt(watchedSelectedYear),
+            parseInt(watchedSelectedMonth)
+          );
+          if (result.success && result.aggregates) {
+            setValue('salaryAmountForPeriod', result.aggregates.netMonthlyEarning, { shouldValidate: true });
+          } else {
+            toast({ title: "Info", description: result.message || "Could not fetch monthly earnings for this rider/period. Please enter manually.", variant: "default" });
+            setValue('salaryAmountForPeriod', 0);
+          }
+        } catch (error) {
+          toast({ title: "Error", description: "Failed to fetch rider's monthly earnings.", variant: "destructive" });
+          setValue('salaryAmountForPeriod', 0);
+        } finally {
+          setIsFetchingSalary(false);
+        }
+      }
+    };
+    fetchAndSetSalary();
+  }, [watchedRiderName, watchedSelectedYear, watchedSelectedMonth, setValue, toast]);
 
 
   const onSubmit = async (values: SalaryPaymentFormValues) => {
@@ -103,7 +141,7 @@ export default function SalaryPaymentPage() {
       const paymentDataToServer = {
         paymentDate: values.paymentDate,
         riderName: values.riderName,
-        salaryGiverName: loggedInUsername, // Ensure this is the loggedInUsername
+        salaryGiverName: loggedInUsername,
         salaryAmountForPeriod: values.salaryAmountForPeriod,
         amountPaid: values.amountPaid,
         comment: values.comment,
@@ -118,6 +156,8 @@ export default function SalaryPaymentPage() {
           paymentDate: new Date(),
           riderName: '',
           salaryGiverName: loggedInUsername,
+          selectedYear: String(currentYear),
+          selectedMonth: String(getMonth(new Date())),
           salaryAmountForPeriod: 0,
           amountPaid: 0,
           comment: '',
@@ -134,14 +174,59 @@ export default function SalaryPaymentPage() {
   };
 
   const handleDownloadSlip = () => {
-    // Placeholder for slip download functionality
-    toast({ title: "Feature Not Implemented", description: "Downloading salary slips will be available soon." });
+    const values = getValues();
+     if (!values.riderName || !values.selectedYear || !values.selectedMonth) {
+        toast({
+            title: "Cannot Generate Slip",
+            description: "Please select a rider, year, and month to generate the slip.",
+            variant: "destructive",
+        });
+        return;
+    }
+    const slipContent = `
+      <html>
+        <head>
+          <title>Salary Slip - ${values.riderName} - ${monthNames[parseInt(values.selectedMonth)]} ${values.selectedYear}</title>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 20px; }
+            .slip-container { border: 1px solid #ccc; padding: 20px; width: 400px; margin: auto; }
+            h2 { text-align: center; color: #333; }
+            .field { margin-bottom: 10px; }
+            .label { font-weight: bold; color: #555; }
+            .value { margin-left: 5px; }
+            .footer { margin-top: 20px; text-align: center; font-size: 0.8em; color: #777; }
+          </style>
+        </head>
+        <body>
+          <div class="slip-container">
+            <h2>Salary Payment Slip</h2>
+            <div class="field"><span class="label">Rider Name:</span><span class="value">${values.riderName}</span></div>
+            <div class="field"><span class="label">Payment Date:</span><span class="value">${formatDateFns(values.paymentDate, "PPP")}</span></div>
+            <div class="field"><span class="label">Salary For:</span><span class="value">${monthNames[parseInt(values.selectedMonth)]} ${values.selectedYear}</span></div>
+            <div class="field"><span class="label">Salary Giver:</span><span class="value">${values.salaryGiverName}</span></div>
+            <hr/>
+            <div class="field"><span class="label">Salary Amount for Period:</span><span class="value">₹${values.salaryAmountForPeriod.toFixed(2)}</span></div>
+            <div class="field"><span class="label">Amount Paid:</span><span class="value">₹${values.amountPaid.toFixed(2)}</span></div>
+            <div class="field"><span class="label">Remaining Amount:</span><span class="value">₹${remainingAmount.toFixed(2)}</span></div>
+            ${values.comment ? `<div class="field"><span class="label">Comment:</span><span class="value">${values.comment}</span></div>` : ''}
+            <div class="footer">Drop Aqua Track - Payment Summary</div>
+          </div>
+        </body>
+      </html>
+    `;
+    const slipWindow = window.open('', '_blank');
+    slipWindow?.document.write(slipContent);
+    slipWindow?.document.close();
   };
 
   if (!loggedInUsername) {
       return (
          <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
-            <p className="text-lg text-destructive">You must be logged in to make salary payments.</p>
+            <Alert variant="destructive" className="mb-4 max-w-md">
+              <AlertCircleIcon className="h-4 w-4" />
+              <AlertTitle>Access Denied</AlertTitle>
+              <AlertDescription>You must be logged in to make salary payments.</AlertDescription>
+            </Alert>
              <Link href="/" passHref className="mt-4">
                 <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4"/> Go to Login</Button>
             </Link>
@@ -164,7 +249,7 @@ export default function SalaryPaymentPage() {
       <Card className="w-full max-w-2xl mx-auto shadow-xl">
         <CardHeader>
           <CardTitle>Record Salary Payment</CardTitle>
-          <CardDescription>Enter the details of the salary payment made to a rider.</CardDescription>
+          <CardDescription>Enter the details of the salary payment. Salary for period auto-fills based on rider's performance for selected month/year.</CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -216,47 +301,88 @@ export default function SalaryPaymentPage() {
                   </FormItem>
                 )}
               />
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <FormField
+                    control={form.control}
+                    name="riderName"
+                    render={({ field }) => (
+                    <FormItem className="sm:col-span-1">
+                        <FormLabel className="flex items-center"><User className="mr-2 h-4 w-4 text-primary" />Select Rider</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                            <SelectTrigger>
+                            <SelectValue placeholder="Select a rider" />
+                            </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                            {riderNames.length > 0 ? (
+                            riderNames.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)
+                            ) : (
+                            <SelectItem value="" disabled>No riders (manage in Admin)</SelectItem>
+                            )}
+                        </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
+                 <FormField
+                    control={form.control}
+                    name="selectedYear"
+                    render={({ field }) => (
+                        <FormItem className="sm:col-span-1">
+                            <FormLabel>For Year</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select Year" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    {years.map(y => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+                <FormField
+                    control={form.control}
+                    name="selectedMonth"
+                    render={({ field }) => (
+                        <FormItem className="sm:col-span-1">
+                            <FormLabel>For Month</FormLabel>
+                            <Select onValueChange={field.onChange} value={field.value}>
+                                <FormControl><SelectTrigger><SelectValue placeholder="Select Month" /></SelectTrigger></FormControl>
+                                <SelectContent>
+                                    {monthNames.map((m, i) => <SelectItem key={i} value={String(i)}>{m}</SelectItem>)}
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )}
+                />
+              </div>
 
-              <FormField
-                control={form.control}
-                name="riderName"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center"><User className="mr-2 h-4 w-4 text-primary" />Select Rider</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select a rider" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {riderNames.length > 0 ? (
-                          riderNames.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)
-                        ) : (
-                          <SelectItem value="" disabled>No riders available (manage in Admin panel)</SelectItem>
-                        )}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}
                 name="salaryAmountForPeriod"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Salary Amount for Period (₹)</FormLabel>
+                    <FormLabel className="flex items-center">
+                        <IndianRupee className="mr-2 h-4 w-4 text-primary" />
+                        Salary Amount for Period (₹)
+                        {isFetchingSalary && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                    </FormLabel>
                     <FormControl>
                       <Input
                         type="number"
-                        placeholder="e.g., 15000"
+                        placeholder="Auto-fills or enter manually"
                         {...field}
                         onChange={event => field.onChange(parseFloat(event.target.value) || 0)}
+                        readOnly={isFetchingSalary}
+                        className={cn(isFetchingSalary && "bg-muted/50")}
                       />
                     </FormControl>
-                     <FormDescription>Enter the total salary being considered for this payment period.</FormDescription>
+                     <FormDescription>Auto-fills based on rider's performance for selected month/year. Can be overridden.</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -267,7 +393,7 @@ export default function SalaryPaymentPage() {
                 name="amountPaid"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Amount Given (₹)</FormLabel>
+                    <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Amount Paid (₹)</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
@@ -285,7 +411,7 @@ export default function SalaryPaymentPage() {
               <FormItem>
                 <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Remaining Amount (₹)</FormLabel>
                 <Input type="text" value={`₹${remainingAmount.toFixed(2)}`} readOnly className="bg-muted/50 font-semibold" />
-                <FormDescription>Calculated as: Salary Amount for Period - Amount Given.</FormDescription>
+                <FormDescription>Calculated as: Salary Amount for Period - Amount Paid.</FormDescription>
               </FormItem>
               
               <FormField
@@ -302,12 +428,12 @@ export default function SalaryPaymentPage() {
                 )}
               />
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting}>
+                <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || isFetchingSalary}>
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Record Payment
                 </Button>
                 <Button type="button" variant="outline" onClick={handleDownloadSlip} className="w-full sm:w-auto">
-                  <Download className="mr-2 h-4 w-4" /> Download Slip (Placeholder)
+                  <Download className="mr-2 h-4 w-4" /> Download Slip Summary
                 </Button>
               </div>
             </form>
@@ -320,3 +446,4 @@ export default function SalaryPaymentPage() {
     </main>
   );
 }
+
