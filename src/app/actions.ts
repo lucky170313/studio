@@ -3,7 +3,7 @@
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
-import UserModel from '@/models/User'; // New User model
+import UserModel from '@/models/User';
 import type { SalesReportData, UserCredentials } from '@/lib/types';
 
 interface SaveReportResult {
@@ -13,10 +13,16 @@ interface SaveReportResult {
   id?: string;
 }
 
-export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'id' | '_id' | 'aiAdjustedExpectedAmount' | 'aiReasoning'> & { firestoreDate: Date }): Promise<SaveReportResult> {
+// Updated type for reportData to correctly include all fields from SalesReportData (except id and _id)
+export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'id' | '_id'>): Promise<SaveReportResult> {
   try {
     await dbConnect();
-    const salesReportEntry = new SalesReportModel(reportData);
+    // Ensure firestoreDate is a Date object if it's passed as a string or needs conversion
+    const dataToSave = {
+      ...reportData,
+      firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
+    };
+    const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
     
     return { 
@@ -30,6 +36,11 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
     if (e instanceof Error) {
         dbErrorMessage = `MongoDB Error: ${e.message}.`;
     }
+    // Check for Mongoose validation error details
+    if (e.name === 'ValidationError') {
+        let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
+        dbErrorMessage = `MongoDB Validation Error: ${validationErrors}`;
+    }
     return { 
       success: false, 
       message: dbErrorMessage,
@@ -41,7 +52,7 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
 // --- User Management Actions ---
 
 const DEFAULT_ADMIN_USER_ID = "lucky170313";
-const DEFAULT_ADMIN_PASSWORD = "northpole";
+const DEFAULT_ADMIN_PASSWORD = "northpole"; // INSECURE PLAINTEXT
 
 export async function initializeDefaultAdminAction(): Promise<{ success: boolean; message: string }> {
   try {
@@ -54,9 +65,9 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
         role: 'Admin',
       });
       await adminUser.save();
-      return { success: true, message: 'Default admin initialized.' };
+      return { success: true, message: 'Default admin initialized in MongoDB.' };
     }
-    return { success: true, message: 'Default admin already exists.' };
+    return { success: true, message: 'Default admin already exists in MongoDB.' };
   } catch (error: any) {
     console.error("Error initializing default admin:", error);
     return { success: false, message: `Error initializing default admin: ${error.message}` };
@@ -79,7 +90,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
 }
 
 export async function changeAdminPasswordAction(adminUserId: string, newPasswordInput: string): Promise<{ success: boolean; message: string }> {
-  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { // Basic check
+  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { 
     return { success: false, message: "Unauthorized: Only the default admin can change their password through this action." };
   }
   try {
@@ -90,7 +101,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     }
     admin.password = newPasswordInput; // Storing plaintext - INSECURE
     await admin.save();
-    return { success: true, message: 'Admin password updated successfully.' };
+    return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
     console.error("Error changing admin password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
@@ -113,7 +124,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
-    return { success: true, message: `Team Leader "${userIdInput}" added successfully.`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
+    return { success: true, message: `Team Leader "${userIdInput}" added successfully to MongoDB.`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
   } catch (error: any) {
     console.error("Error adding team leader:", error);
     return { success: false, message: `Error adding team leader: ${error.message}` };
@@ -129,7 +140,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     }
     teamLeader.password = newPasswordInput; // Storing plaintext - INSECURE
     await teamLeader.save();
-    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully.` };
+    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {
     console.error("Error updating team leader password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
@@ -141,9 +152,9 @@ export async function deleteTeamLeaderAction(userIdToDelete: string): Promise<{ 
     await dbConnect();
     const result = await UserModel.deleteOne({ userId: userIdToDelete, role: 'TeamLeader' });
     if (result.deletedCount === 0) {
-      return { success: false, message: `Team Leader "${userIdToDelete}" not found or not deleted.` };
+      return { success: false, message: `Team Leader "${userIdToDelete}" not found or not deleted from MongoDB.` };
     }
-    return { success: true, message: `Team Leader "${userIdToDelete}" deleted successfully.` };
+    return { success: true, message: `Team Leader "${userIdToDelete}" deleted successfully from MongoDB.` };
   } catch (error: any) {
     console.error("Error deleting team leader:", error);
     return { success: false, message: `Error deleting team leader: ${error.message}` };
@@ -155,7 +166,7 @@ export async function getTeamLeadersAction(): Promise<{ success: boolean; teamLe
     await dbConnect();
     const leaders = await UserModel.find({ role: 'TeamLeader' }).select('userId role').lean();
     const mappedLeaders = leaders.map(leader => ({ userId: leader.userId, role: leader.role as 'TeamLeader' } ));
-    return { success: true, teamLeaders: mappedLeaders, message: 'Team leaders fetched successfully.' };
+    return { success: true, teamLeaders: mappedLeaders, message: 'Team leaders fetched successfully from MongoDB.' };
   } catch (error: any) {
     console.error("Error fetching team leaders:", error);
     return { success: false, message: `Error fetching team leaders: ${error.message}` };

@@ -82,7 +82,7 @@ export default function AquaTrackPage() {
   // --- End Login State ---
 
   // --- User Management State (Admin) ---
-  const [newAdminPasswordInput, setNewAdminPasswordInput] = useState('');
+  const [adminPasswordInput, setAdminPasswordInput] = useState(''); // For admin changing own password
   const [teamLeaders, setTeamLeaders] = useState<UserCredentials[]>([]); // Store {userId, role}
   const [tlUserIdInput, setTlUserIdInput] = useState('');
   const [tlPasswordInput, setTlPasswordInput] = useState('');
@@ -95,17 +95,14 @@ export default function AquaTrackPage() {
       setTeamLeaders(result.teamLeaders);
     } else {
       toast({ title: "Error", description: result.message || "Failed to fetch team leaders.", variant: "destructive" });
-      setTeamLeaders([]); // Fallback to empty array
+      setTeamLeaders([]);
     }
   };
-
+  
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
-
-    // Initialize default admin in DB if not present
     initializeDefaultAdminAction().then(res => console.log(res.message));
-    
-    // Load login session
+  
     try {
       const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
       if (storedSession) {
@@ -115,25 +112,26 @@ export default function AquaTrackPage() {
           setCurrentUserRole(session.currentUserRole);
           setLoggedInUsername(session.loggedInUsername);
           if (session.currentUserRole === 'Admin') {
-            fetchTeamLeaders(); // Fetch TL list if admin is logged in
+            fetchTeamLeaders(); 
           }
         }
       }
-    } catch (error) {
-      console.error("Failed to parse login session from localStorage", error);
-    }
-
-    // Load other persistent data
+    } catch (error) { console.error("Failed to parse login session from localStorage", error); }
+  
     try {
       const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
       if (storedReadings) setLastMeterReadingsByVehicle(JSON.parse(storedReadings));
     } catch (error) { console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error); }
-
+  
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
         const parsedRiderNames = JSON.parse(storedRiderNames);
-        setRiderNames(parsedRiderNames.length > 0 ? parsedRiderNames : [...DEFAULT_RIDER_NAMES]);
+        if (Array.isArray(parsedRiderNames)) {
+          setRiderNames(parsedRiderNames.length > 0 ? parsedRiderNames : [...DEFAULT_RIDER_NAMES]);
+        } else {
+          setRiderNames([...DEFAULT_RIDER_NAMES]);
+        }
       } else {
         setRiderNames([...DEFAULT_RIDER_NAMES]);
         localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(DEFAULT_RIDER_NAMES));
@@ -142,12 +140,17 @@ export default function AquaTrackPage() {
       console.error("Failed to parse riderNames from localStorage", error);
       setRiderNames([...DEFAULT_RIDER_NAMES]);
     }
-
+  
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
-      if (storedSalaries) setRiderSalaries(JSON.parse(storedSalaries));
+      if (storedSalaries) {
+        const parsedSalaries = JSON.parse(storedSalaries);
+        if (typeof parsedSalaries === 'object' && parsedSalaries !== null) {
+          setRiderSalaries(parsedSalaries);
+        }
+      }
     } catch (error) { console.error("Failed to parse riderSalaries from localStorage", error); }
-
+  
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
       if (storedRate) {
@@ -185,17 +188,19 @@ export default function AquaTrackPage() {
       setLoginError(null);
       saveLoginSession(true, result.user.role, result.user.userId);
       if (result.user.role === 'Admin') {
-        fetchTeamLeaders(); // Fetch TLs if admin logs in
+        fetchTeamLeaders();
       }
+      setUsernameInput('');
+      setPasswordInput('');
     } else {
       setLoginError(result.message || "Invalid User ID or Password.");
       setIsLoggedIn(false);
       setCurrentUserRole(null);
       setLoggedInUsername(null);
       saveLoginSession(false, null, null);
+      setUsernameInput('');
+      setPasswordInput('');
     }
-    setUsernameInput('');
-    setPasswordInput('');
   };
 
   const handleLogout = () => {
@@ -203,7 +208,7 @@ export default function AquaTrackPage() {
     setCurrentUserRole(null);
     setLoggedInUsername(null);
     saveLoginSession(false, null, null);
-    setTeamLeaders([]); // Clear team leaders list on logout
+    setTeamLeaders([]); 
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
@@ -218,7 +223,7 @@ export default function AquaTrackPage() {
       let finalLitersSold: number;
       const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
 
-      if (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) {
+      if (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold >= 0) {
         finalLitersSold = values.overrideLitersSold;
       } else {
         finalLitersSold = calculatedLitersFromMeter;
@@ -238,7 +243,7 @@ export default function AquaTrackPage() {
 
       const totalSale = finalLitersSold * values.ratePerLiter;
       const actualReceived = values.cashReceived + values.onlineReceived;
-      const submissionDateObject = values.date instanceof Date ? values.date : new Date();
+      const submissionDateObject = values.date instanceof Date ? values.date : new Date(values.date);
 
       const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
       const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
@@ -257,15 +262,16 @@ export default function AquaTrackPage() {
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      const reportToSave: Omit<SalesReportData, 'id' | '_id' | 'aiAdjustedExpectedAmount' | 'aiReasoning'> & { firestoreDate: Date } = {
+      // Ensure firestoreDate is a valid Date object before passing to the action
+      const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject, 
+        firestoreDate: submissionDateObject, // This will be a Date object
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
         currentMeterReading: values.currentMeterReading,
         litersSold: finalLitersSold,
-        adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold > 0) ? values.overrideLitersSold : undefined,
+        adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold >= 0) ? values.overrideLitersSold : undefined,
         ratePerLiter: values.ratePerLiter,
         cashReceived: values.cashReceived,
         onlineReceived: values.onlineReceived,
@@ -279,30 +285,29 @@ export default function AquaTrackPage() {
         commissionEarned: commissionEarned,
         comment: values.comment || "",
         recordedBy: loggedInUsername,
-        totalSale, actualReceived, initialAdjustedExpected, discrepancy, status,
+        totalSale, actualReceived, initialAdjustedExpected, 
+        aiAdjustedExpectedAmount, // Make sure this is passed
+        aiReasoning, // Make sure this is passed
+        discrepancy, status,
       };
       
       const dbResult = await saveSalesReportAction(reportToSave);
 
       if (dbResult.success && dbResult.id) {
-        toast({ title: 'Report Generated & Saved', description: dbResult.message, variant: 'default' });
-         // Construct the full report data for display, including AI bypassed fields
+        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully.', variant: 'default' });
         const fullReportDataForDisplay: SalesReportData = {
           ...reportToSave,
+          _id: dbResult.id, 
           id: dbResult.id,
-          _id: dbResult.id,
-          aiAdjustedExpectedAmount,
-          aiReasoning,
+          // aiAdjustedExpectedAmount and aiReasoning are already in reportToSave
         };
         setReportData(fullReportDataForDisplay);
       } else {
         toast({ title: 'Database Error', description: dbResult.message || "Failed to save sales report.", variant: 'destructive' });
         const localPreviewReportData: SalesReportData = {
             ...reportToSave,
-            id: `local-preview-${Date.now()}`,
             _id: `local-preview-${Date.now()}`,
-            aiAdjustedExpectedAmount,
-            aiReasoning,
+            id: `local-preview-${Date.now()}`,
         };
         setReportData(localPreviewReportData);
       }
@@ -421,9 +426,9 @@ export default function AquaTrackPage() {
     toast({ title: "Success", description: `Global rate per liter set to ₹${newRate.toFixed(2)}.` });
   };
 
-  // --- Admin User Management Functions (Now DB Backed) ---
+  // --- Admin User Management Functions (DB Backed) ---
   const handleChangeAdminPassword = async () => {
-    if (!newAdminPasswordInput.trim()) {
+    if (!adminPasswordInput.trim()) {
       toast({ title: "Error", description: "New password cannot be empty.", variant: "destructive" });
       return;
     }
@@ -431,9 +436,9 @@ export default function AquaTrackPage() {
          toast({ title: "Error", description: "Admin not logged in.", variant: "destructive" });
         return;
     }
-    const result = await changeAdminPasswordAction(loggedInUsername, newAdminPasswordInput.trim());
+    const result = await changeAdminPasswordAction(loggedInUsername, adminPasswordInput.trim());
     if (result.success) {
-      setNewAdminPasswordInput('');
+      setAdminPasswordInput('');
       toast({ title: "Success", description: result.message });
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -460,7 +465,7 @@ export default function AquaTrackPage() {
 
     if (result.success) {
       toast({ title: "Success", description: result.message });
-      fetchTeamLeaders(); // Refresh list
+      fetchTeamLeaders(); 
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -470,7 +475,7 @@ export default function AquaTrackPage() {
 
   const handleEditTlSetup = (tl: UserCredentials) => {
     setTlUserIdInput(tl.userId);
-    setTlPasswordInput(''); // Clear password field for security on edit
+    setTlPasswordInput(''); 
     setEditingTlOriginalUserId(tl.userId);
   };
 
@@ -485,7 +490,7 @@ export default function AquaTrackPage() {
       const result = await deleteTeamLeaderAction(userIdToDelete);
       if (result.success) {
         toast({ title: "Success", description: result.message });
-        fetchTeamLeaders(); // Refresh list
+        fetchTeamLeaders(); 
         if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
       } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -504,7 +509,6 @@ export default function AquaTrackPage() {
                 <Droplets className="h-10 w-10 text-primary" />
                 <h1 className="text-3xl font-bold text-primary ml-2">Drop Aqua Track Login</h1>
             </div>
-            {/* Removed default credentials hint */}
           </CardHeader>
           <CardContent className="space-y-6">
             {loginError && (
@@ -529,7 +533,6 @@ export default function AquaTrackPage() {
         </Card>
          <footer className="mt-12 text-center text-sm text-muted-foreground">
             {currentYear !== null ? <p>&copy; {currentYear} Drop Aqua Track. Streamlining your water delivery business.</p> : <p>Loading year...</p>}
-            <p className="text-xs mt-1">For prototype access: Admin (lucky170313/northpole) or Team Leader (leader01/leaderpass - if initialized by admin).</p>
         </footer>
       </main>
     );
@@ -547,7 +550,7 @@ export default function AquaTrackPage() {
             <div className="flex-1 flex justify-end">
                 {isLoggedIn && (
                     <Button onClick={handleLogout} variant="outline">
-                        <LogOut className="mr-2 h-4 w-4"/> Logout
+                        <LogOut className="mr-2 h-4 w-4"/> Logout ({loggedInUsername})
                     </Button>
                 )}
             </div>
@@ -555,7 +558,7 @@ export default function AquaTrackPage() {
         <p className="mt-1 text-xl text-muted-foreground">
           Daily Sales & Reconciliation Reporter
         </p>
-         <p className="mt-1 text-sm text-green-600">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>
+         {isLoggedIn && <p className="mt-1 text-sm text-green-600">Role: {currentUserRole}</p>}
       </header>
 
       <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
@@ -587,7 +590,7 @@ export default function AquaTrackPage() {
 
       {currentUserRole === 'Admin' && (
         <>
-          {/* Rider and Salary Management Cards (localStorage based, can be enhanced later) */}
+          {/* Rider and Salary Management Cards (localStorage based) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Manage Riders Card */}
             <Card className="shadow-md">
@@ -604,27 +607,41 @@ export default function AquaTrackPage() {
 
             {/* Manage Rider Salaries Card */}
             <Card className="shadow-md">
-              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><DollarSign className="mr-2 h-5 w-5" />Manage Rider Salaries (Per Day)</CardTitle><CardDescription>Set per-day salary (9-hour day). Used for monthly report calculations.</CardDescription></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex flex-col sm:flex-row gap-2 sm:space-x-2 sm:items-end">
-                  <div className="flex-1"><Label htmlFor="selectRiderForSalary">Select Rider</Label><Select value={selectedRiderForSalary} onValueChange={(value) => { setSelectedRiderForSalary(value); setSalaryInput(riderSalaries[value]?.toString() || ''); }}><SelectTrigger id="selectRiderForSalary"><SelectValue placeholder="Select a rider" /></SelectTrigger><SelectContent>{riderNames.length > 0 ? riderNames.map(name => (<SelectItem key={name} value={name}>{name}</SelectItem>)) : <SelectItem value="" disabled>No riders available</SelectItem>}</SelectContent></Select></div>
-                  <div className="sm:w-40"><Label htmlFor="salaryInput">Full Day Salary (₹)</Label><Input id="salaryInput" type="number" value={salaryInput} onChange={(e) => setSalaryInput(e.target.value)} placeholder="e.g., 500" disabled={!selectedRiderForSalary} className="text-base"/></div>
-                </div>
-                <div className="mt-2"><Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="w-full sm:w-auto">Set Full Day Salary</Button></div>
-                {Object.keys(riderSalaries).length > 0 && (<div className="mt-4"><h4 className="text-md font-medium mb-2">Current Full Day Salaries:</h4><ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">{riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (<li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded"><span className="text-sm">{name}</span><span className="text-sm font-medium">₹{riderSalaries[name]}/day</span></li>))}</ul></div>)}
-              </CardContent>
+                <CardHeader>
+                    <CardTitle className="text-xl text-primary flex items-center"><DollarSign className="mr-2 h-5 w-5" />Manage Rider Salaries (Per Day)</CardTitle>
+                    <CardDescription>Set per-day salary (9-hour day). Used for monthly report calculations.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:space-x-2 sm:items-end">
+                        <div className="flex-1">
+                            <Label htmlFor="selectRiderForSalary">Select Rider</Label>
+                            <Select value={selectedRiderForSalary} onValueChange={(value) => { setSelectedRiderForSalary(value); setSalaryInput(riderSalaries[value]?.toString() || ''); }}>
+                                <SelectTrigger id="selectRiderForSalary"><SelectValue placeholder="Select a rider" /></SelectTrigger>
+                                <SelectContent>{riderNames.length > 0 ? riderNames.map(name => (<SelectItem key={name} value={name}>{name}</SelectItem>)) : <SelectItem value="" disabled>No riders available</SelectItem>}</SelectContent>
+                            </Select>
+                        </div>
+                        <div className="sm:w-40">
+                            <Label htmlFor="salaryInput">Full Day Salary (₹)</Label>
+                            <Input id="salaryInput" type="number" value={salaryInput} onChange={(e) => setSalaryInput(e.target.value)} placeholder="e.g., 500" disabled={!selectedRiderForSalary} className="text-base"/>
+                        </div>
+                    </div>
+                    <div className="mt-2">
+                        <Button onClick={handleSetRiderSalary} disabled={!selectedRiderForSalary} className="w-full sm:w-auto">Set Full Day Salary</Button>
+                    </div>
+                    {Object.keys(riderSalaries).length > 0 && (<div className="mt-4"><h4 className="text-md font-medium mb-2">Current Full Day Salaries:</h4><ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">{riderNames.filter(name => riderSalaries[name] !== undefined).map(name => (<li key={name} className="flex items-center justify-between p-2 bg-muted/30 rounded"><span className="text-sm">{name}</span><span className="text-sm font-medium">₹{riderSalaries[name]}/day</span></li>))}</ul></div>)}
+                </CardContent>
             </Card>
 
             {/* Manage Global Rate Card */}
             <Card className="shadow-md">
-              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><IndianRupee className="mr-2 h-5 w-5" />Manage Global Rate Per Liter</CardTitle><CardDescription>Set default rate per liter for new entries.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><IndianRupee className="mr-2 h-5 w-5" />Manage Global Rate Per Liter</CardTitle><CardDescription>Set default rate per liter for new entries. Data saved in browser.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div><Label htmlFor="globalRateInput">Global Rate (₹/Liter)</Label><div className="flex space-x-2 items-center"><Input id="globalRateInput" type="number" value={rateInput} onChange={(e) => setRateInput(e.target.value)} placeholder="e.g., 2.5" className="text-base"/><Button onClick={handleSetGlobalRate}>Set Rate</Button></div><p className="text-sm text-muted-foreground mt-2">Current global rate: ₹{globalRatePerLiter.toFixed(2)}</p></div>
               </CardContent>
             </Card>
           </div>
 
-          {/* User Management Section (Now DB Backed) - INSECURE Password Storage */}
+          {/* User Management Section (DB Backed) - INSECURE Password Storage */}
           <Alert variant="destructive" className="mb-6">
             <AlertCircleIcon className="h-4 w-4" />
             <AlertTitle>Security Warning!</AlertTitle>
@@ -640,14 +657,14 @@ export default function AquaTrackPage() {
             <Card className="shadow-md">
               <CardHeader><CardTitle className="text-xl text-primary flex items-center"><KeyRound className="mr-2 h-5 w-5" />Change Admin Password</CardTitle><CardDescription>Change password for Admin: {DEFAULT_ADMIN_USER_ID}</CardDescription></CardHeader>
               <CardContent className="space-y-4">
-                <div><Label htmlFor="newAdminPassword">New Admin Password</Label><Input id="newAdminPassword" type="password" value={newAdminPasswordInput} onChange={(e) => setNewAdminPasswordInput(e.target.value)} placeholder="Enter new password" className="text-base"/></div>
+                <div><Label htmlFor="newAdminPassword">New Admin Password</Label><Input id="newAdminPassword" type="password" value={adminPasswordInput} onChange={(e) => setAdminPasswordInput(e.target.value)} placeholder="Enter new password" className="text-base"/></div>
                 <Button onClick={handleChangeAdminPassword}>Update Admin Password</Button>
               </CardContent>
             </Card>
 
             {/* Manage Team Leaders Card */}
             <Card className="shadow-md">
-              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><UsersRound className="mr-2 h-5 w-5" />Manage Team Leaders</CardTitle><CardDescription>Add, edit passwords, or delete Team Leader accounts.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><UsersRound className="mr-2 h-5 w-5" />Manage Team Leaders</CardTitle><CardDescription>Add, edit passwords, or delete Team Leader accounts. Changes are saved in database.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                   <div><Label htmlFor="tlUserIdInput">Team Leader User ID</Label><Input id="tlUserIdInput" type="text" value={tlUserIdInput} onChange={(e) => setTlUserIdInput(e.target.value)} placeholder="Enter User ID" className="text-base" disabled={!!editingTlOriginalUserId}/></div>
@@ -668,7 +685,7 @@ export default function AquaTrackPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <Card className="lg:col-span-3 shadow-xl">
-          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved.</CardDescription></CardHeader>
+          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved.</CardDescription></CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm
               onSubmit={handleFormSubmit}
