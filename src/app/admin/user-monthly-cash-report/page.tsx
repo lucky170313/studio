@@ -4,15 +4,16 @@
 import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import type { SalesReportData } from '@/lib/types';
+import type { CollectorCashReportEntry } from '@/lib/types'; // Updated type
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, AlertCircle, Users, CalendarDays, IndianRupee, FileSpreadsheet } from 'lucide-react';
-import { format as formatDateFns, getYear, getMonth, parse, format } from 'date-fns';
+import { format as formatDateFns, getYear, getMonth, parse } from 'date-fns';
 import * as XLSX from 'xlsx';
+import { getCollectorCashReportDataAction } from '@/app/actions'; // Import new server action
 
 interface UserMonthlyCashStats {
   totalCashReceived: number;
@@ -37,16 +38,16 @@ const formatDisplayDateToMonthYear = (dateInput: any): string => {
   return formatDateFns(date, 'MMMM yyyy');
 };
 
-async function fetchSalesDataForReport(): Promise<SalesReportData[]> {
-  const response = await fetch('/api/sales-reports');
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to fetch sales data for report');
+// Updated function to use the new Server Action
+async function fetchSalesDataForReport(): Promise<CollectorCashReportEntry[]> {
+  const result = await getCollectorCashReportDataAction();
+  if (!result.success || !result.data) {
+    throw new Error(result.message || 'Failed to fetch sales data for report');
   }
-  const data = await response.json();
-  return data.map((entry: any) => ({
+  // Ensure firestoreDate is a Date object for client-side processing
+  return result.data.map(entry => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate),
+    firestoreDate: new Date(entry.firestoreDate) 
   }));
 }
 
@@ -75,7 +76,7 @@ const monthNames = [
 ];
 
 export default function CollectorMonthlyCashReportPage() { 
-  const [allSalesEntries, setAllSalesEntries] = useState<SalesReportData[]>([]);
+  const [allSalesEntries, setAllSalesEntries] = useState<CollectorCashReportEntry[]>([]); // Use new type
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -118,7 +119,7 @@ export default function CollectorMonthlyCashReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0) return;
+    if (isLoading && allSalesEntries.length > 0) return; // Changed condition
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ userData: {} });
         return;
@@ -145,7 +146,7 @@ export default function CollectorMonthlyCashReportPage() {
     setReportData({ userData: userMonthlyCashData });
     setError(null);
 
-  }, [filteredEntries, isLoading, allSalesEntries]);
+  }, [filteredEntries, isLoading, allSalesEntries]); // Added allSalesEntries dependency
 
   const exportCurrentReportData = () => {
     const sheetsToExport = [];
@@ -262,7 +263,7 @@ export default function CollectorMonthlyCashReportPage() {
           </Button>
           <Link href="/" passHref>
             <Button variant="outline">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard
+              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
             </Button>
           </Link>
         </div>

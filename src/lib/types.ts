@@ -42,9 +42,9 @@ export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
   id?: string;
-  _id?: string;
-  date: string;
-  firestoreDate: Date; // Changed from firestoreDate to submissionDate for clarity
+  _id?: string; // Mongoose ID
+  date: string; // Formatted date for display
+  firestoreDate: Date; // JS Date object for DB storage and querying
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -63,7 +63,7 @@ export interface SalesReportData {
   dailySalaryCalculated?: number;
   commissionEarned?: number;
   comment?: string;
-  recordedBy: string;
+  recordedBy: string; // User ID of the person who recorded the entry
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
@@ -71,8 +71,10 @@ export interface SalesReportData {
   aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
+  // meterReadingImageDriveLink: string | null; // Removed as per user request
 }
 
+// Type for the data expected by the saveSalesReportAction, omitting DB-generated fields
 export type SalesReportServerSaveData = Omit<SalesReportData, 'id' | '_id'>;
 
 
@@ -90,9 +92,8 @@ export const salaryPaymentSchema = z.object({
   comment: z.string().optional(),
 }).refine(data => {
     const salary = data.salaryAmountForPeriod || 0;
-    const paid = data.amountPaid || 0; // This is the amount paid towards the current period's salary
+    const paid = data.amountPaid || 0;
     const deduction = data.deductionAmount || 0;
-    // The advancePayment is a separate outflow and doesn't affect if current salary settlement is valid
     return (paid + deduction) <= salary;
 }, {
   message: "Amount paid (for current salary) plus deductions cannot exceed the salary amount for the period.",
@@ -105,19 +106,18 @@ export interface SalaryPaymentData {
   _id?: string;
   paymentDate: Date;
   riderName: string;
-  salaryGiverName: string; // User ID of admin/TL who made the payment entry
+  salaryGiverName: string; 
   salaryAmountForPeriod: number;
   amountPaid: number;
   deductionAmount?: number;
-  advancePayment?: number; // New field
-  remainingAmount: number; // This remains: salaryAmountForPeriod - amountPaid - deductionAmount
+  advancePayment?: number; 
+  remainingAmount: number; 
   comment?: string;
-  recordedBy: string; // User ID of admin/TL who recorded this payment transaction
+  recordedBy: string; 
   createdAt?: Date;
   updatedAt?: Date;
 }
 
-// This is the data structure sent to the server action, excluding calculated/DB-generated fields
 export type SalaryPaymentServerData = Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'>;
 
 
@@ -126,4 +126,12 @@ export interface RiderMonthlyAggregates {
   totalCommissionEarned: number;
   totalDiscrepancy: number;
   netMonthlyEarning: number;
+}
+
+// New type for the specific data needed by the Collector's Cash Report
+export interface CollectorCashReportEntry {
+  _id: string; 
+  recordedBy: string;
+  firestoreDate: Date; // Will be a JS Date object after fetching and mapping
+  cashReceived: number;
 }

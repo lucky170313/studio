@@ -5,7 +5,7 @@ import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
 import UserModel from '@/models/User';
 import SalaryPaymentModel from '@/models/SalaryPayment';
-import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates } from '@/lib/types';
+import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates, CollectorCashReportEntry } from '@/lib/types';
 import { startOfMonth, endOfMonth } from 'date-fns';
 
 
@@ -245,7 +245,7 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
       salaryAmountForPeriod: paymentData.salaryAmountForPeriod,
       amountPaid: paymentData.amountPaid,
       deductionAmount: paymentData.deductionAmount || 0,
-      advancePayment: paymentData.advancePayment || 0, // Include advance payment
+      advancePayment: paymentData.advancePayment || 0, 
       comment: paymentData.comment,
       recordedBy: paymentData.recordedBy,
       remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid - (paymentData.deductionAmount || 0),
@@ -279,9 +279,6 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
   try {
     await dbConnect();
     const payments = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
-    // Ensure Date objects are correctly handled if needed, though .lean() typically returns plain objects.
-    // Mongoose might stringify dates, client-side might need to parse them back.
-    // However, for passing to client components, plain objects are fine.
     return { success: true, payments: payments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);
@@ -293,7 +290,7 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
 export async function getRiderMonthlyAggregatesAction(
   riderName: string,
   year: number,
-  month: number // 0-indexed (0 for January, 11 for December)
+  month: number 
 ): Promise<{ success: boolean; aggregates?: RiderMonthlyAggregates; message: string }> {
   if (!riderName || year == null || month == null) {
     return { success: false, message: "Rider name, year, and month are required." };
@@ -307,7 +304,7 @@ export async function getRiderMonthlyAggregatesAction(
 
     const reports = await SalesReportModel.find({
       riderName: riderName,
-      firestoreDate: { // This should be the date field you use for sales entry date
+      firestoreDate: { 
         $gte: startDate,
         $lte: endDate,
       },
@@ -352,5 +349,32 @@ export async function getRiderMonthlyAggregatesAction(
   } catch (error: any) {
     console.error("Error fetching rider monthly aggregates:", error);
     return { success: false, message: `Error fetching aggregates: ${error.message}` };
+  }
+}
+
+// New Server Action for Collector's Cash Report
+export async function getCollectorCashReportDataAction(): Promise<{ success: boolean; data?: CollectorCashReportEntry[]; message: string }> {
+  try {
+    await dbConnect();
+    const reports = await SalesReportModel.find({})
+      .select('_id recordedBy firestoreDate cashReceived') // Select only necessary fields
+      .sort({ firestoreDate: -1 })
+      .lean();
+    
+    // Mongoose .lean() returns plain JS objects, but _id might be an ObjectId.
+    // Client components expect serializable data.
+    // Date objects also need to be handled if they aren't already strings by .lean() in some Mongoose versions/configs.
+    // For simplicity, we assume .lean() gives us serializable data and dates are handled client-side.
+    const processedReports = reports.map(report => ({
+      ...report,
+      _id: report._id.toString(), // Ensure _id is a string
+      // firestoreDate should be fine as .lean() usually converts Dates to strings or Date objects.
+      // The client-side mapping new Date(entry.firestoreDate) will handle it.
+    }));
+
+    return { success: true, data: processedReports as CollectorCashReportEntry[], message: 'Collector cash report data fetched successfully.' };
+  } catch (error: any) {
+    console.error("Error fetching data for collector's cash report:", error);
+    return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
