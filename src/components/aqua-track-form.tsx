@@ -7,7 +7,7 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Image as ImageIcon } from 'lucide-react';
-import Image from 'next/image';
+import NextImage from 'next/image'; // Renamed to avoid conflict with lucide-react Image
 
 
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
-import { getLastMeterReadingForVehicleAction } from '@/app/actions'; 
+import { getLastMeterReadingForVehicleAction } from '@/app/actions';
 
 interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => void;
@@ -38,7 +38,7 @@ interface AquaTrackFormProps {
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
-const hoursWorkedOptions = Array.from({ length: 9 }, (_, i) => String(i + 1)); 
+const hoursWorkedOptions = Array.from({ length: 9 }, (_, i) => String(i + 1));
 
 export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
@@ -58,7 +58,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
       tokenMoney: 0,
       staffExpense: 0,
       extraAmount: 0,
-      hoursWorked: 9, 
+      hoursWorked: 9,
       comment: '',
       meterReadingImage: undefined,
     },
@@ -77,14 +77,16 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
   }, []);
 
   useEffect(() => {
-    if (isClient && currentUserRole === 'TeamLeader') {
-      setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
-      setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true }); 
-    } else if (isClient && currentUserRole === 'Admin') {
-       setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
-    }
-    if (isClient && currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
-      setValue('overrideLitersSold', undefined, { shouldValidate: true });
+    if (isClient) {
+      if (currentUserRole === 'TeamLeader') {
+        setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
+        setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
+      } else if (currentUserRole === 'Admin') {
+         setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
+      }
+      if (currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
+        setValue('overrideLitersSold', undefined, { shouldValidate: true });
+      }
     }
   }, [currentUserRole, setValue, getValues, persistentRatePerLiter, isClient]);
 
@@ -97,12 +99,12 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
         if (result.success) {
           setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
         } else {
-          setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true }); 
+          setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
         }
         setIsLoadingPrevReading(false);
       };
       fetchPrevReading();
-    } else if (isClient && !selectedVehicleName) { 
+    } else if (isClient && !selectedVehicleName) {
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
   }, [selectedVehicleName, setValue, isClient]);
@@ -151,7 +153,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     const curr = Number(watchedCurrentMeterReading);
     const override = watchedOverrideLitersSold !== undefined ? Number(watchedOverrideLitersSold) : undefined;
 
-    if (currentUserRole === 'Admin' && typeof override === 'number' && override >= 0) { 
+    if (currentUserRole === 'Admin' && typeof override === 'number' && override >= 0) {
       return override;
     }
     if (!isNaN(prev) && !isNaN(curr) && curr >= prev) {
@@ -173,7 +175,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     const tokenMoneyVal = Number(watchedTokenMoney) || 0;
     const extraAmountVal = Number(watchedExtraAmount) || 0;
     const staffExpenseVal = Number(watchedStaffExpense) || 0;
-    
+
     return (totalSaleVal + dueCollectedVal) - (cashReceivedVal + onlineReceivedVal + newDueAmountVal + tokenMoneyVal + extraAmountVal + staffExpenseVal);
   }, [liveTotalSale, watchedCashReceived, watchedOnlineReceived, watchedDueCollected, watchedNewDueAmount, watchedTokenMoney, watchedStaffExpense, watchedExtraAmount]);
 
@@ -181,9 +183,9 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB for selected vehicle. Admin can edit." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB. Admin can edit." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
-    // Meter Reading Image will be inserted after this field
+    // Meter Reading Image will be inserted after this field by checking the name
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: currentUserRole === 'TeamLeader' ? `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Set by Admin)` : `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Editable by Admin).` },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
     { name: 'onlineReceived', label: 'Online Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
@@ -219,7 +221,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                       {isClient && field.value ? (
                         format(field.value, "PPP")
                       ) : (
-                        <span>{isClient && field.value ? "Initializing date..." : "Pick a date"}</span>
+                        <span>{isClient ? "Initializing date..." : "Pick a date"}</span>
                       )}
                       <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
                     </Button>
@@ -231,7 +233,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                       mode="single"
                       selected={field.value instanceof Date ? field.value : new Date(field.value || Date.now())}
                       onSelect={(date) => {
-                        if (date) field.onChange(date);
+                        if (date && isClient) field.onChange(date);
                       }}
                       disabled={(date) =>
                         date > new Date() ||
@@ -252,7 +254,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
           {inputFields.map((inputField) => {
             const isPrevMeterReadingField = inputField.name === 'previousMeterReading';
             const isRatePerLiterField = inputField.name === 'ratePerLiter';
-            
+
             let fieldIsDisabled = false;
             if (isPrevMeterReadingField && (currentUserRole === 'TeamLeader' || isLoadingPrevReading)) {
               fieldIsDisabled = true;
@@ -260,7 +262,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
             if (isRatePerLiterField && currentUserRole === 'TeamLeader') {
               fieldIsDisabled = true;
             }
-            
+
             let currentOptions: string[] = [];
             if (inputField.name === 'riderName') {
                 currentOptions = riderNames;
@@ -274,7 +276,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
               <FormField
                 key={inputField.name}
                 control={form.control}
-                name={inputField.name as keyof SalesDataFormValues} 
+                name={inputField.name as keyof SalesDataFormValues}
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel className="flex items-center">
@@ -348,7 +350,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                         <FormItem>
                             <FormLabel className="flex items-center">
                                 <ImageIcon className="mr-2 h-4 w-4 text-primary" />
-                                Meter Reading Image (Optional)
+                                Meter Reading Image
                             </FormLabel>
                             <FormControl>
                                 <Input
@@ -361,7 +363,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                             <FormDescription>Upload an image of the meter reading. Actual Google Drive upload not yet implemented.</FormDescription>
                             {imagePreview && (
                                 <div className="mt-2">
-                                    <Image src={imagePreview} alt="Meter reading preview" width={200} height={200} className="rounded-md border" />
+                                    <NextImage src={imagePreview} alt="Meter reading preview" width={200} height={200} className="rounded-md border" />
                                 </div>
                             )}
                             <FormMessage />
@@ -470,4 +472,3 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     </Form>
   );
 }
-

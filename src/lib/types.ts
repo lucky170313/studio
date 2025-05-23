@@ -6,7 +6,7 @@ export type UserRole = 'Admin' | 'TeamLeader';
 export interface UserCredentials {
   userId: string;
   role: UserRole;
-  password?: string; 
+  password?: string;
 }
 
 
@@ -27,14 +27,14 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  meterReadingImage: z.custom<File | undefined>((val) => val === undefined || val instanceof File, "Invalid image file").optional(),
+  meterReadingImage: z.custom<File>((val) => val instanceof File, "Meter reading image is required."),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) { // Allow 0 for override
     return true;
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous meter reading (unless Liters Sold are overridden by Admin).",
+  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin).",
   path: ["currentMeterReading"],
 });
 
@@ -42,10 +42,10 @@ export const salesDataSchema = z.object({
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
-  id?: string; 
-  _id?: string; 
-  date: string; 
-  firestoreDate: Date; 
+  id?: string;
+  _id?: string;
+  date: string;
+  firestoreDate: Date;
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -64,13 +64,13 @@ export interface SalesReportData {
   dailySalaryCalculated?: number;
   commissionEarned?: number;
   comment?: string;
-  recordedBy: string; 
+  recordedBy: string;
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
-  aiAdjustedExpectedAmount: number; 
-  aiReasoning: string; 
+  aiAdjustedExpectedAmount: number;
+  aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  meterReadingImageDriveLink?: string | null; 
+  meterReadingImageDriveLink?: string | null;
 }
