@@ -6,7 +6,7 @@ export type UserRole = 'Admin' | 'TeamLeader';
 export interface UserCredentials {
   userId: string;
   role: UserRole;
-  password?: string;
+  password?: string; // Optional here because we don't always pass it around
 }
 
 
@@ -29,7 +29,7 @@ export const salesDataSchema = z.object({
   comment: z.string().optional(),
   meterReadingImage: z.custom<File>((val) => val instanceof File, "Meter reading image is required."),
 }).refine(data => {
-  if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) { // Allow 0 for override
+  if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true;
   }
   return data.currentMeterReading >= data.previousMeterReading;
@@ -42,10 +42,10 @@ export const salesDataSchema = z.object({
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
-  id?: string;
-  _id?: string;
+  id?: string; // Optional: for client-side use if needed
+  _id?: string; // Optional: MongoDB's default ID field
   date: string;
-  firestoreDate: Date;
+  firestoreDate: Date; // Using for original timestamp preservation for sorting, now a JS Date
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -72,5 +72,5 @@ export interface SalesReportData {
   aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  meterReadingImageDriveLink?: string | null;
+  meterReadingImageDriveLink: string; // Changed from optional/null to required string
 }

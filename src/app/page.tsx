@@ -46,10 +46,7 @@ const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
-const ADMIN_CREDENTIALS_KEY = 'adminCredentialsDropAquaTrackApp';
-const TEAM_LEADER_ACCOUNTS_KEY = 'teamLeaderAccountsDropAquaTrackApp';
-
-const SERVICE_ACCOUNT_EMAIL = "aquatrack@aquatrack-d2b66.iam.gserviceaccount.com";
+const SERVICE_ACCOUNT_EMAIL = "aquatrack@aquatrack-d2b66.iam.gserviceaccount.com"; // Example for GDrive upload info
 
 
 export default function AquaTrackPage() {
@@ -102,7 +99,7 @@ export default function AquaTrackPage() {
     setCurrentYear(new Date().getFullYear());
     
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message);
+      console.log(res.message); // Log initialization status
     });
 
     try {
@@ -201,7 +198,6 @@ export default function AquaTrackPage() {
       setCurrentUserRole(null);
       setLoggedInUsername(null);
       saveLoginSession(false, null, null);
-      // Clear password input on failed login for security
       setPasswordInput('');
     }
   };
@@ -223,19 +219,27 @@ export default function AquaTrackPage() {
     const values = pendingFormValues;
 
     try {
-      let finalMeterReadingImageDriveLink: string | null = null;
-      if (values.meterReadingImage) {
-        console.warn(
-          `Image selected (${values.meterReadingImage.name}). Google Drive upload is NOT IMPLEMENTED. 
-          A backend service (e.g., Next.js API Route or Server Action) is required. 
-          This backend service would use a Service Account (like '${SERVICE_ACCOUNT_EMAIL}') 
-          and its JSON key (stored securely as an environment variable on the server, which you may have downloaded) 
-          to authenticate with the Google Drive API and upload the file. 
-          The service would then return the shareable link. 
-          Saving a placeholder link for now.`
-        );
-        finalMeterReadingImageDriveLink = `PLACEHOLDER_DRIVE_LINK_FOR_${values.meterReadingImage.name.replace(/\s+/g, '_')}`;
+      // Since meterReadingImage is compulsory from Zod schema, values.meterReadingImage will be a File object.
+      // If it's somehow not (e.g., Zod validation bypassed or an unexpected state), we should handle it.
+      if (!values.meterReadingImage) {
+        toast({ variant: 'destructive', title: 'Validation Error', description: 'Meter reading image is required but was not provided.'});
+        setIsProcessing(false);
+        setIsConfirmationDialogOpen(false);
+        setPendingFormValues(null);
+        return; 
       }
+      
+      console.warn(
+        `Image selected (${values.meterReadingImage.name}). Google Drive upload is NOT IMPLEMENTED. 
+        A backend service (e.g., Next.js API Route or Server Action) is required. 
+        This backend service would use a Service Account (like '${SERVICE_ACCOUNT_EMAIL}') 
+        and its JSON key (stored securely as an environment variable on the server) 
+        to authenticate with the Google Drive API and upload the file. 
+        The service would then return the shareable link. 
+        Saving a placeholder link for now.`
+      );
+      const finalMeterReadingImageDriveLink: string = `PLACEHOLDER_DRIVE_LINK_FOR_${values.meterReadingImage.name.replace(/\s+/g, '_')}`;
+
 
       let finalLitersSold: number;
       const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
@@ -263,15 +267,19 @@ export default function AquaTrackPage() {
       const submissionDateObject = values.date instanceof Date ? values.date : new Date(values.date);
 
       const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
-      const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
-      
+      // Discrepancy = (Expected Total Revenue) - (Actual Total Collection adjusted for new dues/expenses)
+      // Expected Total Revenue = Total Sale + Due Collected
+      // Actual Total Collection = Cash Received + Online Received
+      // Adjustments reducing expected net = New Due Amount + Token Money + Staff Expense + Extra Amount
+      const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.staffExpense + values.extraAmount);
+
       const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) status = 'Match';
-      else if (discrepancy > 0) status = 'Shortage';
-      else status = 'Overage';
+      else if (discrepancy > 0) status = 'Shortage'; // Expected more than collected/accounted for
+      else status = 'Overage'; // Collected/accounted for more than expected
 
       const riderPerDaySalary = riderSalaries[values.riderName] || 0;
       const hoursWorked = values.hoursWorked || 9; 
@@ -315,7 +323,7 @@ export default function AquaTrackPage() {
         const fullReportDataForDisplay: SalesReportData = {
           ...reportToSave,
           _id: dbResult.id, 
-          id: dbResult.id, // Keep 'id' for consistency if used elsewhere client-side
+          id: dbResult.id, 
         };
         setReportData(fullReportDataForDisplay);
       } else {
@@ -473,7 +481,7 @@ export default function AquaTrackPage() {
 
     if (result.success) {
       toast({ title: "Success", description: result.message });
-      fetchTeamLeaders(); 
+      await fetchTeamLeaders(); 
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -498,7 +506,7 @@ export default function AquaTrackPage() {
       const result = await deleteTeamLeaderAction(userIdToDelete);
       if (result.success) {
         toast({ title: "Success", description: result.message });
-        fetchTeamLeaders(); 
+        await fetchTeamLeaders(); 
         if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
       } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
