@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -98,7 +98,7 @@ export default function AquaTrackPage() {
     setCurrentYear(new Date().getFullYear());
 
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message);
+      console.log(res.message); // Log message from default admin initialization
     });
 
     try {
@@ -268,7 +268,7 @@ export default function AquaTrackPage() {
 
       const reportToSave: SalesReportServerData = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject, // This will be a Date object
+        firestoreDate: submissionDateObject,
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
@@ -295,7 +295,7 @@ export default function AquaTrackPage() {
       const dbResult = await saveSalesReportAction(reportToSave);
 
       if (dbResult.success && dbResult.id) {
-        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully.', variant: 'default' });
+        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully to database.', variant: 'default' });
         const fullReportDataForDisplay: SalesReportData = {
           ...reportToSave,
           _id: dbResult.id,
@@ -568,6 +568,8 @@ export default function AquaTrackPage() {
                 <>
                     <Link href="/admin/rider-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report</Button></Link>
                     <Link href="/admin/user-monthly-cash-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report</Button></Link>
+                    <Link href="/salary-payment" passHref><Button variant="outline" className="w-full sm:w-auto"><Landmark className="mr-2 h-4 w-4" /> Salary Payment Entry</Button></Link>
+                    <Link href="/salary-history" passHref><Button variant="outline" className="w-full sm:w-auto"><History className="mr-2 h-4 w-4" /> Salary Payment History</Button></Link>
                 </>
             )}
             {currentUserRole === 'Admin' && (
@@ -585,9 +587,8 @@ export default function AquaTrackPage() {
             <AlertCircleIcon className="h-4 w-4" />
             <AlertTitle>Security Warning!</AlertTitle>
             <AlertDescription>
-              The user and password management below is for **PROTOTYPING ONLY**.
-              Passwords are currently stored in **PLAINTEXT** in the database, which is **HIGHLY INSECURE**.
-              Do not use this approach for real applications. Real applications require secure password hashing.
+              The user and password management below uses a **PROTOTYPE** system with credentials stored in **PLAINTEXT** in the database.
+              This is **HIGHLY INSECURE** and for demonstration only. Real applications require secure password hashing.
             </AlertDescription>
           </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
@@ -668,7 +669,7 @@ export default function AquaTrackPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <Card className="lg:col-span-3 shadow-xl">
-          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings are fetched from DB. Rider list, and global rate are persisted in browser. Data is saved.</CardDescription></CardHeader>
+          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary flex items-center"><ListChecks className="mr-2 h-6 w-6"/>Enter Sales Data</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings are fetched from DB. Rider list, and global rate are persisted in browser. Data is saved to database.</CardDescription></CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm
               onSubmit={handleFormSubmit}
@@ -683,7 +684,7 @@ export default function AquaTrackPage() {
         <div className="lg:col-span-2">
           {isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl"><CardContent className="text-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="text-lg text-muted-foreground">Generating report...</p></CardContent></Card>)}
           {reportData && (<AquaTrackReport reportData={reportData} />)}
-          {!isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved.</p></CardContent></Card>)}
+          {!isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved to database.</p></CardContent></Card>)}
         </div>
       </div>
       <footer className="mt-12 text-center text-sm text-muted-foreground">

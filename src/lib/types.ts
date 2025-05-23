@@ -29,7 +29,7 @@ export const salesDataSchema = z.object({
   comment: z.string().optional(),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
-    return true; // If override is used, meter reading consistency is not strictly enforced here
+    return true;
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
@@ -40,12 +40,11 @@ export const salesDataSchema = z.object({
 
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
-// This is the data structure for the report display and for saving to MongoDB
 export interface SalesReportData {
-  id?: string; // Optional: for client-side use if needed (e.g., key in a list)
-  _id?: string; // Optional: MongoDB's default ID field, populated after save
-  date: string; // Formatted date string for display
-  firestoreDate: Date; // Actual Date object for DB storage and querying
+  id?: string;
+  _id?: string;
+  date: string;
+  firestoreDate: Date;
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -64,7 +63,7 @@ export interface SalesReportData {
   dailySalaryCalculated?: number;
   commissionEarned?: number;
   comment?: string;
-  recordedBy: string; // User who recorded the entry
+  recordedBy: string;
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
@@ -74,6 +73,36 @@ export interface SalesReportData {
   status: 'Match' | 'Shortage' | 'Overage';
 }
 
-// For server action, if optional data needs to be passed beyond SalesReportData
-// This type is simplified as image fields are removed.
 export type SalesReportServerData = Omit<SalesReportData, '_id' | 'id'>;
+
+
+// Salary Payment Types
+export const salaryPaymentSchema = z.object({
+  paymentDate: z.date({ required_error: 'Payment date is required.' }),
+  riderName: z.string().min(1, 'Rider name is required.'),
+  salaryGiverName: z.string().min(1, 'Salary giver name is required.'),
+  salaryAmountForPeriod: z.coerce.number().min(0, 'Salary amount must be a positive number.'),
+  amountPaid: z.coerce.number().min(0, 'Amount paid must be a positive number.'),
+  comment: z.string().optional(),
+}).refine(data => data.amountPaid <= data.salaryAmountForPeriod, {
+  message: "Amount paid cannot exceed the salary amount for the period.",
+  path: ["amountPaid"],
+});
+
+export type SalaryPaymentFormValues = z.infer<typeof salaryPaymentSchema>;
+
+export interface SalaryPaymentData {
+  _id?: string;
+  paymentDate: Date;
+  riderName: string;
+  salaryGiverName: string; // User ID of admin/TL who made the payment entry
+  salaryAmountForPeriod: number;
+  amountPaid: number;
+  remainingAmount: number;
+  comment?: string;
+  recordedBy: string; // User ID of admin/TL who recorded this payment transaction
+  createdAt?: Date;
+  updatedAt?: Date;
+}
+
+export type SalaryPaymentServerData = Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'>;

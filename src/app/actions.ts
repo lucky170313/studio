@@ -3,9 +3,9 @@
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
-// ImageModel import removed
 import UserModel from '@/models/User';
-import type { SalesReportServerData, UserCredentials } from '@/lib/types';
+import SalaryPaymentModel from '@/models/SalaryPayment'; // New Import
+import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData } from '@/lib/types';
 
 
 interface SaveReportResult {
@@ -21,7 +21,7 @@ export async function saveSalesReportAction(reportData: SalesReportServerData): 
 
     const dataToSave: SalesReportServerData = {
       date: reportData.date,
-      firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
+      firestoreDate: new Date(reportData.firestoreDate),
       riderName: reportData.riderName,
       vehicleName: reportData.vehicleName,
       previousMeterReading: reportData.previousMeterReading,
@@ -59,7 +59,7 @@ export async function saveSalesReportAction(reportData: SalesReportServerData): 
       id: savedEntry._id.toString()
     };
   } catch (e: any) {
-    console.error("Error saving document to MongoDB via Server Action: ", e);
+    console.error("Error saving sales report to MongoDB via Server Action: ", e);
     let dbErrorMessage = 'Failed to save sales report to MongoDB.';
     if (e instanceof Error) {
         dbErrorMessage = `MongoDB Error: ${e.message}.`;
@@ -110,7 +110,7 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     if (!existingAdmin) {
       const adminUser = new UserModel({
         userId: DEFAULT_ADMIN_USER_ID,
-        password: DEFAULT_ADMIN_PASSWORD, // Storing plaintext password - HIGHLY INSECURE
+        password: DEFAULT_ADMIN_PASSWORD,
         role: 'Admin',
       });
       await adminUser.save();
@@ -128,7 +128,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
     await dbConnect();
     const user = await UserModel.findOne({ userId: userIdInput }).lean();
 
-    if (user && user.password === passwordInput) { // Plaintext password comparison - HIGHLY INSECURE
+    if (user && user.password === passwordInput) {
       return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
     }
     return { success: false, message: 'Invalid User ID or Password.' };
@@ -139,7 +139,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
 }
 
 export async function changeAdminPasswordAction(adminUserId: string, newPasswordInput: string): Promise<{ success: boolean; message: string }> {
-  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { 
+  if (adminUserId !== DEFAULT_ADMIN_USER_ID) {
     return { success: false, message: "Unauthorized: Only the default admin can change their password through this action." };
   }
   try {
@@ -148,7 +148,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; 
+    admin.password = newPasswordInput;
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
@@ -169,7 +169,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, 
+      password: passwordInput,
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -187,7 +187,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; 
+    teamLeader.password = newPasswordInput;
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {
@@ -222,3 +222,55 @@ export async function getTeamLeadersAction(): Promise<{ success: boolean; teamLe
   }
 }
 
+// --- Salary Payment Actions ---
+interface SaveSalaryPaymentResult {
+  success: boolean;
+  message: string;
+  error?: string;
+  id?: string;
+}
+
+export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerData): Promise<SaveSalaryPaymentResult> {
+  try {
+    await dbConnect();
+    const dataToSave: SalaryPaymentData = {
+      ...paymentData,
+      remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid,
+    };
+    const salaryPaymentEntry = new SalaryPaymentModel(dataToSave);
+    const savedEntry = await salaryPaymentEntry.save();
+    return {
+      success: true,
+      message: 'Salary payment has been successfully recorded.',
+      id: savedEntry._id.toString(),
+    };
+  } catch (e: any) {
+    console.error("Error saving salary payment to MongoDB: ", e);
+    let dbErrorMessage = 'Failed to save salary payment to MongoDB.';
+     if (e instanceof Error) {
+        dbErrorMessage = `MongoDB Error: ${e.message}.`;
+    }
+    if (e.name === 'ValidationError') {
+        let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
+        dbErrorMessage = `MongoDB Validation Error: ${validationErrors}`;
+    }
+    return {
+      success: false,
+      message: dbErrorMessage,
+      error: e.message,
+    };
+  }
+}
+
+export async function getSalaryPaymentsAction(): Promise<{ success: boolean; payments?: SalaryPaymentData[]; message: string }> {
+  try {
+    await dbConnect();
+    const payments = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
+    // Mongoose lean() returns plain JS objects, dates might need conversion if not already Date objects.
+    // For this schema, paymentDate should be a Date object.
+    return { success: true, payments: payments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
+  } catch (error: any) {
+    console.error("Error fetching salary payments:", error);
+    return { success: false, message: `Error fetching salary payments: ${error.message}` };
+  }
+}
