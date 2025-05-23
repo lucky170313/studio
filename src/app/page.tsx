@@ -45,9 +45,6 @@ const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
-const DEFAULT_ADMIN_USER_ID = "lucky170313"; // Default admin user ID
-const DEFAULT_ADMIN_PASSWORD = "northpole"; // Default admin password
-const DEFAULT_TEAM_LEADERS: UserCredentials[] = [{ userId: 'leader01', password: 'leaderpass', role: 'TeamLeader' }];
 
 
 export default function AquaTrackPage() {
@@ -98,7 +95,8 @@ export default function AquaTrackPage() {
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message);
+      console.log(res.message); // Log result of admin initialization
+      // Load login session
       try {
         const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
         if (storedSession) {
@@ -107,14 +105,12 @@ export default function AquaTrackPage() {
             setIsLoggedIn(true);
             setCurrentUserRole(session.currentUserRole);
             setLoggedInUsername(session.loggedInUsername);
-            if (session.currentUserRole === 'Admin') {
-              fetchTeamLeaders(); 
-            }
           }
         }
       } catch (error) { console.error("Failed to parse login session from localStorage", error); }
     });
   
+    // Load rider names
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -134,6 +130,7 @@ export default function AquaTrackPage() {
       setRiderNames([...DEFAULT_RIDER_NAMES]);
     }
   
+    // Load rider salaries
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
@@ -144,6 +141,7 @@ export default function AquaTrackPage() {
       }
     } catch (error) { console.error("Failed to parse riderSalaries from localStorage", error); }
   
+    // Load global rate
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
       if (storedRate) {
@@ -190,6 +188,9 @@ export default function AquaTrackPage() {
       saveLoginSession(true, result.user.role, result.user.userId);
       setUsernameInput('');
       setPasswordInput('');
+      if (result.user.role === 'Admin') {
+        fetchTeamLeaders();
+      }
     } else {
       setLoginError(result.message || "Invalid User ID or Password.");
       setIsLoggedIn(false);
@@ -220,19 +221,14 @@ export default function AquaTrackPage() {
     try {
       let finalMeterReadingImageDriveLink: string | undefined = undefined;
       if (values.meterReadingImage) {
-        // TODO: Implement actual image upload to Google Drive
-        // This would involve:
-        // 1. Creating a Server Action or API route.
-        // 2. Passing `values.meterReadingImage` (File object) to that server-side function.
-        // 3. In the server-side function:
-        //    a. Use the Google Drive API (e.g., with 'googleapis' and a Service Account).
-        //    b. Upload the file to a designated folder in Google Drive.
-        //    c. Get the shareable link or file ID of the uploaded image.
-        //    d. Return this link/ID.
-        // 4. Replace `finalMeterReadingImageDriveLink` below with the actual link returned from the server.
-        
         console.warn(
-          `Image selected (${values.meterReadingImage.name}), but Google Drive upload is not implemented. Saving a placeholder link. You need to implement a backend service to upload to Google Drive and then use the returned link here.`
+          `Image selected (${values.meterReadingImage.name}). Google Drive upload is NOT IMPLEMENTED. 
+          A backend service (e.g., Next.js API Route or Server Action) is required. 
+          This backend service would use a Service Account (like 'aquatrack@aquatrack-d2b66.iam.gserviceaccount.com') 
+          and its JSON key (stored securely as an environment variable on the server) 
+          to authenticate with the Google Drive API and upload the file. 
+          The service would then return the shareable link. 
+          Saving a placeholder link for now.`
         );
         finalMeterReadingImageDriveLink = `PLACEHOLDER_DRIVE_LINK_FOR_${values.meterReadingImage.name.replace(/\s+/g, '_')}`;
       }
@@ -440,8 +436,8 @@ export default function AquaTrackPage() {
       toast({ title: "Error", description: "New password cannot be empty.", variant: "destructive" });
       return;
     }
-    if (!loggedInUsername || loggedInUsername !== DEFAULT_ADMIN_USER_ID) {
-         toast({ title: "Error", description: "Only the default admin can change their password.", variant: "destructive" });
+    if (!loggedInUsername) {
+         toast({ title: "Error", description: "You must be logged in to change the password.", variant: "destructive" });
         return;
     }
     const result = await changeAdminPasswordAction(loggedInUsername, adminPasswordInput.trim());
@@ -655,7 +651,7 @@ export default function AquaTrackPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <Card className="shadow-md">
-              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><KeyRound className="mr-2 h-5 w-5" />Change Admin Password</CardTitle><CardDescription>Change password for Admin: {DEFAULT_ADMIN_USER_ID}</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><KeyRound className="mr-2 h-5 w-5" />Change Admin Password</CardTitle><CardDescription>Change password for currently logged in Admin: {loggedInUsername}</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div><Label htmlFor="newAdminPassword">New Admin Password</Label><Input id="newAdminPassword" type="password" value={adminPasswordInput} onChange={(e) => setAdminPasswordInput(e.target.value)} placeholder="Enter new password" className="text-base"/></div>
                 <Button onClick={handleChangeAdminPassword}>Update Admin Password</Button>
@@ -710,3 +706,4 @@ export default function AquaTrackPage() {
 }
 
     
+
