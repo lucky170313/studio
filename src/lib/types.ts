@@ -27,14 +27,13 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  // meterReadingImage: z.custom<File | undefined>((val) => val === undefined || val instanceof File, "Meter reading image is required.").optional(),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true;
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin).",
+  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin). Check values or use override.",
   path: ["currentMeterReading"],
 });
 
@@ -72,7 +71,6 @@ export interface SalesReportData {
   aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  // meterReadingImageDriveLink?: string | null;
 }
 
 export type SalesReportServerSaveData = Omit<SalesReportData, 'id' | '_id'>;
@@ -87,10 +85,16 @@ export const salaryPaymentSchema = z.object({
   selectedMonth: z.string().min(1, 'Month for salary calculation is required.'),
   salaryAmountForPeriod: z.coerce.number().min(0, 'Salary amount must be a positive number.'),
   amountPaid: z.coerce.number().min(0, 'Amount paid must be a positive number.'),
+  deductionAmount: z.coerce.number().min(0, 'Deduction amount cannot be negative.').optional(),
   comment: z.string().optional(),
-}).refine(data => data.amountPaid <= data.salaryAmountForPeriod, {
-  message: "Amount paid cannot exceed the salary amount for the period.",
-  path: ["amountPaid"],
+}).refine(data => {
+    const salary = data.salaryAmountForPeriod || 0;
+    const paid = data.amountPaid || 0;
+    const deduction = data.deductionAmount || 0;
+    return (paid + deduction) <= salary;
+}, {
+  message: "Amount paid plus deductions cannot exceed the salary amount for the period.",
+  path: ["amountPaid"], // Or path: ["deductionAmount"] or a general path
 });
 
 export type SalaryPaymentFormValues = z.infer<typeof salaryPaymentSchema>;
@@ -102,6 +106,7 @@ export interface SalaryPaymentData {
   salaryGiverName: string; // User ID of admin/TL who made the payment entry
   salaryAmountForPeriod: number;
   amountPaid: number;
+  deductionAmount?: number;
   remainingAmount: number;
   comment?: string;
   recordedBy: string; // User ID of admin/TL who recorded this payment transaction

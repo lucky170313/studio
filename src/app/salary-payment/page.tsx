@@ -7,7 +7,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import Link from 'next/link';
-import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon } from 'lucide-react';
+import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon, MinusCircle } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { SalaryPaymentFormValues, UserRole, RiderMonthlyAggregates } from '@/lib/types';
+import type { SalaryPaymentFormValues } from '@/lib/types';
 import { salaryPaymentSchema } from '@/lib/types';
 import { saveSalaryPaymentAction, getRiderMonthlyAggregatesAction } from '@/app/actions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -40,7 +40,6 @@ export default function SalaryPaymentPage() {
   const { toast } = useToast();
   const [riderNames, setRiderNames] = useState<string[]>([]);
   const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
-  // const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null); // Not directly used for restrictions on this page
 
   const form = useForm<SalaryPaymentFormValues>({
     resolver: zodResolver(salaryPaymentSchema),
@@ -49,16 +48,18 @@ export default function SalaryPaymentPage() {
       riderName: '',
       salaryGiverName: '', 
       selectedYear: String(currentYear),
-      selectedMonth: String(getMonth(new Date())), // Default to current month (0-indexed)
+      selectedMonth: String(getMonth(new Date())), 
       salaryAmountForPeriod: 0,
       amountPaid: 0,
+      deductionAmount: 0,
       comment: '',
     },
   });
 
-  const { watch, setValue, getValues, trigger } = form;
+  const { watch, setValue, getValues } = form;
   const watchedSalaryAmount = watch('salaryAmountForPeriod');
   const watchedAmountPaid = watch('amountPaid');
+  const watchedDeductionAmount = watch('deductionAmount');
   const watchedRiderName = watch('riderName');
   const watchedSelectedYear = watch('selectedYear');
   const watchedSelectedMonth = watch('selectedMonth');
@@ -66,8 +67,9 @@ export default function SalaryPaymentPage() {
   const remainingAmount = useMemo(() => {
     const salary = Number(watchedSalaryAmount) || 0;
     const paid = Number(watchedAmountPaid) || 0;
-    return salary - paid;
-  }, [watchedSalaryAmount, watchedAmountPaid]);
+    const deduction = Number(watchedDeductionAmount) || 0;
+    return salary - paid - deduction;
+  }, [watchedSalaryAmount, watchedAmountPaid, watchedDeductionAmount]);
 
   useEffect(() => {
     try {
@@ -88,7 +90,6 @@ export default function SalaryPaymentPage() {
         const session = JSON.parse(storedSession);
         if (session.isLoggedIn && session.loggedInUsername) {
           setLoggedInUsername(session.loggedInUsername);
-          // setCurrentUserRole(session.currentUserRole); // Not strictly needed for this page's logic
           setValue('salaryGiverName', session.loggedInUsername, { shouldValidate: true });
         } else {
           toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
@@ -106,7 +107,7 @@ export default function SalaryPaymentPage() {
     const fetchAndSetSalary = async () => {
       if (watchedRiderName && watchedSelectedYear && watchedSelectedMonth) {
         setIsFetchingSalary(true);
-        setValue('salaryAmountForPeriod', 0); // Reset while fetching
+        setValue('salaryAmountForPeriod', 0); 
         try {
           const result = await getRiderMonthlyAggregatesAction(
             watchedRiderName,
@@ -141,9 +142,10 @@ export default function SalaryPaymentPage() {
       const paymentDataToServer = {
         paymentDate: values.paymentDate,
         riderName: values.riderName,
-        salaryGiverName: loggedInUsername,
+        salaryGiverName: loggedInUsername, // Use the loggedInUsername state
         salaryAmountForPeriod: values.salaryAmountForPeriod,
         amountPaid: values.amountPaid,
+        deductionAmount: values.deductionAmount || 0,
         comment: values.comment,
         recordedBy: loggedInUsername,
       };
@@ -160,6 +162,7 @@ export default function SalaryPaymentPage() {
           selectedMonth: String(getMonth(new Date())),
           salaryAmountForPeriod: 0,
           amountPaid: 0,
+          deductionAmount: 0,
           comment: '',
         });
       } else {
@@ -205,8 +208,9 @@ export default function SalaryPaymentPage() {
             <div class="field"><span class="label">Salary For:</span><span class="value">${monthNames[parseInt(values.selectedMonth)]} ${values.selectedYear}</span></div>
             <div class="field"><span class="label">Salary Giver:</span><span class="value">${values.salaryGiverName}</span></div>
             <hr/>
-            <div class="field"><span class="label">Salary Amount for Period:</span><span class="value">₹${values.salaryAmountForPeriod.toFixed(2)}</span></div>
-            <div class="field"><span class="label">Amount Paid:</span><span class="value">₹${values.amountPaid.toFixed(2)}</span></div>
+            <div class="field"><span class="label">Salary Amount for Period:</span><span class="value">₹${(values.salaryAmountForPeriod || 0).toFixed(2)}</span></div>
+            <div class="field"><span class="label">Amount Paid:</span><span class="value">₹${(values.amountPaid || 0).toFixed(2)}</span></div>
+            <div class="field"><span class="label">Deduction Amount:</span><span class="value">₹${(values.deductionAmount || 0).toFixed(2)}</span></div>
             <div class="field"><span class="label">Remaining Amount:</span><span class="value">₹${remainingAmount.toFixed(2)}</span></div>
             ${values.comment ? `<div class="field"><span class="label">Comment:</span><span class="value">${values.comment}</span></div>` : ''}
             <div class="footer">Drop Aqua Track - Payment Summary</div>
@@ -408,10 +412,31 @@ export default function SalaryPaymentPage() {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="deductionAmount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="flex items-center"><MinusCircle className="mr-2 h-4 w-4 text-primary" />Deduction Amount (₹)</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="number"
+                        placeholder="e.g., 500"
+                        {...field}
+                        onChange={event => field.onChange(parseFloat(event.target.value) || 0)}
+                        value={field.value ?? 0}
+                      />
+                    </FormControl>
+                    <FormDescription>Enter any deductions (e.g., for damages, penalties). Optional.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               <FormItem>
                 <FormLabel className="flex items-center"><IndianRupee className="mr-2 h-4 w-4 text-primary" />Remaining Amount (₹)</FormLabel>
                 <Input type="text" value={`₹${remainingAmount.toFixed(2)}`} readOnly className="bg-muted/50 font-semibold" />
-                <FormDescription>Calculated as: Salary Amount for Period - Amount Paid.</FormDescription>
+                <FormDescription>Calculated as: Salary Amount for Period - Amount Paid - Deduction Amount.</FormDescription>
               </FormItem>
               
               <FormField
@@ -446,4 +471,3 @@ export default function SalaryPaymentPage() {
     </main>
   );
 }
-

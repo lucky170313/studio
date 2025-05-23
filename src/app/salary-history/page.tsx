@@ -4,19 +4,19 @@
 import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import type { SalaryPaymentData, UserRole } from '@/lib/types';
+import type { SalaryPaymentData } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, History, CalendarDays, User, IndianRupee, FileSpreadsheet, Users } from 'lucide-react';
-import { format as formatDateFns, getYear, getMonth, parse } from 'date-fns';
+import { Loader2, ArrowLeft, AlertCircle, History, CalendarDays, User, IndianRupee, FileSpreadsheet, Users, MinusCircle } from 'lucide-react';
+import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { getSalaryPaymentsAction } from '@/app/actions';
 
 const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
-const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // To check if user is logged in
+const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; 
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
@@ -27,7 +27,7 @@ export default function SalaryHistoryPage() {
   const [allPayments, setAllPayments] = useState<SalaryPaymentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); // Basic check
+  const [isLoggedIn, setIsLoggedIn] = useState(false); 
 
   const [selectedRider, setSelectedRider] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
@@ -37,7 +37,6 @@ export default function SalaryHistoryPage() {
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
   useEffect(() => {
-    // Check login status
     const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
     if (storedSession) {
       const session = JSON.parse(storedSession);
@@ -46,7 +45,6 @@ export default function SalaryHistoryPage() {
       }
     }
 
-    // Load rider names for filter dropdown
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -54,14 +52,13 @@ export default function SalaryHistoryPage() {
       }
     } catch (e) { console.error("Failed to load rider names for filter", e); }
 
-    // Fetch salary payments
     setIsLoading(true);
     getSalaryPaymentsAction()
       .then(result => {
         if (result.success && result.payments) {
           const paymentsWithDateObjects = result.payments.map(p => ({
             ...p,
-            paymentDate: new Date(p.paymentDate) // Ensure paymentDate is a Date object
+            paymentDate: new Date(p.paymentDate) 
           }));
           setAllPayments(paymentsWithDateObjects);
           if (paymentsWithDateObjects.length > 0) {
@@ -84,16 +81,20 @@ export default function SalaryHistoryPage() {
 
   const filteredPayments = useMemo(() => {
     return allPayments.filter(payment => {
-      const paymentDateObj = payment.paymentDate; // Already a Date object
+      const paymentDateObj = payment.paymentDate; 
       const riderMatch = selectedRider === "all" || payment.riderName === selectedRider;
       const yearMatch = selectedYear === "all" || getYear(paymentDateObj) === parseInt(selectedYear);
       const monthMatch = selectedMonth === "all" || getMonth(paymentDateObj) === parseInt(selectedMonth);
       return riderMatch && yearMatch && monthMatch;
-    }).sort((a, b) => b.paymentDate.getTime() - a.paymentDate.getTime()); // Sort by most recent first
+    }).sort((a, b) => b.paymentDate.getTime() - a.paymentDate.getTime()); 
   }, [allPayments, selectedRider, selectedYear, selectedMonth]);
 
   const totalAmountPaidFiltered = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + p.amountPaid, 0);
+  }, [filteredPayments]);
+  
+  const totalDeductionsFiltered = useMemo(() => {
+    return filteredPayments.reduce((sum, p) => sum + (p.deductionAmount || 0), 0);
   }, [filteredPayments]);
 
   const handleExcelExport = () => {
@@ -108,6 +109,7 @@ export default function SalaryHistoryPage() {
       "Salary Giver": p.salaryGiverName,
       "Salary Amount for Period (₹)": p.salaryAmountForPeriod.toFixed(2),
       "Amount Paid (₹)": p.amountPaid.toFixed(2),
+      "Deduction Amount (₹)": (p.deductionAmount || 0).toFixed(2),
       "Remaining Amount (₹)": p.remainingAmount.toFixed(2),
       "Comment": p.comment || "",
       "Recorded By": p.recordedBy,
@@ -224,6 +226,7 @@ export default function SalaryHistoryPage() {
                     <TableHead><Users className="inline-block mr-1 h-4 w-4"/>Salary Giver</TableHead>
                     <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Salary For Period (₹)</TableHead>
                     <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Amount Paid (₹)</TableHead>
+                    <TableHead className="text-right"><MinusCircle className="inline-block mr-1 h-4 w-4"/>Deduction (₹)</TableHead>
                     <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Remaining (₹)</TableHead>
                     <TableHead>Comment</TableHead>
                     <TableHead>Recorded By</TableHead>
@@ -237,6 +240,7 @@ export default function SalaryHistoryPage() {
                       <TableCell>{payment.salaryGiverName}</TableCell>
                       <TableCell className="text-right">₹{payment.salaryAmountForPeriod.toFixed(2)}</TableCell>
                       <TableCell className="text-right font-semibold">₹{payment.amountPaid.toFixed(2)}</TableCell>
+                      <TableCell className="text-right">₹{(payment.deductionAmount || 0).toFixed(2)}</TableCell>
                       <TableCell className={`text-right ${payment.remainingAmount > 0 ? 'text-orange-600' : payment.remainingAmount < 0 ? 'text-green-600' : ''}`}>
                         ₹{payment.remainingAmount.toFixed(2)}
                       </TableCell>
@@ -247,8 +251,9 @@ export default function SalaryHistoryPage() {
                 </TableBody>
                 <TableFooter>
                   <TableRow className="bg-muted/50 font-bold">
-                    <TableCell colSpan={4}>Total for Filtered Payments:</TableCell>
+                    <TableCell colSpan={4}>Totals for Filtered Payments:</TableCell>
                     <TableCell className="text-right text-lg">₹{totalAmountPaidFiltered.toFixed(2)}</TableCell>
+                    <TableCell className="text-right text-lg">₹{totalDeductionsFiltered.toFixed(2)}</TableCell>
                     <TableCell colSpan={3}></TableCell>
                   </TableRow>
                 </TableFooter>
@@ -264,4 +269,3 @@ export default function SalaryHistoryPage() {
     </main>
   );
 }
-

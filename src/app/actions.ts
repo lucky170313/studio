@@ -5,7 +5,7 @@ import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
 import UserModel from '@/models/User';
 import SalaryPaymentModel from '@/models/SalaryPayment';
-import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, SalesReportServerSaveData, RiderMonthlyAggregates } from '@/lib/types';
+import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates } from '@/lib/types';
 import { startOfMonth, endOfMonth } from 'date-fns';
 
 
@@ -16,7 +16,7 @@ interface SaveReportResult {
   id?: string;
 }
 
-export async function saveSalesReportAction(reportData: SalesReportServerSaveData): Promise<SaveReportResult> {
+export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'id' | '_id'>): Promise<SaveReportResult> {
   try {
     await dbConnect();
 
@@ -50,7 +50,6 @@ export async function saveSalesReportAction(reportData: SalesReportServerSaveDat
       aiReasoning: reportData.aiReasoning,
       discrepancy: reportData.discrepancy,
       status: reportData.status,
-      // meterReadingImageDriveLink: reportData.meterReadingImageDriveLink, // Feature removed
     };
 
 
@@ -87,14 +86,14 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
   try {
     await dbConnect();
     const lastReport = await SalesReportModel.findOne({ vehicleName: vehicleName })
-      .sort({ firestoreDate: -1 }) // firestoreDate is the field we sort by for recency
+      .sort({ firestoreDate: -1 }) 
       .select('currentMeterReading')
-      .lean(); // Use lean for plain JS object
+      .lean(); 
 
     if (lastReport) {
       return { success: true, reading: lastReport.currentMeterReading || 0 };
     }
-    return { success: true, reading: 0 }; // No previous report for this vehicle
+    return { success: true, reading: 0 }; 
   } catch (error: any) {
     console.error("Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
@@ -114,7 +113,7 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     if (!existingAdmin) {
       const adminUser = new UserModel({
         userId: adminUserId,
-        password: adminPassword, // WARNING: Storing plaintext password
+        password: adminPassword, 
         role: 'Admin',
       });
       await adminUser.save();
@@ -130,9 +129,9 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
 export async function verifyUserAction(userIdInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserCredentials | null; message: string }> {
   try {
     await dbConnect();
-    const user = await UserModel.findOne({ userId: userIdInput }).lean(); // Use .lean()
+    const user = await UserModel.findOne({ userId: userIdInput }).lean(); 
 
-    if (user && user.password === passwordInput) { // WARNING: Plaintext password comparison
+    if (user && user.password === passwordInput) { 
       return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
     }
     return { success: false, message: 'Invalid User ID or Password.' };
@@ -153,7 +152,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; // WARNING: Storing plaintext password
+    admin.password = newPasswordInput; 
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
@@ -175,7 +174,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, // WARNING: Storing plaintext password
+      password: passwordInput, 
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -193,7 +192,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; // WARNING: Storing plaintext password
+    teamLeader.password = newPasswordInput; 
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {
@@ -239,9 +238,16 @@ interface SaveSalaryPaymentResult {
 export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerData): Promise<SaveSalaryPaymentResult> {
   try {
     await dbConnect();
-    const dataToSave: SalaryPaymentData = {
-      ...paymentData, // paymentDate is already a Date from client
-      remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid,
+    const dataToSave: Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'> & { remainingAmount: number } = {
+      paymentDate: paymentData.paymentDate, // paymentDate is already a Date from client
+      riderName: paymentData.riderName,
+      salaryGiverName: paymentData.salaryGiverName,
+      salaryAmountForPeriod: paymentData.salaryAmountForPeriod,
+      amountPaid: paymentData.amountPaid,
+      deductionAmount: paymentData.deductionAmount || 0,
+      comment: paymentData.comment,
+      recordedBy: paymentData.recordedBy,
+      remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid - (paymentData.deductionAmount || 0),
     };
     const salaryPaymentEntry = new SalaryPaymentModel(dataToSave);
     const savedEntry = await salaryPaymentEntry.save();
@@ -297,7 +303,7 @@ export async function getRiderMonthlyAggregatesAction(
 
     const reports = await SalesReportModel.find({
       riderName: riderName,
-      firestoreDate: {
+      firestoreDate: { // This should be the date field you use for sales entry date
         $gte: startDate,
         $lte: endDate,
       },
@@ -344,4 +350,3 @@ export async function getRiderMonthlyAggregatesAction(
     return { success: false, message: `Error fetching aggregates: ${error.message}` };
   }
 }
-
