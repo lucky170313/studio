@@ -42,7 +42,7 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
   const response = await fetch('/api/sales-reports');
   if (!response.ok) {
     const errorData = await response.json();
-    throw new Error(errorData.message || 'Failed to fetch sales data from MongoDB');
+    throw new Error(errorData.message || 'Failed to fetch sales data');
   }
   const data = await response.json();
   return data.map((entry: any) => ({
@@ -101,7 +101,7 @@ export default function AdminViewDataPage() {
       })
       .catch(err => {
         console.error("Error fetching sales data for view page:", err);
-        setError(err.message || 'Failed to load sales entries from MongoDB.');
+        setError(err.message || 'Failed to load sales entries.');
         setAllSalesEntries([]);
       })
       .finally(() => {
@@ -188,7 +188,7 @@ export default function AdminViewDataPage() {
     return (
       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
-        <p className="text-lg text-muted-foreground">Loading sales data from MongoDB...</p>
+        <p className="text-lg text-muted-foreground">Loading sales data...</p>
       </main>
     );
   }
@@ -228,10 +228,10 @@ export default function AdminViewDataPage() {
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-3xl font-bold text-primary flex items-center">
           <CalendarDays className="mr-3 h-8 w-8" />
-          All Sales Entries (MongoDB)
+          All Sales Entries
         </h1>
         <div className="flex space-x-2">
-          <Button variant="outline" onClick={() => handleExcelExport([{ data: sortedEntries, sheetName: "All Sales Data" }], "AllSalesData_AquaTrack")}>
+          <Button variant="outline" onClick={() => handleExcelExport([{ data: sortedEntries, sheetName: "All Sales Data" }], "AllSalesData_DropAquaTrack")}>
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>
@@ -317,13 +317,13 @@ export default function AdminViewDataPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Sales Data Overview</CardTitle>
-          <CardDescription>Browse recorded sales entries from MongoDB. Click column headers to sort.
+          <CardDescription>Browse recorded sales entries. Click column headers to sort.
             Displaying {sortedEntries.length} of {allSalesEntries.length} total entries based on filters.
           </CardDescription>
         </CardHeader>
         <CardContent>
           {sortedEntries.length === 0 ? (
-            <p className="text-muted-foreground text-center py-10">No sales entries found for the selected filters in MongoDB.</p>
+            <p className="text-muted-foreground text-center py-10">No sales entries found for the selected filters.</p>
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -369,7 +369,7 @@ export default function AdminViewDataPage() {
         </CardContent>
       </Card>
        <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AquaTrack. Admin Data View (MongoDB).</p>
+        <p>&copy; {new Date().getFullYear()} Drop Aqua Track. Admin Data View.</p>
       </footer>
     </main>
   );

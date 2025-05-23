@@ -1,3 +1,4 @@
+
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import './globals.css';
@@ -7,7 +8,7 @@ import { cn } from '@/lib/utils';
 const geistSans = GeistSans;
 
 export const metadata: Metadata = {
-  title: 'AquaTrack - Daily Sales Reporter',
+  title: 'Drop Aqua Track - Daily Sales Reporter',
   description: 'Track daily sales and reconcile cash for your water delivery business.',
 };
 

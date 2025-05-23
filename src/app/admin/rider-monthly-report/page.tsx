@@ -23,7 +23,7 @@ import {
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
 
-const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp'; // Per-day salary for 9 hours
+const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
 
 interface DailyEntryDetail {
   id: string;
@@ -34,21 +34,21 @@ interface DailyEntryDetail {
   baseDailySalary: number;
   commissionEarned: number;
   discrepancy: number;
-  netEarning: number; // baseDailySalary + commissionEarned - discrepancy
+  netEarning: number; 
   totalSale: number;
-  actualReceived: number; // cash + online
+  actualReceived: number; 
 }
 
 interface MonthlyRiderDetailedStats {
   dailyEntries: DailyEntryDetail[];
   totalLitersSold: number;
-  totalMoneyCollected: number; // sum of daily actualReceived
-  totalTokenMoney: number; // sum from sales entries for this rider in this month
-  totalSalesGenerated: number; // sum of daily totalSale
+  totalMoneyCollected: number; 
+  totalTokenMoney: number; 
+  totalSalesGenerated: number; 
   totalBaseSalary: number;
   totalCommissionEarned: number;
   totalDiscrepancy: number;
-  netMonthlyEarning: number; // totalBaseSalary + totalCommissionEarned - totalDiscrepancy
+  netMonthlyEarning: number; 
   daysActive: number;
 }
 
@@ -280,9 +280,8 @@ export default function RiderMonthlyReportPage() {
     if (reportData?.riderSalesChartData && reportData.riderSalesChartData.length > 0) {
         sheetsToExport.push({ data: reportData.riderSalesChartData, sheetName: "Rider Sales Chart Data" });
     }
-    // Add more sheets for detailed rider breakdown if needed
     
-    handleExcelExport(sheetsToExport, "RiderMonthlyReport_AquaTrack");
+    handleExcelExport(sheetsToExport, "RiderMonthlyReport_DropAquaTrack");
   };
 
   const riderSalesChartConfig = {
@@ -515,7 +514,7 @@ export default function RiderMonthlyReportPage() {
       {mainContent()}
 
        <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AquaTrack. Rider Performance Report.</p>
+        <p>&copy; {new Date().getFullYear()} Drop Aqua Track. Rider Performance Report.</p>
       </footer>
     </main>
   );

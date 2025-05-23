@@ -30,17 +30,17 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
-const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleAquaTrackApp';
-const RIDER_NAMES_KEY = 'riderNamesAquaTrackApp';
+const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleDropAquaTrackApp';
+const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
 const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie'];
-const RIDER_SALARIES_KEY = 'riderSalariesAquaTrackApp';
-const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterAquaTrackApp';
+const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
+const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 
 // --- Simulated Credentials Storage Keys ---
-const ADMIN_CREDENTIALS_KEY = 'adminCredentialsAquaTrackApp';
-const TEAM_LEADER_ACCOUNTS_KEY = 'teamLeaderAccountsAquaTrackApp';
-const LOGIN_SESSION_KEY = 'loginSessionAquaTrackApp';
+const ADMIN_CREDENTIALS_KEY = 'adminCredentialsDropAquaTrackApp';
+const TEAM_LEADER_ACCOUNTS_KEY = 'teamLeaderAccountsDropAquaTrackApp';
+const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 // --- End Simulated Credentials Storage Keys ---
 
 // --- Default Simulated Credentials ---
@@ -125,14 +125,20 @@ export default function AquaTrackPage() {
     try {
       const storedTlAccounts = localStorage.getItem(TEAM_LEADER_ACCOUNTS_KEY);
       if (storedTlAccounts) {
-        setTeamLeaders(JSON.parse(storedTlAccounts));
+        const parsedAccounts = JSON.parse(storedTlAccounts);
+        if (Array.isArray(parsedAccounts)) {
+            setTeamLeaders(parsedAccounts);
+        } else {
+            setTeamLeaders([...DEFAULT_TEAM_LEADERS]);
+            localStorage.setItem(TEAM_LEADER_ACCOUNTS_KEY, JSON.stringify(DEFAULT_TEAM_LEADERS));
+        }
       } else {
         localStorage.setItem(TEAM_LEADER_ACCOUNTS_KEY, JSON.stringify(DEFAULT_TEAM_LEADERS));
-        setTeamLeaders(DEFAULT_TEAM_LEADERS);
+        setTeamLeaders([...DEFAULT_TEAM_LEADERS]);
       }
     } catch (error) {
       console.error("Failed to manage Team Leader accounts in localStorage", error);
-       setTeamLeaders(DEFAULT_TEAM_LEADERS);
+       setTeamLeaders([...DEFAULT_TEAM_LEADERS]);
     }
 
 
@@ -185,13 +191,13 @@ export default function AquaTrackPage() {
   };
 
   const handleLogin = () => {
-    let currentAdminPassword = adminPassword; // Default if not found
+    let currentAdminPassword = adminPassword; 
     try {
         const storedAdminCreds = localStorage.getItem(ADMIN_CREDENTIALS_KEY);
         if (storedAdminCreds) currentAdminPassword = JSON.parse(storedAdminCreds).password;
     } catch (e) { console.error("Error reading admin creds for login", e); }
 
-    let currentTeamLeaders: Array<{ userId: string; password: string }> = [...DEFAULT_TEAM_LEADERS]; // Default if not found
+    let currentTeamLeaders: Array<{ userId: string; password: string }> = [...DEFAULT_TEAM_LEADERS]; 
      try {
         const storedTlAccounts = localStorage.getItem(TEAM_LEADER_ACCOUNTS_KEY);
         if (storedTlAccounts) currentTeamLeaders = JSON.parse(storedTlAccounts);
@@ -316,10 +322,10 @@ export default function AquaTrackPage() {
       const result = await saveSalesReportAction(reportToSaveForMongoDB as Omit<SalesReportData, 'id' | '_id'> & { firestoreDate: Date });
 
       if (result.success && result.id) {
-        toast({ title: 'Report Generated & Saved to MongoDB', description: result.message, variant: 'default' });
+        toast({ title: 'Report Generated & Saved', description: result.message, variant: 'default' });
         setReportData({ ...newReportData, id: result.id, _id: result.id });
       } else {
-        toast({ title: 'Database Error (MongoDB)', description: result.message || "Failed to save to MongoDB.", variant: 'destructive' });
+        toast({ title: 'Database Error', description: result.message || "Failed to save sales report.", variant: 'destructive' });
         setReportData({ ...newReportData, id: `local-preview-${Date.now()}`, _id: `local-preview-${Date.now()}` });
       }
 
@@ -445,7 +451,7 @@ export default function AquaTrackPage() {
     }
     const newPassword = newAdminPasswordInput.trim();
     localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ userId: DEFAULT_ADMIN_USER_ID, password: newPassword }));
-    setAdminPassword(newPassword); // Update local state for current session login check
+    setAdminPassword(newPassword); 
     setNewAdminPasswordInput('');
     toast({ title: "Success", description: "Admin password updated. (This is insecure, for prototype only)" });
   };
@@ -459,7 +465,7 @@ export default function AquaTrackPage() {
     const password = tlPasswordInput.trim();
     let updatedTeamLeaders;
 
-    if (editingTlOriginalUserId) { // Editing existing TL
+    if (editingTlOriginalUserId) { 
       updatedTeamLeaders = teamLeaders.map(tl =>
         tl.userId === editingTlOriginalUserId ? { userId, password } : tl 
       );
@@ -469,7 +475,7 @@ export default function AquaTrackPage() {
       }
       toast({ title: "Success", description: `Team Leader "${editingTlOriginalUserId}" updated.` });
       setEditingTlOriginalUserId(null);
-    } else { // Adding new TL
+    } else { 
       if (teamLeaders.some(tl => tl.userId === userId)) {
         toast({ title: "Error", description: `Team Leader User ID "${userId}" already exists.`, variant: "destructive" });
         return;
@@ -518,7 +524,7 @@ export default function AquaTrackPage() {
           <CardHeader className="text-center">
             <div className="flex items-center justify-center mb-4">
                 <Droplets className="h-10 w-10 text-primary" />
-                <h1 className="text-3xl font-bold text-primary ml-2">AquaTrack Login</h1>
+                <h1 className="text-3xl font-bold text-primary ml-2">Drop Aqua Track Login</h1>
             </div>
             <CardDescription>Please login to access the application.</CardDescription>
           </CardHeader>
@@ -554,7 +560,7 @@ export default function AquaTrackPage() {
             <div className="flex-1"></div> {/* Spacer */}
             <h1 className="text-5xl font-extrabold tracking-tight text-primary flex items-center justify-center flex-1">
               <Droplets className="mr-3 h-12 w-12" />
-              AquaTrack
+              Drop Aqua Track
             </h1>
             <div className="flex-1 flex justify-end">
                 {isLoggedIn && (
@@ -565,7 +571,7 @@ export default function AquaTrackPage() {
             </div>
         </div>
         <p className="mt-1 text-xl text-muted-foreground">
-          Daily Sales & Reconciliation Reporter (MongoDB Version)
+          Daily Sales & Reconciliation Reporter
         </p>
          <p className="mt-1 text-sm text-green-600">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>
       </header>
@@ -678,7 +684,7 @@ export default function AquaTrackPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <Card className="lg:col-span-3 shadow-xl">
-          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved to MongoDB.</CardDescription></CardHeader>
+          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data ({currentUserRole})</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved.</CardDescription></CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm
               onSubmit={handleFormSubmit}
@@ -694,13 +700,12 @@ export default function AquaTrackPage() {
         <div className="lg:col-span-2">
           {isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl"><CardContent className="text-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="text-lg text-muted-foreground">Generating report...</p></CardContent></Card>)}
           {reportData && (<AquaTrackReport reportData={reportData} />)}
-          {!isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved to MongoDB.</p></CardContent></Card>)}
+          {!isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved.</p></CardContent></Card>)}
         </div>
       </div>
       <footer className="mt-12 text-center text-sm text-muted-foreground">
-         {currentYear !== null ? <p>&copy; {currentYear} AquaTrack. Streamlining your water delivery business. (MongoDB Version)</p> : <p>Loading year...</p>}
+         {currentYear !== null ? <p>&copy; {currentYear} Drop Aqua Track. Streamlining your water delivery business.</p> : <p>Loading year...</p>}
       </footer>
     </main>
   );
 }
-    

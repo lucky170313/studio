@@ -19,7 +19,7 @@ interface UserMonthlyCashStats {
 }
 
 interface UserMonthlyData {
-  [userName: string]: { // userName will be the 'recordedBy' field
+  [userName: string]: { 
     [monthYear: string]: UserMonthlyCashStats;
   };
 }
@@ -74,7 +74,7 @@ const monthNames = [
   "July", "August", "September", "October", "November", "December"
 ];
 
-export default function CollectorMonthlyCashReportPage() { // Renamed component
+export default function CollectorMonthlyCashReportPage() { 
   const [allSalesEntries, setAllSalesEntries] = useState<SalesReportData[]>([]);
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -167,7 +167,7 @@ export default function CollectorMonthlyCashReportPage() { // Renamed component
         sheetsToExport.push({data: exportableData, sheetName: "Collector Monthly Cash Received"});
     }
     
-    handleExcelExport(sheetsToExport, "CollectorMonthlyCashReport_AquaTrack");
+    handleExcelExport(sheetsToExport, "CollectorMonthlyCashReport_DropAquaTrack");
   };
 
   if (isLoading && !reportData) {
@@ -309,11 +309,9 @@ export default function CollectorMonthlyCashReportPage() { // Renamed component
       {mainContent()}
 
        <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AquaTrack. Collector's Monthly Cash Report.</p>
+        <p>&copy; {new Date().getFullYear()} Drop Aqua Track. Collector's Monthly Cash Report.</p>
         <p className="text-xs mt-1">Note: 'Collector' in this report refers to the User ID (Admin/Team Leader) who recorded the sales entries.</p>
       </footer>
     </main>
   );
 }
-
-    

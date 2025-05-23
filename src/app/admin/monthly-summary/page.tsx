@@ -197,9 +197,8 @@ export default function MonthlySummaryPage() {
   const exportCurrentReportData = () => {
     const sheetsToExport = [];
     if (reportData?.summaryStats) {
-        // Convert summaryStats object to an array of objects for json_to_sheet
         const summaryArray = Object.entries(reportData.summaryStats).map(([key, value]) => ({
-            Statistic: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), // Prettify key
+            Statistic: key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()), 
             Value: typeof value === 'number' ? value.toFixed(2) : value
         }));
         sheetsToExport.push({ data: summaryArray, sheetName: "Summary Statistics" });
@@ -207,11 +206,11 @@ export default function MonthlySummaryPage() {
     if (reportData?.monthlyChartData && reportData.monthlyChartData.length > 0) {
         sheetsToExport.push({ data: reportData.monthlyChartData, sheetName: "Monthly Sales Chart Data" });
     }
-    if (filteredEntries.length > 0 && sheetsToExport.length === 0) { // Fallback to raw if no specific report parts
+    if (filteredEntries.length > 0 && sheetsToExport.length === 0) { 
          sheetsToExport.push({data: filteredEntries, sheetName: "Filtered Raw Data"});
     }
     
-    handleExcelExport(sheetsToExport, "MonthlySummary_AquaTrack");
+    handleExcelExport(sheetsToExport, "MonthlySummary_DropAquaTrack");
   };
 
 
@@ -407,7 +406,7 @@ export default function MonthlySummaryPage() {
       {mainContent()}
 
        <footer className="mt-12 text-center text-sm text-muted-foreground">
-        <p>&copy; {new Date().getFullYear()} AquaTrack. Monthly Sales Summary.</p>
+        <p>&copy; {new Date().getFullYear()} Drop Aqua Track. Monthly Sales Summary.</p>
       </footer>
     </main>
   );
