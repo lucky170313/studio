@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock } from 'lucide-react';
-// import NextImage from 'next/image'; // Removed as image preview is removed
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Image as ImageIcon, Coins, Wallet } from 'lucide-react';
+import NextImage from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -24,6 +24,13 @@ import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { Label } from '@/components/ui/label'; // Added Label import
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
 import { getLastMeterReadingForVehicleAction } from '@/app/actions';
@@ -38,6 +45,24 @@ interface AquaTrackFormProps {
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
 const hoursWorkedOptions = Array.from({ length: 9 }, (_, i) => String(i + 1));
+
+const coinDenominations = [
+  { value: 1, label: "₹1 Coin" },
+  { value: 2, label: "₹2 Coin" },
+  { value: 5, label: "₹5 Coin" },
+  { value: 10, label: "₹10 Coin" },
+  { value: 20, label: "₹20 Coin" },
+];
+const noteDenominations = [
+  { value: 10, label: "₹10 Note" },
+  { value: 20, label: "₹20 Note" },
+  { value: 50, label: "₹50 Note" },
+  { value: 100, label: "₹100 Note" },
+  { value: 500, label: "₹500 Note" },
+];
+
+type DenominationQuantities = { [key: string]: string };
+
 
 export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
@@ -59,17 +84,21 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
       extraAmount: 0,
       hoursWorked: 9,
       comment: '',
-      // meterReadingImage: undefined, // Removed
+      meterReadingImage: undefined,
     },
   });
 
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
-  // const meterReadingImageFile = useWatch({ control: form.control, name: 'meterReadingImage' }); // Removed
+  const meterReadingImageFile = useWatch({ control: form.control, name: 'meterReadingImage' });
   const { setValue, getValues, watch } = form;
 
   const [isClient, setIsClient] = useState(false);
   const [isLoadingPrevReading, setIsLoadingPrevReading] = useState(false);
-  // const [imagePreview, setImagePreview] = useState<string | null>(null); // Removed
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+
+  // State for cash calculator
+  const [denominationQuantities, setDenominationQuantities] = useState<DenominationQuantities>({});
+  const [calculatedCashTotal, setCalculatedCashTotal] = useState(0);
 
   useEffect(() => {
     setIsClient(true);
@@ -99,7 +128,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
           setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
         } else {
           setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
-          // Optionally, show a toast message for error if result.message exists
         }
         setIsLoadingPrevReading(false);
       };
@@ -109,17 +137,43 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     }
   }, [selectedVehicleName, setValue, isClient]);
 
-  // useEffect(() => { // Removed image preview logic
-  //   if (meterReadingImageFile) {
-  //     const reader = new FileReader();
-  //     reader.onloadend = () => {
-  //       setImagePreview(reader.result as string);
-  //     };
-  //     reader.readAsDataURL(meterReadingImageFile);
-  //   } else {
-  //     setImagePreview(null);
-  //   }
-  // }, [meterReadingImageFile]);
+  useEffect(() => {
+    if (meterReadingImageFile) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(meterReadingImageFile);
+    } else {
+      setImagePreview(null);
+    }
+  }, [meterReadingImageFile]);
+
+  // Effect for cash calculator total
+  useEffect(() => {
+    let total = 0;
+    for (const den of coinDenominations) {
+      const qty = parseInt(denominationQuantities[`coin_${den.value}`] || "0");
+      total += qty * den.value;
+    }
+    for (const den of noteDenominations) {
+      const qty = parseInt(denominationQuantities[`note_${den.value}`] || "0");
+      total += qty * den.value;
+    }
+    setCalculatedCashTotal(total);
+  }, [denominationQuantities]);
+
+  const handleDenominationQuantityChange = (type: 'coin' | 'note', value: number, quantity: string) => {
+    setDenominationQuantities(prev => ({
+      ...prev,
+      [`${type}_${value}`]: quantity.replace(/[^0-9]/g, ''), // Allow only numbers
+    }));
+  };
+
+  const applyCalculatedTotalToCashReceived = () => {
+    setValue('cashReceived', calculatedCashTotal, { shouldValidate: true, shouldDirty: true });
+  };
+
 
   const [
     watchedPreviousMeterReading,
@@ -179,13 +233,15 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     return (totalSaleVal + dueCollectedVal) - (cashReceivedVal + onlineReceivedVal + newDueAmountVal + tokenMoneyVal + extraAmountVal + staffExpenseVal);
   }, [liveTotalSale, watchedCashReceived, watchedOnlineReceived, watchedDueCollected, watchedNewDueAmount, watchedTokenMoney, watchedStaffExpense, watchedExtraAmount]);
 
-  const inputFields = [
+  const inputFieldsDefinition = [
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
     { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB. Admin can edit." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
+    // Meter Reading Image to be rendered manually after currentMeterReading
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: currentUserRole === 'TeamLeader' ? `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Set by Admin)` : `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Editable by Admin).` },
+    // Cash Calculator to be rendered manually before cashReceived
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
     { name: 'onlineReceived', label: 'Online Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
     { name: 'dueCollected', label: 'Due Collected (Past Dues)', icon: IndianRupee, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
@@ -250,7 +306,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
         />
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {inputFields.map((inputField) => {
+          {inputFieldsDefinition.map((inputField) => {
             const isPrevMeterReadingField = inputField.name === 'previousMeterReading';
             const isRatePerLiterField = inputField.name === 'ratePerLiter';
 
@@ -263,80 +319,179 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
             }
 
             let currentOptions: string[] = [];
-            if (inputField.name === 'riderName') {
-                currentOptions = riderNames;
-            } else if (inputField.name === 'vehicleName') {
-                currentOptions = vehicleOptions;
-            } else if (inputField.name === 'hoursWorked') {
-                currentOptions = hoursWorkedOptions;
+             if ('options' in inputField && inputField.options) {
+              // @ts-ignore
+              currentOptions = inputField.options;
             }
 
-            const fieldElement = (
-              <FormField
-                key={inputField.name}
-                control={form.control}
-                name={inputField.name as keyof SalesDataFormValues}
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel className="flex items-center">
-                      {inputField.icon && <inputField.icon className="mr-2 h-4 w-4 text-primary" />}
-                      {inputField.label}
-                      {isPrevMeterReadingField && isLoadingPrevReading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                    </FormLabel>
-                    <FormControl>
-                      {inputField.componentType === 'select' ? (
-                        <Select
-                          onValueChange={(value) => {
-                            const valToSet = inputField.name === 'hoursWorked' ? parseInt(value, 10) : value;
-                            field.onChange(valToSet);
-                          }}
-                          value={String(field.value === undefined || field.value === null ? (inputField.name === 'hoursWorked' ? '9' : '') : field.value)}
-                          disabled={fieldIsDisabled}
-                        >
-                          <SelectTrigger className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}>
-                            <SelectValue placeholder={inputField.placeholder} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {currentOptions && currentOptions.length > 0 ? (
-                              currentOptions.map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {option} {inputField.name === 'hoursWorked' ? 'hr' : ''}
+
+            const renderFormField = (
+                <FormField
+                    key={inputField.name}
+                    control={form.control}
+                    name={inputField.name as keyof SalesDataFormValues}
+                    render={({ field }) => (
+                    <FormItem>
+                        <FormLabel className="flex items-center">
+                        {inputField.icon && <inputField.icon className="mr-2 h-4 w-4 text-primary" />}
+                        {inputField.label}
+                        {isPrevMeterReadingField && isLoadingPrevReading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                        </FormLabel>
+                        <FormControl>
+                        {inputField.componentType === 'select' ? (
+                            <Select
+                            onValueChange={(value) => {
+                                const valToSet = inputField.name === 'hoursWorked' ? parseInt(value, 10) : value;
+                                field.onChange(valToSet);
+                            }}
+                            value={String(field.value === undefined || field.value === null ? (inputField.name === 'hoursWorked' ? '9' : '') : field.value)}
+                            disabled={fieldIsDisabled}
+                            >
+                            <SelectTrigger className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}>
+                                <SelectValue placeholder={inputField.placeholder} />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {currentOptions && currentOptions.length > 0 ? (
+                                currentOptions.map((option) => (
+                                    <SelectItem key={option} value={option}>
+                                    {option} {inputField.name === 'hoursWorked' ? 'hr' : ''}
+                                    </SelectItem>
+                                ))
+                                ) : (
+                                <SelectItem value="" disabled>
+                                    {inputField.name === 'riderName' ? 'No riders available (add in Admin Panel)' : 'No options'}
                                 </SelectItem>
-                              ))
-                            ) : (
-                              <SelectItem value="" disabled>
-                                {inputField.name === 'riderName' ? 'No riders available (add in Admin Panel)' : 'No options'}
-                              </SelectItem>
-                            )}
-                          </SelectContent>
-                        </Select>
-                      ) : (
-                        <Input
-                          type={inputField.type || 'text'}
-                          placeholder={inputField.placeholder}
-                          {...field}
-                          disabled={fieldIsDisabled}
-                          value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' && inputField.name !== 'newDueAmount' ? "" : (field.value ?? "") }
-                          onChange={event => {
-                            if (inputField.type === 'number') {
-                              const numValue = parseFloat(event.target.value);
-                              field.onChange(isNaN(numValue) ? (inputField.name === 'overrideLitersSold' ? undefined : '') : numValue);
-                            } else {
-                              field.onChange(event.target.value);
-                            }
-                          }}
-                          className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}
-                        />
-                      )}
-                    </FormControl>
-                    {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No previous reading for this vehicle found in DB.</FormDescription>}
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                                )}
+                            </SelectContent>
+                            </Select>
+                        ) : (
+                            <Input
+                            type={inputField.type || 'text'}
+                            placeholder={inputField.placeholder}
+                            {...field}
+                            disabled={fieldIsDisabled}
+                            value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' && inputField.name !== 'newDueAmount' ? "" : (field.value ?? "") }
+                            onChange={event => {
+                                if (inputField.type === 'number') {
+                                const numValue = parseFloat(event.target.value);
+                                field.onChange(isNaN(numValue) ? (inputField.name === 'overrideLitersSold' ? undefined : '') : numValue);
+                                } else {
+                                field.onChange(event.target.value);
+                                }
+                            }}
+                            className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}
+                            />
+                        )}
+                        </FormControl>
+                        {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
+                        {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No previous reading for this vehicle found in DB.</FormDescription>}
+                        <FormMessage />
+                    </FormItem>
+                    )}
+                />
             );
-            return fieldElement;
+
+            return (
+                <React.Fragment key={`fragment_${inputField.name}`}>
+                    {renderFormField}
+                    {inputField.name === 'currentMeterReading' && (
+                        <FormField
+                            control={form.control}
+                            name="meterReadingImage"
+                            render={({ field: { onChange, value, ...restField } }) => (
+                            <FormItem className="md:col-span-2">
+                                <FormLabel className="flex items-center">
+                                    <ImageIcon className="mr-2 h-4 w-4 text-primary" />
+                                    Meter Reading Image (Optional)
+                                </FormLabel>
+                                <FormControl>
+                                <Input
+                                    type="file"
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        onChange(file || undefined);
+                                    }}
+                                    className="text-base"
+                                    {...restField}
+                                />
+                                </FormControl>
+                                {imagePreview && (
+                                <div className="mt-2 w-32 h-32 relative border rounded-md overflow-hidden">
+                                    <NextImage src={imagePreview} alt="Meter reading preview" layout="fill" objectFit="cover" />
+                                </div>
+                                )}
+                                <FormDescription>Upload an image of the meter reading. This image will be stored directly in the database (not recommended for production).</FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                            )}
+                        />
+                    )}
+                    {inputField.name === 'ratePerLiter' && ( // Insert calculator before cashReceived
+                      <div className="md:col-span-2 my-4">
+                        <Accordion type="single" collapsible className="w-full border rounded-md shadow-sm">
+                          <AccordionItem value="cash-calculator">
+                            <AccordionTrigger className="px-4 py-3 text-base font-semibold hover:no-underline bg-muted/30 hover:bg-muted/50 rounded-t-md">
+                              <div className="flex items-center">
+                                <Coins className="mr-2 h-5 w-5 text-primary" /> Cash Denomination Calculator
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="p-4 space-y-6 border-t">
+                              <div>
+                                <h4 className="text-md font-medium mb-3 text-muted-foreground">Coins</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
+                                  {coinDenominations.map(den => (
+                                    <div key={`coin_${den.value}`}>
+                                      <Label htmlFor={`coin_qty_${den.value}`} className="text-sm font-normal">{den.label}</Label>
+                                      <Input
+                                        id={`coin_qty_${den.value}`}
+                                        type="number"
+                                        min="0"
+                                        value={denominationQuantities[`coin_${den.value}`] || ""}
+                                        onChange={(e) => handleDenominationQuantityChange('coin', den.value, e.target.value)}
+                                        placeholder="Qty"
+                                        className="text-sm mt-1 h-9"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div>
+                                <h4 className="text-md font-medium mb-3 text-muted-foreground">Notes</h4>
+                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
+                                  {noteDenominations.map(den => (
+                                    <div key={`note_${den.value}`}>
+                                      <Label htmlFor={`note_qty_${den.value}`} className="text-sm font-normal">{den.label}</Label>
+                                      <Input
+                                        id={`note_qty_${den.value}`}
+                                        type="number"
+                                        min="0"
+                                        value={denominationQuantities[`note_${den.value}`] || ""}
+                                        onChange={(e) => handleDenominationQuantityChange('note', den.value, e.target.value)}
+                                        placeholder="Qty"
+                                        className="text-sm mt-1 h-9"
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+                                <div className="text-lg font-semibold">
+                                  Calculated Total: <span className="text-primary">₹{calculatedCashTotal.toFixed(2)}</span>
+                                </div>
+                                <Button type="button" onClick={applyCalculatedTotalToCashReceived} size="sm">
+                                  <Wallet className="mr-2 h-4 w-4" /> Apply to Cash Received
+                                </Button>
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      </div>
+                    )}
+                </React.Fragment>
+            );
+
+
           })}
         </div>
 
@@ -435,3 +590,5 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     </Form>
   );
 }
+
+    
