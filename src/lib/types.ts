@@ -1,7 +1,15 @@
 
 import { z } from 'zod';
 
-export type UserRole = 'Admin' | 'Team Leader';
+export type UserRole = 'Admin' | 'TeamLeader'; // Changed Team Leader capitalization
+
+export interface UserCredentials {
+  userId: string;
+  role: UserRole;
+  // Password is not typically sent to client, but needed for some prototype admin interactions
+  password?: string; 
+}
+
 
 export const salesDataSchema = z.object({
   date: z.date({ required_error: 'Date is required.' }),
@@ -36,8 +44,8 @@ export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 export interface SalesReportData {
   id?: string;
   _id?: string; // For MongoDB
-  date: string;
-  firestoreDate: Date; // Date object for MongoDB compatibility
+  date: string; // This is the formatted string date for display
+  firestoreDate: Date; // JS Date object for DB, named for backward compat but stores JS Date
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -56,12 +64,12 @@ export interface SalesReportData {
   dailySalaryCalculated?: number;
   commissionEarned?: number;
   comment?: string;
-  recordedBy: string; // User who recorded the entry (using riderName as placeholder)
+  recordedBy: string; 
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
-  aiAdjustedExpectedAmount: number;
-  aiReasoning: string;
+  aiAdjustedExpectedAmount: number; // Value used in report, may be same as initialAdjustedExpected if AI is bypassed
+  aiReasoning: string; // Reasoning for aiAdjustedExpectedAmount
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
 }

@@ -9,14 +9,23 @@ import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
-import type { SalesDataFormValues, SalesReportData, UserRole } from '@/lib/types';
+import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { saveSalesReportAction } from './actions';
+import { 
+  saveSalesReportAction, 
+  verifyUserAction,
+  initializeDefaultAdminAction,
+  changeAdminPasswordAction,
+  addTeamLeaderAction,
+  updateTeamLeaderPasswordAction,
+  deleteTeamLeaderAction,
+  getTeamLeadersAction
+} from './actions';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,18 +45,11 @@ const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie'];
 const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
-
-// --- Simulated Credentials Storage Keys ---
-const ADMIN_CREDENTIALS_KEY = 'adminCredentialsDropAquaTrackApp';
-const TEAM_LEADER_ACCOUNTS_KEY = 'teamLeaderAccountsDropAquaTrackApp';
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
-// --- End Simulated Credentials Storage Keys ---
 
-// --- Default Simulated Credentials ---
+// Default Admin User ID - used for initialization if not in DB
 const DEFAULT_ADMIN_USER_ID = "lucky170313";
-const DEFAULT_ADMIN_PASSWORD = "northpole";
-const DEFAULT_TEAM_LEADERS = [{ userId: "leader01", password: "leaderpass" }];
-// --- End Default Simulated Credentials ---
+
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -80,67 +82,46 @@ export default function AquaTrackPage() {
   // --- End Login State ---
 
   // --- User Management State (Admin) ---
-  const [adminPassword, setAdminPassword] = useState(DEFAULT_ADMIN_PASSWORD);
   const [newAdminPasswordInput, setNewAdminPasswordInput] = useState('');
-  const [teamLeaders, setTeamLeaders] = useState<Array<{ userId: string; password: string }>>([]);
+  const [teamLeaders, setTeamLeaders] = useState<UserCredentials[]>([]); // Store {userId, role}
   const [tlUserIdInput, setTlUserIdInput] = useState('');
   const [tlPasswordInput, setTlPasswordInput] = useState('');
   const [editingTlOriginalUserId, setEditingTlOriginalUserId] = useState<string | null>(null);
   // --- End User Management State ---
 
+  const fetchTeamLeaders = async () => {
+    const result = await getTeamLeadersAction();
+    if (result.success && result.teamLeaders) {
+      setTeamLeaders(result.teamLeaders);
+    } else {
+      toast({ title: "Error", description: result.message || "Failed to fetch team leaders.", variant: "destructive" });
+      setTeamLeaders([]); // Fallback to empty array
+    }
+  };
+
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
 
+    // Initialize default admin in DB if not present
+    initializeDefaultAdminAction().then(res => console.log(res.message));
+    
     // Load login session
     try {
       const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
       if (storedSession) {
         const session = JSON.parse(storedSession);
-        if (session.isLoggedIn) {
+        if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole) {
           setIsLoggedIn(true);
           setCurrentUserRole(session.currentUserRole);
           setLoggedInUsername(session.loggedInUsername);
+          if (session.currentUserRole === 'Admin') {
+            fetchTeamLeaders(); // Fetch TL list if admin is logged in
+          }
         }
       }
     } catch (error) {
       console.error("Failed to parse login session from localStorage", error);
     }
-
-    // Load/Initialize Admin Credentials
-    try {
-      const storedAdminCreds = localStorage.getItem(ADMIN_CREDENTIALS_KEY);
-      if (storedAdminCreds) {
-        const creds = JSON.parse(storedAdminCreds);
-        setAdminPassword(creds.password);
-      } else {
-        localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ userId: DEFAULT_ADMIN_USER_ID, password: DEFAULT_ADMIN_PASSWORD }));
-        setAdminPassword(DEFAULT_ADMIN_PASSWORD);
-      }
-    } catch (error) {
-      console.error("Failed to manage Admin credentials in localStorage", error);
-      setAdminPassword(DEFAULT_ADMIN_PASSWORD);
-    }
-
-    // Load/Initialize Team Leader Accounts
-    try {
-      const storedTlAccounts = localStorage.getItem(TEAM_LEADER_ACCOUNTS_KEY);
-      if (storedTlAccounts) {
-        const parsedAccounts = JSON.parse(storedTlAccounts);
-        if (Array.isArray(parsedAccounts)) {
-            setTeamLeaders(parsedAccounts);
-        } else {
-            setTeamLeaders([...DEFAULT_TEAM_LEADERS]);
-            localStorage.setItem(TEAM_LEADER_ACCOUNTS_KEY, JSON.stringify(DEFAULT_TEAM_LEADERS));
-        }
-      } else {
-        localStorage.setItem(TEAM_LEADER_ACCOUNTS_KEY, JSON.stringify(DEFAULT_TEAM_LEADERS));
-        setTeamLeaders([...DEFAULT_TEAM_LEADERS]);
-      }
-    } catch (error) {
-      console.error("Failed to manage Team Leader accounts in localStorage", error);
-       setTeamLeaders([...DEFAULT_TEAM_LEADERS]);
-    }
-
 
     // Load other persistent data
     try {
@@ -190,41 +171,28 @@ export default function AquaTrackPage() {
     }
   };
 
-  const handleLogin = () => {
-    let currentAdminPassword = adminPassword; 
-    try {
-        const storedAdminCreds = localStorage.getItem(ADMIN_CREDENTIALS_KEY);
-        if (storedAdminCreds) currentAdminPassword = JSON.parse(storedAdminCreds).password;
-    } catch (e) { console.error("Error reading admin creds for login", e); }
-
-    let currentTeamLeaders: Array<{ userId: string; password: string }> = [...DEFAULT_TEAM_LEADERS]; 
-     try {
-        const storedTlAccounts = localStorage.getItem(TEAM_LEADER_ACCOUNTS_KEY);
-        if (storedTlAccounts) currentTeamLeaders = JSON.parse(storedTlAccounts);
-    } catch (e) { console.error("Error reading TL creds for login", e); }
-
-
-    if (usernameInput === DEFAULT_ADMIN_USER_ID && passwordInput === currentAdminPassword) {
+  const handleLogin = async () => {
+    setLoginError(null);
+    if (!usernameInput.trim() || !passwordInput.trim()) {
+        setLoginError("User ID and Password are required.");
+        return;
+    }
+    const result = await verifyUserAction(usernameInput, passwordInput);
+    if (result.success && result.user) {
       setIsLoggedIn(true);
-      setCurrentUserRole('Admin');
-      setLoggedInUsername(DEFAULT_ADMIN_USER_ID);
+      setCurrentUserRole(result.user.role);
+      setLoggedInUsername(result.user.userId);
       setLoginError(null);
-      saveLoginSession(true, 'Admin', DEFAULT_ADMIN_USER_ID);
-    } else {
-      const teamLeaderAccount = currentTeamLeaders.find(tl => tl.userId === usernameInput && tl.password === passwordInput);
-      if (teamLeaderAccount) {
-        setIsLoggedIn(true);
-        setCurrentUserRole('Team Leader');
-        setLoggedInUsername(teamLeaderAccount.userId);
-        setLoginError(null);
-        saveLoginSession(true, 'Team Leader', teamLeaderAccount.userId);
-      } else {
-        setLoginError("Invalid User ID or Password.");
-        setIsLoggedIn(false);
-        setCurrentUserRole(null);
-        setLoggedInUsername(null);
-        saveLoginSession(false, null, null);
+      saveLoginSession(true, result.user.role, result.user.userId);
+      if (result.user.role === 'Admin') {
+        fetchTeamLeaders(); // Fetch TLs if admin logs in
       }
+    } else {
+      setLoginError(result.message || "Invalid User ID or Password.");
+      setIsLoggedIn(false);
+      setCurrentUserRole(null);
+      setLoggedInUsername(null);
+      saveLoginSession(false, null, null);
     }
     setUsernameInput('');
     setPasswordInput('');
@@ -235,6 +203,7 @@ export default function AquaTrackPage() {
     setCurrentUserRole(null);
     setLoggedInUsername(null);
     saveLoginSession(false, null, null);
+    setTeamLeaders([]); // Clear team leaders list on logout
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
@@ -274,7 +243,7 @@ export default function AquaTrackPage() {
       const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
       const discrepancy = (totalSale + values.dueCollected) - (values.cashReceived + values.onlineReceived + values.newDueAmount + values.tokenMoney + values.extraAmount + values.staffExpense);
       
-      const aiAdjustedExpectedAmount = initialAdjustedExpected; // AI Bypassed
+      const aiAdjustedExpectedAmount = initialAdjustedExpected; 
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
       
       let status: SalesReportData['status'];
@@ -288,7 +257,7 @@ export default function AquaTrackPage() {
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      const newReportData: Omit<SalesReportData, 'id' | '_id'> = {
+      const reportToSave: Omit<SalesReportData, 'id' | '_id' | 'aiAdjustedExpectedAmount' | 'aiReasoning'> & { firestoreDate: Date } = {
         date: formatDateFns(submissionDateObject, 'PPP'),
         firestoreDate: submissionDateObject, 
         riderName: values.riderName,
@@ -310,23 +279,32 @@ export default function AquaTrackPage() {
         commissionEarned: commissionEarned,
         comment: values.comment || "",
         recordedBy: loggedInUsername,
-        totalSale, actualReceived, initialAdjustedExpected, aiAdjustedExpectedAmount, aiReasoning, discrepancy, status,
+        totalSale, actualReceived, initialAdjustedExpected, discrepancy, status,
       };
       
-      const reportToSaveForMongoDB: Partial<SalesReportData> = { ...newReportData };
-      if (reportToSaveForMongoDB.adminOverrideLitersSold === undefined) delete reportToSaveForMongoDB.adminOverrideLitersSold;
-      if (reportToSaveForMongoDB.comment === undefined || reportToSaveForMongoDB.comment === "") delete reportToSaveForMongoDB.comment;
-      if (reportToSaveForMongoDB.dailySalaryCalculated === undefined) reportToSaveForMongoDB.dailySalaryCalculated = 0;
-      if (reportToSaveForMongoDB.commissionEarned === undefined) reportToSaveForMongoDB.commissionEarned = 0;
+      const dbResult = await saveSalesReportAction(reportToSave);
 
-      const result = await saveSalesReportAction(reportToSaveForMongoDB as Omit<SalesReportData, 'id' | '_id'> & { firestoreDate: Date });
-
-      if (result.success && result.id) {
-        toast({ title: 'Report Generated & Saved', description: result.message, variant: 'default' });
-        setReportData({ ...newReportData, id: result.id, _id: result.id });
+      if (dbResult.success && dbResult.id) {
+        toast({ title: 'Report Generated & Saved', description: dbResult.message, variant: 'default' });
+         // Construct the full report data for display, including AI bypassed fields
+        const fullReportDataForDisplay: SalesReportData = {
+          ...reportToSave,
+          id: dbResult.id,
+          _id: dbResult.id,
+          aiAdjustedExpectedAmount,
+          aiReasoning,
+        };
+        setReportData(fullReportDataForDisplay);
       } else {
-        toast({ title: 'Database Error', description: result.message || "Failed to save sales report.", variant: 'destructive' });
-        setReportData({ ...newReportData, id: `local-preview-${Date.now()}`, _id: `local-preview-${Date.now()}` });
+        toast({ title: 'Database Error', description: dbResult.message || "Failed to save sales report.", variant: 'destructive' });
+        const localPreviewReportData: SalesReportData = {
+            ...reportToSave,
+            id: `local-preview-${Date.now()}`,
+            _id: `local-preview-${Date.now()}`,
+            aiAdjustedExpectedAmount,
+            aiReasoning,
+        };
+        setReportData(localPreviewReportData);
       }
 
       if (values.vehicleName && typeof values.currentMeterReading === 'number') {
@@ -443,59 +421,56 @@ export default function AquaTrackPage() {
     toast({ title: "Success", description: `Global rate per liter set to ₹${newRate.toFixed(2)}.` });
   };
 
-  // --- Admin User Management Functions ---
-  const handleChangeAdminPassword = () => {
+  // --- Admin User Management Functions (Now DB Backed) ---
+  const handleChangeAdminPassword = async () => {
     if (!newAdminPasswordInput.trim()) {
       toast({ title: "Error", description: "New password cannot be empty.", variant: "destructive" });
       return;
     }
-    const newPassword = newAdminPasswordInput.trim();
-    localStorage.setItem(ADMIN_CREDENTIALS_KEY, JSON.stringify({ userId: DEFAULT_ADMIN_USER_ID, password: newPassword }));
-    setAdminPassword(newPassword); 
-    setNewAdminPasswordInput('');
-    toast({ title: "Success", description: "Admin password updated. (This is insecure, for prototype only)" });
+    if (!loggedInUsername || currentUserRole !== 'Admin') {
+         toast({ title: "Error", description: "Admin not logged in.", variant: "destructive" });
+        return;
+    }
+    const result = await changeAdminPasswordAction(loggedInUsername, newAdminPasswordInput.trim());
+    if (result.success) {
+      setNewAdminPasswordInput('');
+      toast({ title: "Success", description: result.message });
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
   };
 
-  const handleAddOrUpdateTeamLeader = () => {
+  const handleAddOrUpdateTeamLeader = async () => {
     if (!tlUserIdInput.trim() || !tlPasswordInput.trim()) {
       toast({ title: "Error", description: "Team Leader User ID and Password cannot be empty.", variant: "destructive" });
       return;
     }
     const userId = tlUserIdInput.trim();
     const password = tlPasswordInput.trim();
-    let updatedTeamLeaders;
-
+    
+    let result;
     if (editingTlOriginalUserId) { 
-      updatedTeamLeaders = teamLeaders.map(tl =>
-        tl.userId === editingTlOriginalUserId ? { userId, password } : tl 
-      );
-      if (editingTlOriginalUserId !== userId && teamLeaders.some(tl => tl.userId === userId)) {
-         toast({ title: "Error", description: `User ID "${userId}" already exists. Choose a different User ID.`, variant: "destructive" });
-         return;
+      result = await updateTeamLeaderPasswordAction(editingTlOriginalUserId, password);
+      if (result.success) {
+        setEditingTlOriginalUserId(null);
       }
-      toast({ title: "Success", description: `Team Leader "${editingTlOriginalUserId}" updated.` });
-      setEditingTlOriginalUserId(null);
     } else { 
-      if (teamLeaders.some(tl => tl.userId === userId)) {
-        toast({ title: "Error", description: `Team Leader User ID "${userId}" already exists.`, variant: "destructive" });
-        return;
-      }
-      if (userId === DEFAULT_ADMIN_USER_ID) {
-        toast({ title: "Error", description: `Cannot use Admin User ID for a Team Leader.`, variant: "destructive" });
-        return;
-      }
-      updatedTeamLeaders = [...teamLeaders, { userId, password }];
-      toast({ title: "Success", description: `Team Leader "${userId}" added.` });
+      result = await addTeamLeaderAction(userId, password);
     }
-    setTeamLeaders(updatedTeamLeaders);
-    localStorage.setItem(TEAM_LEADER_ACCOUNTS_KEY, JSON.stringify(updatedTeamLeaders));
+
+    if (result.success) {
+      toast({ title: "Success", description: result.message });
+      fetchTeamLeaders(); // Refresh list
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" });
+    }
     setTlUserIdInput('');
     setTlPasswordInput('');
   };
 
-  const handleEditTlSetup = (tl: { userId: string; password: string }) => {
+  const handleEditTlSetup = (tl: UserCredentials) => {
     setTlUserIdInput(tl.userId);
-    setTlPasswordInput(tl.password);
+    setTlPasswordInput(''); // Clear password field for security on edit
     setEditingTlOriginalUserId(tl.userId);
   };
 
@@ -505,13 +480,16 @@ export default function AquaTrackPage() {
     setEditingTlOriginalUserId(null);
   };
 
-  const handleDeleteTeamLeader = (userIdToDelete: string) => {
+  const handleDeleteTeamLeader = async (userIdToDelete: string) => {
     if (window.confirm(`Are you sure you want to delete Team Leader "${userIdToDelete}"?`)) {
-      const updatedTeamLeaders = teamLeaders.filter(tl => tl.userId !== userIdToDelete);
-      setTeamLeaders(updatedTeamLeaders);
-      localStorage.setItem(TEAM_LEADER_ACCOUNTS_KEY, JSON.stringify(updatedTeamLeaders));
-      toast({ title: "Success", description: `Team Leader "${userIdToDelete}" deleted.` });
-      if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
+      const result = await deleteTeamLeaderAction(userIdToDelete);
+      if (result.success) {
+        toast({ title: "Success", description: result.message });
+        fetchTeamLeaders(); // Refresh list
+        if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
+      } else {
+        toast({ title: "Error", description: result.message, variant: "destructive" });
+      }
     }
   };
   // --- End Admin User Management Functions ---
@@ -526,7 +504,7 @@ export default function AquaTrackPage() {
                 <Droplets className="h-10 w-10 text-primary" />
                 <h1 className="text-3xl font-bold text-primary ml-2">Drop Aqua Track Login</h1>
             </div>
-            <CardDescription>Please login to access the application.</CardDescription>
+            {/* Removed default credentials hint */}
           </CardHeader>
           <CardContent className="space-y-6">
             {loginError && (
@@ -549,6 +527,10 @@ export default function AquaTrackPage() {
             </Button>
           </CardContent>
         </Card>
+         <footer className="mt-12 text-center text-sm text-muted-foreground">
+            {currentYear !== null ? <p>&copy; {currentYear} Drop Aqua Track. Streamlining your water delivery business.</p> : <p>Loading year...</p>}
+            <p className="text-xs mt-1">For prototype access: Admin (lucky170313/northpole) or Team Leader (leader01/leaderpass - if initialized by admin).</p>
+        </footer>
       </main>
     );
   }
@@ -588,7 +570,7 @@ export default function AquaTrackPage() {
           <CardTitle className="text-xl text-primary flex items-center"><Shield className="mr-2 h-5 w-5"/>Dashboard</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
-            {(currentUserRole === 'Admin' || currentUserRole === 'Team Leader') && (
+            {(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader') && (
                 <>
                     <Link href="/admin/rider-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report</Button></Link>
                     <Link href="/admin/user-monthly-cash-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report</Button></Link>
@@ -605,6 +587,7 @@ export default function AquaTrackPage() {
 
       {currentUserRole === 'Admin' && (
         <>
+          {/* Rider and Salary Management Cards (localStorage based, can be enhanced later) */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             {/* Manage Riders Card */}
             <Card className="shadow-md">
@@ -641,13 +624,14 @@ export default function AquaTrackPage() {
             </Card>
           </div>
 
-          {/* Simulated User Management Section - INSECURE */}
+          {/* User Management Section (Now DB Backed) - INSECURE Password Storage */}
           <Alert variant="destructive" className="mb-6">
             <AlertCircleIcon className="h-4 w-4" />
             <AlertTitle>Security Warning!</AlertTitle>
             <AlertDescription>
-              The user and password management below is for **PROTOTYPING ONLY** and is **HIGHLY INSECURE**.
-              Credentials are stored in plaintext in your browser's local storage. Do not use this for real applications.
+              The user and password management below is for **PROTOTYPING ONLY**.
+              Passwords are currently stored in **PLAINTEXT** in the database, which is **HIGHLY INSECURE**.
+              Do not use this approach for real applications. Real applications require secure password hashing.
             </AlertDescription>
           </Alert>
 
@@ -663,7 +647,7 @@ export default function AquaTrackPage() {
 
             {/* Manage Team Leaders Card */}
             <Card className="shadow-md">
-              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><UsersRound className="mr-2 h-5 w-5" />Manage Team Leaders</CardTitle><CardDescription>Add, edit, or delete Team Leader accounts.</CardDescription></CardHeader>
+              <CardHeader><CardTitle className="text-xl text-primary flex items-center"><UsersRound className="mr-2 h-5 w-5" />Manage Team Leaders</CardTitle><CardDescription>Add, edit passwords, or delete Team Leader accounts.</CardDescription></CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 items-end">
                   <div><Label htmlFor="tlUserIdInput">Team Leader User ID</Label><Input id="tlUserIdInput" type="text" value={tlUserIdInput} onChange={(e) => setTlUserIdInput(e.target.value)} placeholder="Enter User ID" className="text-base" disabled={!!editingTlOriginalUserId}/></div>
@@ -674,7 +658,7 @@ export default function AquaTrackPage() {
                     {editingTlOriginalUserId && (<Button onClick={handleCancelEditTl} variant="outline" className="h-10"><XCircle className="mr-2 h-4 w-4" />Cancel Edit</Button>)}
                 </div>
 
-                {teamLeaders.length > 0 ? (<div><h4 className="text-md font-medium mb-2 mt-4">Current Team Leaders:</h4><ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">{teamLeaders.map(tl => (<li key={tl.userId} className="flex items-center justify-between p-2 bg-muted/30 rounded"><span className="text-sm">ID: {tl.userId} (Pass: {tl.password.substring(0,2)}...</span><div className="space-x-1"><Button size="sm" variant="outline" onClick={() => handleEditTlSetup(tl)} aria-label={`Edit ${tl.userId}`}><Edit3 className="h-3 w-3" /></Button><Button size="sm" variant="destructive" onClick={() => handleDeleteTeamLeader(tl.userId)} aria-label={`Delete ${tl.userId}`}><Trash2 className="h-3 w-3" /></Button></div></li>))}</ul></div>) : (<p className="text-sm text-muted-foreground">No Team Leaders added yet.</p>)}
+                {teamLeaders.length > 0 ? (<div><h4 className="text-md font-medium mb-2 mt-4">Current Team Leaders:</h4><ul className="space-y-2 max-h-48 overflow-y-auto border p-3 rounded-md">{teamLeaders.map(tl => (<li key={tl.userId} className="flex items-center justify-between p-2 bg-muted/30 rounded"><span className="text-sm">ID: {tl.userId}</span><div className="space-x-1"><Button size="sm" variant="outline" onClick={() => handleEditTlSetup(tl)} aria-label={`Edit ${tl.userId}`}><Edit3 className="h-3 w-3" /></Button><Button size="sm" variant="destructive" onClick={() => handleDeleteTeamLeader(tl.userId)} aria-label={`Delete ${tl.userId}`}><Trash2 className="h-3 w-3" /></Button></div></li>))}</ul></div>) : (<p className="text-sm text-muted-foreground">No Team Leaders added yet.</p>)}
               </CardContent>
             </Card>
           </div>
@@ -689,7 +673,7 @@ export default function AquaTrackPage() {
             <AquaTrackForm
               onSubmit={handleFormSubmit}
               isProcessing={isProcessing}
-              currentUserRole={currentUserRole || 'Team Leader'} 
+              currentUserRole={currentUserRole || 'TeamLeader'} 
               lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
               riderNames={riderNames}
               persistentRatePerLiter={globalRatePerLiter}
