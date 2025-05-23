@@ -10,17 +10,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, BarChart3, User, Droplets, IndianRupee, Clock, Briefcase, Gift, Image as ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, ImageIcon } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
 import { cn } from '@/lib/utils';
 
@@ -86,7 +78,6 @@ export default function AdminViewDataPage() {
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
-  // Chart data is removed from here, as per user request to move it to rider monthly report
 
   useEffect(() => {
     setIsLoading(true);
@@ -118,7 +109,6 @@ export default function AdminViewDataPage() {
     });
   }, [allSalesEntries, selectedYear, selectedMonth]);
 
-  // useEffect for chartData is removed as chart is moved
 
   const sortedEntries = useMemo(() => {
     let sortableItems = [...filteredEntries];
@@ -163,7 +153,6 @@ export default function AdminViewDataPage() {
     return '';
   };
 
-  // chartConfig is removed as chart is moved
 
   if (isLoading) {
     return (
@@ -260,9 +249,6 @@ export default function AdminViewDataPage() {
         </CardContent>
       </Card>
       
-      {/* Chart rendering is removed from here */}
-
-
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Sales Data Overview</CardTitle>
@@ -295,15 +281,22 @@ export default function AdminViewDataPage() {
                   {sortedEntries.map((entry) => (
                     <TableRow key={entry._id}>
                       {tableHeaders.map((header) => {
-                        let cellValue = entry[header.key as keyof SalesReportDataWithId];
+                        let cellValue: any = entry[header.key as keyof SalesReportDataWithId];
                         if (header.key === 'firestoreDate') {
                            cellValue = formatDisplayDate(entry.firestoreDate);
                         } else if (typeof cellValue === 'number' && (header.label.includes('(₹)') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'dailySalaryCalculated' || header.key === 'commissionEarned')) {
                            cellValue = cellValue.toFixed(2);
+                        } else if (header.key === 'meterReadingImageDriveLink') {
+                          if (typeof cellValue === 'string' && cellValue.startsWith('http')) {
+                            cellValue = <a href={cellValue as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Image</a>;
+                          } else if (typeof cellValue === 'string' && cellValue.startsWith('PLACEHOLDER_DRIVE_LINK_FOR_')) {
+                            cellValue = <span className="text-xs text-muted-foreground">Placeholder</span>;
+                          } else if (!cellValue) {
+                            cellValue = '-';
+                          }
+                          // else, display other string values as is
                         } else if (cellValue === undefined || cellValue === null) {
                           cellValue = '-';
-                        } else if (header.key === 'meterReadingImageDriveLink' && typeof cellValue === 'string' && cellValue.startsWith('http')) {
-                            cellValue = <a href={cellValue as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Image</a>;
                         }
                         return (
                           <TableCell key={`${entry._id}-${header.key}`} className="whitespace-nowrap">
