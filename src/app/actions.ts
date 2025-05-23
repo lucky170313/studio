@@ -3,9 +3,9 @@
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
-// import ImageModel from '@/models/Image'; // ImageModel import removed
+// ImageModel import removed
 import UserModel from '@/models/User';
-import type { SalesReportData, UserCredentials } from '@/lib/types'; // Updated type, SalesReportWithOptionalImage might be simplified
+import type { SalesReportServerData, UserCredentials } from '@/lib/types';
 
 
 interface SaveReportResult {
@@ -15,49 +15,43 @@ interface SaveReportResult {
   id?: string;
 }
 
-export async function saveSalesReportAction(reportData: Omit<SalesReportData, '_id' | 'id'>): Promise<SaveReportResult> {
+export async function saveSalesReportAction(reportData: SalesReportServerData): Promise<SaveReportResult> {
   try {
     await dbConnect();
 
-    // Image related properties removed from reportData destructuring
-    const salesData = reportData;
-
-    // Explicitly map fields to ensure all are included
-    const dataToSave: Omit<SalesReportData, '_id' | 'id'> = {
-      date: salesData.date,
-      firestoreDate: new Date(salesData.firestoreDate), // Ensure it's a Date object
-      riderName: salesData.riderName,
-      vehicleName: salesData.vehicleName,
-      previousMeterReading: salesData.previousMeterReading,
-      currentMeterReading: salesData.currentMeterReading,
-      litersSold: salesData.litersSold,
-      adminOverrideLitersSold: salesData.adminOverrideLitersSold,
-      ratePerLiter: salesData.ratePerLiter,
-      cashReceived: salesData.cashReceived,
-      onlineReceived: salesData.onlineReceived,
-      dueCollected: salesData.dueCollected,
-      newDueAmount: salesData.newDueAmount,
-      tokenMoney: salesData.tokenMoney,
-      staffExpense: salesData.staffExpense,
-      extraAmount: salesData.extraAmount,
-      hoursWorked: salesData.hoursWorked,
-      dailySalaryCalculated: salesData.dailySalaryCalculated,
-      commissionEarned: salesData.commissionEarned,
-      comment: salesData.comment,
-      recordedBy: salesData.recordedBy,
-      totalSale: salesData.totalSale,
-      actualReceived: salesData.actualReceived,
-      initialAdjustedExpected: salesData.initialAdjustedExpected,
-      aiAdjustedExpectedAmount: salesData.aiAdjustedExpectedAmount,
-      aiReasoning: salesData.aiReasoning,
-      discrepancy: salesData.discrepancy,
-      status: salesData.status,
+    const dataToSave: SalesReportServerData = {
+      date: reportData.date,
+      firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
+      riderName: reportData.riderName,
+      vehicleName: reportData.vehicleName,
+      previousMeterReading: reportData.previousMeterReading,
+      currentMeterReading: reportData.currentMeterReading,
+      litersSold: reportData.litersSold,
+      adminOverrideLitersSold: reportData.adminOverrideLitersSold,
+      ratePerLiter: reportData.ratePerLiter,
+      cashReceived: reportData.cashReceived,
+      onlineReceived: reportData.onlineReceived,
+      dueCollected: reportData.dueCollected,
+      newDueAmount: reportData.newDueAmount,
+      tokenMoney: reportData.tokenMoney,
+      staffExpense: reportData.staffExpense,
+      extraAmount: reportData.extraAmount,
+      hoursWorked: reportData.hoursWorked,
+      dailySalaryCalculated: reportData.dailySalaryCalculated,
+      commissionEarned: reportData.commissionEarned,
+      comment: reportData.comment,
+      recordedBy: reportData.recordedBy,
+      totalSale: reportData.totalSale,
+      actualReceived: reportData.actualReceived,
+      initialAdjustedExpected: reportData.initialAdjustedExpected,
+      aiAdjustedExpectedAmount: reportData.aiAdjustedExpectedAmount,
+      aiReasoning: reportData.aiReasoning,
+      discrepancy: reportData.discrepancy,
+      status: reportData.status,
     };
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
-
-    // Image saving logic removed
 
     return {
       success: true,
@@ -227,3 +221,4 @@ export async function getTeamLeadersAction(): Promise<{ success: boolean; teamLe
     return { success: false, message: `Error fetching team leaders: ${error.message}` };
   }
 }
+

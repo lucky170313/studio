@@ -9,7 +9,7 @@ import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
-import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials } from '@/lib/types'; // SalesReportWithOptionalImage removed
+import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials, SalesReportServerData } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
@@ -45,11 +45,7 @@ const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
-const ADMIN_CREDENTIALS_KEY = 'adminCredentialsDropAquaTrackApp'; // Not used anymore for storing pass
-const TEAM_LEADER_ACCOUNTS_KEY = 'teamLeaderAccountsDropAquaTrackApp'; // Not used anymore
 
-// Helper function to convert File to Base64 - No longer needed
-// const fileToBase64 = (file: File): Promise<string> => { ... };
 
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
@@ -233,8 +229,6 @@ export default function AquaTrackPage() {
     setIsProcessing(true);
     const values = pendingFormValues;
 
-    // Image logic removed
-
     try {
       let finalLitersSold: number;
       const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
@@ -255,8 +249,8 @@ export default function AquaTrackPage() {
       const actualReceived = values.cashReceived + values.onlineReceived;
       const submissionDateObject = values.date instanceof Date ? values.date : new Date(values.date);
 
-      const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.staffExpense + values.extraAmount);
       const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
+      const discrepancy = initialAdjustedExpected - actualReceived;
 
       const aiAdjustedExpectedAmount = initialAdjustedExpected;
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
@@ -272,9 +266,9 @@ export default function AquaTrackPage() {
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      const reportToSave: Omit<SalesReportData, '_id' | 'id'> = {
+      const reportToSave: SalesReportServerData = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject,
+        firestoreDate: submissionDateObject, // This will be a Date object
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,

@@ -6,8 +6,8 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Image as ImageIcon, Coins, Wallet } from 'lucide-react';
-import NextImage from 'next/image';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet } from 'lucide-react';
+// NextImage and ImageIcon removed
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -30,7 +30,8 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Label } from '@/components/ui/label'; // Added Label import
+import { Label } // Keep Label import
+from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
 import { getLastMeterReadingForVehicleAction } from '@/app/actions';
@@ -84,17 +85,17 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
       extraAmount: 0,
       hoursWorked: 9,
       comment: '',
-      meterReadingImage: undefined,
+      // meterReadingImage: undefined, // Removed
     },
   });
 
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
-  const meterReadingImageFile = useWatch({ control: form.control, name: 'meterReadingImage' });
+  // meterReadingImageFile watch removed
   const { setValue, getValues, watch } = form;
 
   const [isClient, setIsClient] = useState(false);
   const [isLoadingPrevReading, setIsLoadingPrevReading] = useState(false);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  // imagePreview state and related useEffect removed
 
   // State for cash calculator
   const [denominationQuantities, setDenominationQuantities] = useState<DenominationQuantities>({});
@@ -137,17 +138,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     }
   }, [selectedVehicleName, setValue, isClient]);
 
-  useEffect(() => {
-    if (meterReadingImageFile) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setImagePreview(reader.result as string);
-      };
-      reader.readAsDataURL(meterReadingImageFile);
-    } else {
-      setImagePreview(null);
-    }
-  }, [meterReadingImageFile]);
+  // useEffect for imagePreview removed
 
   // Effect for cash calculator total
   useEffect(() => {
@@ -239,7 +230,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
     { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB. Admin can edit." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
-    // Meter Reading Image to be rendered manually after currentMeterReading
+    // Meter Reading Image related logic removed from here
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: currentUserRole === 'TeamLeader' ? `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Set by Admin)` : `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Editable by Admin).` },
     // Cash Calculator to be rendered manually before cashReceived
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
@@ -394,39 +385,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
             return (
                 <React.Fragment key={`fragment_${inputField.name}`}>
                     {renderFormField}
-                    {inputField.name === 'currentMeterReading' && (
-                        <FormField
-                            control={form.control}
-                            name="meterReadingImage"
-                            render={({ field: { onChange, value, ...restField } }) => (
-                            <FormItem className="md:col-span-2">
-                                <FormLabel className="flex items-center">
-                                    <ImageIcon className="mr-2 h-4 w-4 text-primary" />
-                                    Meter Reading Image (Optional)
-                                </FormLabel>
-                                <FormControl>
-                                <Input
-                                    type="file"
-                                    accept="image/*"
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        onChange(file || undefined);
-                                    }}
-                                    className="text-base"
-                                    {...restField}
-                                />
-                                </FormControl>
-                                {imagePreview && (
-                                <div className="mt-2 w-32 h-32 relative border rounded-md overflow-hidden">
-                                    <NextImage src={imagePreview} alt="Meter reading preview" layout="fill" objectFit="cover" />
-                                </div>
-                                )}
-                                <FormDescription>Upload an image of the meter reading. This image will be stored directly in the database (not recommended for production).</FormDescription>
-                                <FormMessage />
-                            </FormItem>
-                            )}
-                        />
-                    )}
+                    {/* Image related FormField removed from here */}
                     {inputField.name === 'ratePerLiter' && ( // Insert calculator before cashReceived
                       <div className="md:col-span-2 my-4">
                         <Accordion type="single" collapsible className="w-full border rounded-md shadow-sm">
@@ -590,5 +549,3 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     </Form>
   );
 }
-
-    

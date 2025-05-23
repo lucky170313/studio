@@ -27,14 +27,13 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  // meterReadingImage removed
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true; // If override is used, meter reading consistency is not strictly enforced here
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin).",
+  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin). Clearer message.",
   path: ["currentMeterReading"],
 });
 
@@ -76,7 +75,5 @@ export interface SalesReportData {
 }
 
 // For server action, if optional data needs to be passed beyond SalesReportData
-export interface SalesReportWithOptionalImage extends Omit<SalesReportData, '_id' | 'id'> {
-  // This interface can be simplified or removed if no other optional fields are needed
-  // For now, it's the same as Omit<SalesReportData, '_id' | 'id'> since image fields are removed
-}
+// This type is simplified as image fields are removed.
+export type SalesReportServerData = Omit<SalesReportData, '_id' | 'id'>;
