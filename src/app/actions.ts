@@ -13,15 +13,42 @@ interface SaveReportResult {
   id?: string;
 }
 
-// Updated type for reportData to correctly include all fields from SalesReportData (except id and _id)
 export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'id' | '_id'>): Promise<SaveReportResult> {
   try {
     await dbConnect();
-    // Ensure firestoreDate is a Date object if it's passed as a string or needs conversion
+    // Explicitly map fields to ensure all are included, especially meterReadingImageDriveLink
     const dataToSave = {
-      ...reportData,
+      date: reportData.date,
       firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
+      riderName: reportData.riderName,
+      vehicleName: reportData.vehicleName,
+      previousMeterReading: reportData.previousMeterReading,
+      currentMeterReading: reportData.currentMeterReading,
+      litersSold: reportData.litersSold,
+      adminOverrideLitersSold: reportData.adminOverrideLitersSold,
+      ratePerLiter: reportData.ratePerLiter,
+      cashReceived: reportData.cashReceived,
+      onlineReceived: reportData.onlineReceived,
+      dueCollected: reportData.dueCollected,
+      newDueAmount: reportData.newDueAmount,
+      tokenMoney: reportData.tokenMoney,
+      staffExpense: reportData.staffExpense,
+      extraAmount: reportData.extraAmount,
+      hoursWorked: reportData.hoursWorked,
+      dailySalaryCalculated: reportData.dailySalaryCalculated,
+      commissionEarned: reportData.commissionEarned,
+      comment: reportData.comment,
+      recordedBy: reportData.recordedBy,
+      totalSale: reportData.totalSale,
+      actualReceived: reportData.actualReceived,
+      initialAdjustedExpected: reportData.initialAdjustedExpected,
+      aiAdjustedExpectedAmount: reportData.aiAdjustedExpectedAmount,
+      aiReasoning: reportData.aiReasoning,
+      discrepancy: reportData.discrepancy,
+      status: reportData.status,
+      meterReadingImageDriveLink: reportData.meterReadingImageDriveLink, // Explicitly include
     };
+
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
     
@@ -36,7 +63,6 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
     if (e instanceof Error) {
         dbErrorMessage = `MongoDB Error: ${e.message}.`;
     }
-    // Check for Mongoose validation error details
     if (e.name === 'ValidationError') {
         let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
         dbErrorMessage = `MongoDB Validation Error: ${validationErrors}`;
@@ -56,14 +82,14 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
   try {
     await dbConnect();
     const lastReport = await SalesReportModel.findOne({ vehicleName: vehicleName })
-      .sort({ firestoreDate: -1 }) // Get the most recent entry
+      .sort({ firestoreDate: -1 }) 
       .select('currentMeterReading')
       .lean();
 
     if (lastReport) {
       return { success: true, reading: lastReport.currentMeterReading || 0 };
     }
-    return { success: true, reading: 0 }; // No previous entry found for this vehicle
+    return { success: true, reading: 0 }; 
   } catch (error: any) {
     console.error("Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
@@ -83,7 +109,7 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     if (!existingAdmin) {
       const adminUser = new UserModel({
         userId: DEFAULT_ADMIN_USER_ID,
-        password: DEFAULT_ADMIN_PASSWORD, // Storing plaintext - INSECURE
+        password: DEFAULT_ADMIN_PASSWORD, 
         role: 'Admin',
       });
       await adminUser.save();
@@ -101,7 +127,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
     await dbConnect();
     const user = await UserModel.findOne({ userId: userIdInput }).lean();
 
-    if (user && user.password === passwordInput) { // Plaintext comparison - INSECURE
+    if (user && user.password === passwordInput) { 
       return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
     }
     return { success: false, message: 'Invalid User ID or Password.' };
@@ -121,7 +147,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; // Storing plaintext - INSECURE
+    admin.password = newPasswordInput; 
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
@@ -142,7 +168,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, // Storing plaintext - INSECURE
+      password: passwordInput, 
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -160,7 +186,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; // Storing plaintext - INSECURE
+    teamLeader.password = newPasswordInput; 
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {
