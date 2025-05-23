@@ -27,10 +27,10 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  meterReadingImage: z.custom<File>((val) => val instanceof File, "Meter reading image is required."),
+  meterReadingImage: z.custom<File>((val) => val instanceof File, "Meter reading image must be a file.").optional(),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
-    return true;
+    return true; // If override is used, meter reading consistency is not strictly enforced here
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
@@ -41,11 +41,12 @@ export const salesDataSchema = z.object({
 
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
+// This is the data structure for the report display and for saving to MongoDB
 export interface SalesReportData {
-  id?: string; // Optional: for client-side use if needed
-  _id?: string; // Optional: MongoDB's default ID field
-  date: string;
-  firestoreDate: Date; // Using for original timestamp preservation for sorting, now a JS Date
+  id?: string; // Optional: for client-side use if needed (e.g., key in a list)
+  _id?: string; // Optional: MongoDB's default ID field, populated after save
+  date: string; // Formatted date string for display
+  firestoreDate: Date; // Actual Date object for DB storage and querying
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -64,13 +65,20 @@ export interface SalesReportData {
   dailySalaryCalculated?: number;
   commissionEarned?: number;
   comment?: string;
-  recordedBy: string;
+  recordedBy: string; // User who recorded the entry
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
-  aiAdjustedExpectedAmount: number;
-  aiReasoning: string;
+  aiAdjustedExpectedAmount: number; // Still present, but AI flow is bypassed
+  aiReasoning: string; // Still present, but AI flow is bypassed
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  meterReadingImageDriveLink: string; // Changed from optional/null to required string
+  // meterReadingImageDriveLink is removed
+}
+
+// For server action, to pass optional image data
+export interface SalesReportWithOptionalImage extends Omit<SalesReportData, '_id' | 'id'> {
+  meterReadingImageBase64?: string | null;
+  meterReadingImageMimetype?: string | null;
+  meterReadingImageFilename?: string | null;
 }

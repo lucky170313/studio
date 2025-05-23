@@ -10,10 +10,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, ImageIcon } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, BarChart3 } from 'lucide-react'; // Removed ImageIcon
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
-import type { ChartConfig } from "@/components/ui/chart";
+import type { ChartConfig } from "@/components/ui/chart"; // Keep for potential future charts
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  ChartLegend,
+  ChartLegendContent,
+} from "@/components/ui/chart";
+import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+
 import { cn } from '@/lib/utils';
 
 
@@ -23,7 +32,7 @@ const formatDisplayDate = (dateInput: any): string => {
   if (isNaN(date.getTime())) {
     return 'Invalid Date';
   }
-  return formatDateFns(date, 'PPP p'); 
+  return formatDateFns(date, 'PPP p');
 };
 
 interface SalesReportDataWithId extends SalesReportData {
@@ -39,8 +48,8 @@ async function fetchSalesData(): Promise<SalesReportDataWithId[]> {
   const data = await response.json();
   return data.map((entry: any) => ({
     ...entry,
-    firestoreDate: new Date(entry.firestoreDate), 
-    _id: entry._id 
+    firestoreDate: new Date(entry.firestoreDate),
+    _id: entry._id
   }));
 }
 
@@ -121,7 +130,7 @@ export default function AdminViewDataPage() {
           valA = (valA instanceof Date) ? valA : new Date(valA as string || 0);
           valB = (valB instanceof Date) ? valB : new Date(valB as string || 0);
         }
-        
+
         if (valA === undefined || valA === null) return 1;
         if (valB === undefined || valB === null) return -1;
 
@@ -190,7 +199,7 @@ export default function AdminViewDataPage() {
     { key: 'newDueAmount', label: 'New Due (₹)', sortable: true, icon: IndianRupee },
     { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true, icon: IndianRupee },
     { key: 'status', label: 'Status', sortable: true },
-    { key: 'meterReadingImageDriveLink', label: 'Image Link', sortable: false, icon: ImageIcon },
+    // { key: 'meterReadingImageDriveLink', label: 'Image Link', sortable: false, icon: ImageIcon }, // Removed for now
     { key: 'comment', label: 'Comment' },
   ];
 
@@ -248,7 +257,7 @@ export default function AdminViewDataPage() {
           </div>
         </CardContent>
       </Card>
-      
+
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Sales Data Overview</CardTitle>
@@ -286,15 +295,6 @@ export default function AdminViewDataPage() {
                            cellValue = formatDisplayDate(entry.firestoreDate);
                         } else if (typeof cellValue === 'number' && (header.label.includes('(₹)') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'dailySalaryCalculated' || header.key === 'commissionEarned')) {
                            cellValue = cellValue.toFixed(2);
-                        } else if (header.key === 'meterReadingImageDriveLink') {
-                          if (typeof cellValue === 'string' && cellValue.startsWith('http')) {
-                            cellValue = <a href={cellValue as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Image</a>;
-                          } else if (typeof cellValue === 'string' && cellValue.startsWith('PLACEHOLDER_DRIVE_LINK_FOR_')) {
-                            cellValue = <span className="text-xs text-muted-foreground">Placeholder</span>;
-                          } else if (!cellValue) {
-                            cellValue = '-';
-                          }
-                          // else, display other string values as is
                         } else if (cellValue === undefined || cellValue === null) {
                           cellValue = '-';
                         }

@@ -3,13 +3,13 @@ import mongoose from 'mongoose';
 
 const SalesReportSchema = new mongoose.Schema({
   date: { type: String, required: true },
-  firestoreDate: { type: Date, required: true, default: Date.now },
+  firestoreDate: { type: Date, required: true, default: Date.now }, // Renamed from submissionTimestamp for clarity
   riderName: { type: String, required: true },
   vehicleName: { type: String, required: true },
   previousMeterReading: { type: Number, required: true },
   currentMeterReading: { type: Number, required: true },
   litersSold: { type: Number, required: true },
-  adminOverrideLitersSold: { type: Number },
+  adminOverrideLitersSold: { type: Number }, // Optional
   ratePerLiter: { type: Number, required: true },
   cashReceived: { type: Number, required: true },
   onlineReceived: { type: Number, required: true },
@@ -26,15 +26,15 @@ const SalesReportSchema = new mongoose.Schema({
   totalSale: { type: Number, required: true },
   actualReceived: { type: Number, required: true },
   initialAdjustedExpected: { type: Number, required: true },
-  aiAdjustedExpectedAmount: { type: Number, required: true },
-  aiReasoning: { type: String, required: true },
+  aiAdjustedExpectedAmount: { type: Number, required: true }, // Required in schema, even if bypassed
+  aiReasoning: { type: String, required: true }, // Required in schema, even if bypassed
   discrepancy: { type: Number, required: true },
   status: {
     type: String,
     enum: ['Match', 'Shortage', 'Overage'],
     required: true,
   },
-  meterReadingImageDriveLink: { type: String }, // Link to the image on Google Drive
-}, { timestamps: true });
+  // meterReadingImageDriveLink removed
+}, { timestamps: true }); // Adds createdAt and updatedAt timestamps
 
 export default mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);

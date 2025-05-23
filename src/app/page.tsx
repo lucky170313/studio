@@ -9,15 +9,15 @@ import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
-import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials } from '@/lib/types';
+import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials, SalesReportWithOptionalImage } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { 
-  saveSalesReportAction, 
+import {
+  saveSalesReportAction,
   verifyUserAction,
   initializeDefaultAdminAction,
   changeAdminPasswordAction,
@@ -40,13 +40,22 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
 const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
-const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie'];
+const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie']; // Default if local storage is empty
 const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
-const SERVICE_ACCOUNT_EMAIL = "aquatrack@aquatrack-d2b66.iam.gserviceaccount.com"; // Example for GDrive upload info
+
+// Helper function to convert File to Base64
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = error => reject(error);
+  });
+};
 
 
 export default function AquaTrackPage() {
@@ -69,20 +78,23 @@ export default function AquaTrackPage() {
   const [pendingFormValues, setPendingFormValues] = useState<SalesDataFormValues | null>(null);
   const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
 
+  // Authentication State
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
   const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
-  
+
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [loginError, setLoginError] = useState<string | null>(null);
-  
-  const [adminPasswordInput, setAdminPasswordInput] = useState(''); 
-  const [teamLeaders, setTeamLeaders] = useState<UserCredentials[]>([]); 
+
+  // Admin User Management State
+  const [adminPasswordInput, setAdminPasswordInput] = useState('');
+  const [teamLeaders, setTeamLeaders] = useState<UserCredentials[]>([]);
   const [tlUserIdInput, setTlUserIdInput] = useState('');
   const [tlPasswordInput, setTlPasswordInput] = useState('');
   const [editingTlOriginalUserId, setEditingTlOriginalUserId] = useState<string | null>(null);
-  
+
+
   const fetchTeamLeaders = async () => {
     if (isLoggedIn && currentUserRole === 'Admin') {
       const result = await getTeamLeadersAction();
@@ -94,14 +106,15 @@ export default function AquaTrackPage() {
       }
     }
   };
-  
+
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
-    
+
     initializeDefaultAdminAction().then(res => {
       console.log(res.message); // Log initialization status
     });
 
+    // Load login session
     try {
       const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
       if (storedSession) {
@@ -113,7 +126,8 @@ export default function AquaTrackPage() {
         }
       }
     } catch (error) { console.error("Failed to parse login session from localStorage", error); }
-  
+
+    // Load rider names
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
       if (storedRiderNames) {
@@ -121,7 +135,7 @@ export default function AquaTrackPage() {
         if (Array.isArray(parsedRiderNames) && parsedRiderNames.length > 0) {
           setRiderNames(parsedRiderNames);
         } else {
-          setRiderNames([...DEFAULT_RIDER_NAMES]);
+          setRiderNames([...DEFAULT_RIDER_NAMES]); // Use default if empty array or invalid
           localStorage.setItem(RIDER_NAMES_KEY, JSON.stringify(DEFAULT_RIDER_NAMES));
         }
       } else {
@@ -130,19 +144,28 @@ export default function AquaTrackPage() {
       }
     } catch (error) {
       console.error("Failed to parse riderNames from localStorage", error);
-      setRiderNames([...DEFAULT_RIDER_NAMES]);
+      setRiderNames([...DEFAULT_RIDER_NAMES]); // Fallback to default
     }
-  
+
+    // Load rider salaries
     try {
       const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
       if (storedSalaries) {
         const parsedSalaries = JSON.parse(storedSalaries);
         if (typeof parsedSalaries === 'object' && parsedSalaries !== null) {
           setRiderSalaries(parsedSalaries);
+        } else {
+          setRiderSalaries({}); // Initialize as empty object if malformed
         }
+      } else {
+        setRiderSalaries({});
       }
-    } catch (error) { console.error("Failed to parse riderSalaries from localStorage", error); }
-  
+    } catch (error) {
+      console.error("Failed to parse riderSalaries from localStorage", error);
+      setRiderSalaries({});
+    }
+
+    // Load global rate per liter
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
       if (storedRate) {
@@ -150,21 +173,27 @@ export default function AquaTrackPage() {
         if (!isNaN(parsedRate)) {
           setGlobalRatePerLiter(parsedRate);
           setRateInput(String(parsedRate));
-        } else setRateInput(String(DEFAULT_GLOBAL_RATE));
-      } else setRateInput(String(DEFAULT_GLOBAL_RATE));
+        } else {
+          setGlobalRatePerLiter(DEFAULT_GLOBAL_RATE);
+          setRateInput(String(DEFAULT_GLOBAL_RATE));
+        }
+      } else {
+        setGlobalRatePerLiter(DEFAULT_GLOBAL_RATE);
+        setRateInput(String(DEFAULT_GLOBAL_RATE));
+        localStorage.setItem(GLOBAL_RATE_PER_LITER_KEY, String(DEFAULT_GLOBAL_RATE));
+      }
     } catch (error) {
       console.error("Failed to parse globalRatePerLiter from localStorage", error);
+      setGlobalRatePerLiter(DEFAULT_GLOBAL_RATE);
       setRateInput(String(DEFAULT_GLOBAL_RATE));
     }
   }, []);
-
 
   useEffect(() => {
     if (isLoggedIn && currentUserRole === 'Admin') {
       fetchTeamLeaders();
     }
   }, [isLoggedIn, currentUserRole]);
-
 
   const saveLoginSession = (loggedIn: boolean, role: UserRole | null, username: string | null) => {
     if (loggedIn && role && username) {
@@ -177,8 +206,8 @@ export default function AquaTrackPage() {
   const handleLogin = async () => {
     setLoginError(null);
     if (!usernameInput.trim() || !passwordInput.trim()) {
-        setLoginError("User ID and Password are required.");
-        return;
+      setLoginError("User ID and Password are required.");
+      return;
     }
     const result = await verifyUserAction(usernameInput, passwordInput);
     if (result.success && result.user) {
@@ -190,7 +219,7 @@ export default function AquaTrackPage() {
       setUsernameInput('');
       setPasswordInput('');
       if (result.user.role === 'Admin') {
-        fetchTeamLeaders();
+        fetchTeamLeaders(); // Fetch team leaders on admin login
       }
     } else {
       setLoginError(result.message || "Invalid User ID or Password.");
@@ -207,10 +236,9 @@ export default function AquaTrackPage() {
     setCurrentUserRole(null);
     setLoggedInUsername(null);
     saveLoginSession(false, null, null);
-    setTeamLeaders([]); 
+    setTeamLeaders([]); // Clear team leaders list on logout
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
-
 
   const executeReportGeneration = async () => {
     if (!pendingFormValues || !loggedInUsername) return;
@@ -218,29 +246,28 @@ export default function AquaTrackPage() {
     setIsProcessing(true);
     const values = pendingFormValues;
 
-    try {
-      // Since meterReadingImage is compulsory from Zod schema, values.meterReadingImage will be a File object.
-      // If it's somehow not (e.g., Zod validation bypassed or an unexpected state), we should handle it.
-      if (!values.meterReadingImage) {
-        toast({ variant: 'destructive', title: 'Validation Error', description: 'Meter reading image is required but was not provided.'});
+    let meterReadingImageBase64: string | null = null;
+    let meterReadingImageMimetype: string | null = null;
+    let meterReadingImageFilename: string | null = null;
+
+    if (values.meterReadingImage) {
+      try {
+        const base64String = await fileToBase64(values.meterReadingImage);
+        meterReadingImageBase64 = base64String;
+        meterReadingImageMimetype = values.meterReadingImage.type;
+        meterReadingImageFilename = values.meterReadingImage.name;
+      } catch (error) {
+        console.error("Error converting image to Base64:", error);
+        toast({ title: 'Image Error', description: 'Could not process the selected image.', variant: 'destructive' });
         setIsProcessing(false);
-        setIsConfirmationDialogOpen(false);
         setPendingFormValues(null);
-        return; 
+        setIsConfirmationDialogOpen(false);
+        return;
       }
-      
-      console.warn(
-        `Image selected (${values.meterReadingImage.name}). Google Drive upload is NOT IMPLEMENTED. 
-        A backend service (e.g., Next.js API Route or Server Action) is required. 
-        This backend service would use a Service Account (like '${SERVICE_ACCOUNT_EMAIL}') 
-        and its JSON key (stored securely as an environment variable on the server) 
-        to authenticate with the Google Drive API and upload the file. 
-        The service would then return the shareable link. 
-        Saving a placeholder link for now.`
-      );
-      const finalMeterReadingImageDriveLink: string = `PLACEHOLDER_DRIVE_LINK_FOR_${values.meterReadingImage.name.replace(/\s+/g, '_')}`;
+    }
 
 
+    try {
       let finalLitersSold: number;
       const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
 
@@ -251,14 +278,8 @@ export default function AquaTrackPage() {
       }
 
       if (finalLitersSold < 0) {
-        toast({
-          title: 'Validation Error',
-          description: 'Liters sold cannot be negative. Please check meter readings or override value.',
-          variant: 'destructive',
-        });
-        setIsProcessing(false);
-        setPendingFormValues(null);
-        setIsConfirmationDialogOpen(false);
+        toast({ title: 'Validation Error', description: 'Liters sold cannot be negative. Check meter readings or override value.', variant: 'destructive'});
+        setIsProcessing(false); setIsConfirmationDialogOpen(false); setPendingFormValues(null);
         return;
       }
 
@@ -266,30 +287,29 @@ export default function AquaTrackPage() {
       const actualReceived = values.cashReceived + values.onlineReceived;
       const submissionDateObject = values.date instanceof Date ? values.date : new Date(values.date);
 
-      const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
       // Discrepancy = (Expected Total Revenue) - (Actual Total Collection adjusted for new dues/expenses)
       // Expected Total Revenue = Total Sale + Due Collected
-      // Actual Total Collection = Cash Received + Online Received
-      // Adjustments reducing expected net = New Due Amount + Token Money + Staff Expense + Extra Amount
+      // Actual Total Collection = Cash Received + Online Received + New Due Amount + Token Money + Staff Expense + Extra Amount
       const discrepancy = (totalSale + values.dueCollected) - (actualReceived + values.newDueAmount + values.tokenMoney + values.staffExpense + values.extraAmount);
+      const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
 
-      const aiAdjustedExpectedAmount = initialAdjustedExpected; 
+      const aiAdjustedExpectedAmount = initialAdjustedExpected; // Bypassing AI
       const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
-      
+
       let status: SalesReportData['status'];
       if (Math.abs(discrepancy) < 0.01) status = 'Match';
-      else if (discrepancy > 0) status = 'Shortage'; // Expected more than collected/accounted for
-      else status = 'Overage'; // Collected/accounted for more than expected
+      else if (discrepancy > 0) status = 'Shortage';
+      else status = 'Overage';
 
       const riderPerDaySalary = riderSalaries[values.riderName] || 0;
-      const hoursWorked = values.hoursWorked || 9; 
+      const hoursWorked = values.hoursWorked || 9;
       const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
+      const reportToSave: SalesReportWithOptionalImage = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject, 
+        firestoreDate: submissionDateObject,
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
@@ -308,28 +328,28 @@ export default function AquaTrackPage() {
         dailySalaryCalculated: dailySalaryCalculated,
         commissionEarned: commissionEarned,
         comment: values.comment || "",
-        recordedBy: loggedInUsername,
-        totalSale, actualReceived, initialAdjustedExpected, 
-        aiAdjustedExpectedAmount, 
-        aiReasoning, 
-        discrepancy, status,
-        meterReadingImageDriveLink: finalMeterReadingImageDriveLink,
+        recordedBy: loggedInUsername, // Set to logged-in user
+        totalSale, actualReceived, initialAdjustedExpected,
+        aiAdjustedExpectedAmount, aiReasoning, discrepancy, status,
+        meterReadingImageBase64,
+        meterReadingImageMimetype,
+        meterReadingImageFilename,
       };
-      
+
       const dbResult = await saveSalesReportAction(reportToSave);
 
       if (dbResult.success && dbResult.id) {
-        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully.', variant: 'default' });
+        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully to database.', variant: 'default' });
         const fullReportDataForDisplay: SalesReportData = {
-          ...reportToSave,
-          _id: dbResult.id, 
-          id: dbResult.id, 
+          ...(reportToSave as Omit<SalesReportData, '_id' | 'id'>), // Cast to avoid type issues with image data
+          _id: dbResult.id,
+          id: dbResult.id,
         };
         setReportData(fullReportDataForDisplay);
       } else {
         toast({ title: 'Database Error', description: dbResult.message || "Failed to save sales report.", variant: 'destructive' });
-        const localPreviewReportData: SalesReportData = {
-            ...reportToSave,
+         const localPreviewReportData: SalesReportData = {
+            ...(reportToSave as Omit<SalesReportData, '_id' | 'id'>),
             _id: `local-preview-${Date.now()}`,
             id: `local-preview-${Date.now()}`,
         };
@@ -468,20 +488,20 @@ export default function AquaTrackPage() {
     }
     const userId = tlUserIdInput.trim();
     const password = tlPasswordInput.trim();
-    
+
     let result;
-    if (editingTlOriginalUserId) { 
+    if (editingTlOriginalUserId) {
       result = await updateTeamLeaderPasswordAction(editingTlOriginalUserId, password);
       if (result.success) {
         setEditingTlOriginalUserId(null);
       }
-    } else { 
+    } else {
       result = await addTeamLeaderAction(userId, password);
     }
 
     if (result.success) {
       toast({ title: "Success", description: result.message });
-      await fetchTeamLeaders(); 
+      await fetchTeamLeaders();
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -491,7 +511,7 @@ export default function AquaTrackPage() {
 
   const handleEditTlSetup = (tl: UserCredentials) => {
     setTlUserIdInput(tl.userId);
-    setTlPasswordInput(''); 
+    setTlPasswordInput('');
     setEditingTlOriginalUserId(tl.userId);
   };
 
@@ -506,13 +526,14 @@ export default function AquaTrackPage() {
       const result = await deleteTeamLeaderAction(userIdToDelete);
       if (result.success) {
         toast({ title: "Success", description: result.message });
-        await fetchTeamLeaders(); 
+        await fetchTeamLeaders();
         if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
       } else {
         toast({ title: "Error", description: result.message, variant: "destructive" });
       }
     }
   };
+
 
   if (!isLoggedIn) {
     return (
@@ -604,6 +625,15 @@ export default function AquaTrackPage() {
 
       {currentUserRole === 'Admin' && (
         <>
+          <Alert variant="destructive" className="mb-6">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertTitle>Security Warning!</AlertTitle>
+            <AlertDescription>
+              The user and password management below is for **PROTOTYPING ONLY**.
+              Passwords are currently stored in **PLAINTEXT** in the database, which is **HIGHLY INSECURE**.
+              Do not use this approach for real applications. Real applications require secure password hashing.
+            </AlertDescription>
+          </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <Card className="shadow-md">
               <CardHeader><CardTitle className="text-xl text-primary flex items-center"><UserCog className="mr-2 h-5 w-5" />Manage Riders</CardTitle><CardDescription>Add, edit, or delete rider names. Changes are saved in your browser.</CardDescription></CardHeader>
@@ -650,16 +680,6 @@ export default function AquaTrackPage() {
               </CardContent>
             </Card>
           </div>
-          
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircleIcon className="h-4 w-4" />
-            <AlertTitle>Security Warning!</AlertTitle>
-            <AlertDescription>
-              The user and password management below is for **PROTOTYPING ONLY**.
-              Passwords are currently stored in **PLAINTEXT** in the database, which is **HIGHLY INSECURE**.
-              Do not use this approach for real applications. Real applications require secure password hashing.
-            </AlertDescription>
-          </Alert>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
             <Card className="shadow-md">
@@ -697,7 +717,7 @@ export default function AquaTrackPage() {
             <AquaTrackForm
               onSubmit={handleFormSubmit}
               isProcessing={isProcessing}
-              currentUserRole={currentUserRole || 'TeamLeader'} 
+              currentUserRole={currentUserRole || 'TeamLeader'}
               riderNames={riderNames}
               persistentRatePerLiter={globalRatePerLiter}
             />

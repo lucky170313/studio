@@ -3,8 +3,11 @@
 
 import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
+import ImageModel from '@/models/Image'; // Import the new Image model
 import UserModel from '@/models/User';
-import type { SalesReportData, UserCredentials } from '@/lib/types';
+import type { SalesReportWithOptionalImage, UserCredentials } from '@/lib/types'; // Updated type
+import type { SalesReportData } from '@/lib/types';
+
 
 interface SaveReportResult {
   success: boolean;
@@ -13,49 +16,80 @@ interface SaveReportResult {
   id?: string;
 }
 
-export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'id' | '_id'>): Promise<SaveReportResult> {
+export async function saveSalesReportAction(reportData: SalesReportWithOptionalImage): Promise<SaveReportResult> {
   try {
     await dbConnect();
-    // Explicitly map fields to ensure all are included, especially meterReadingImageDriveLink
-    const dataToSave = {
-      date: reportData.date,
-      firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
-      riderName: reportData.riderName,
-      vehicleName: reportData.vehicleName,
-      previousMeterReading: reportData.previousMeterReading,
-      currentMeterReading: reportData.currentMeterReading,
-      litersSold: reportData.litersSold,
-      adminOverrideLitersSold: reportData.adminOverrideLitersSold,
-      ratePerLiter: reportData.ratePerLiter,
-      cashReceived: reportData.cashReceived,
-      onlineReceived: reportData.onlineReceived,
-      dueCollected: reportData.dueCollected,
-      newDueAmount: reportData.newDueAmount,
-      tokenMoney: reportData.tokenMoney,
-      staffExpense: reportData.staffExpense,
-      extraAmount: reportData.extraAmount,
-      hoursWorked: reportData.hoursWorked,
-      dailySalaryCalculated: reportData.dailySalaryCalculated,
-      commissionEarned: reportData.commissionEarned,
-      comment: reportData.comment,
-      recordedBy: reportData.recordedBy,
-      totalSale: reportData.totalSale,
-      actualReceived: reportData.actualReceived,
-      initialAdjustedExpected: reportData.initialAdjustedExpected,
-      aiAdjustedExpectedAmount: reportData.aiAdjustedExpectedAmount,
-      aiReasoning: reportData.aiReasoning,
-      discrepancy: reportData.discrepancy,
-      status: reportData.status,
-      meterReadingImageDriveLink: reportData.meterReadingImageDriveLink, // Explicitly include
+
+    // Separate image data from the rest of the report data
+    const {
+      meterReadingImageBase64,
+      meterReadingImageMimetype,
+      meterReadingImageFilename,
+      ...salesData
+    } = reportData;
+
+    // Explicitly map fields to ensure all are included
+    const dataToSave: Omit<SalesReportData, '_id' | 'id'> = {
+      date: salesData.date,
+      firestoreDate: new Date(salesData.firestoreDate),
+      riderName: salesData.riderName,
+      vehicleName: salesData.vehicleName,
+      previousMeterReading: salesData.previousMeterReading,
+      currentMeterReading: salesData.currentMeterReading,
+      litersSold: salesData.litersSold,
+      adminOverrideLitersSold: salesData.adminOverrideLitersSold,
+      ratePerLiter: salesData.ratePerLiter,
+      cashReceived: salesData.cashReceived,
+      onlineReceived: salesData.onlineReceived,
+      dueCollected: salesData.dueCollected,
+      newDueAmount: salesData.newDueAmount,
+      tokenMoney: salesData.tokenMoney,
+      staffExpense: salesData.staffExpense,
+      extraAmount: salesData.extraAmount,
+      hoursWorked: salesData.hoursWorked,
+      dailySalaryCalculated: salesData.dailySalaryCalculated,
+      commissionEarned: salesData.commissionEarned,
+      comment: salesData.comment,
+      recordedBy: salesData.recordedBy,
+      totalSale: salesData.totalSale,
+      actualReceived: salesData.actualReceived,
+      initialAdjustedExpected: salesData.initialAdjustedExpected,
+      aiAdjustedExpectedAmount: salesData.aiAdjustedExpectedAmount,
+      aiReasoning: salesData.aiReasoning,
+      discrepancy: salesData.discrepancy,
+      status: salesData.status,
+      // meterReadingImageDriveLink is removed
     };
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
-    
-    return { 
-      success: true, 
-      message: 'Sales report has been successfully generated and saved to MongoDB.',
-      id: savedEntry._id.toString() 
+
+    // If image data is provided, save it to the Image collection
+    if (meterReadingImageBase64 && meterReadingImageMimetype && meterReadingImageFilename && savedEntry._id) {
+      // IMPORTANT: Storing raw image data in MongoDB is generally not recommended for production.
+      // This is for prototyping purposes. Consider using a dedicated file storage service.
+      console.warn("Attempting to save image data directly to MongoDB. This is not recommended for production.");
+      try {
+        const imageBuffer = Buffer.from(meterReadingImageBase64.split(',')[1], 'base64'); // Remove 'data:image/png;base64,' part
+        const imageDoc = new ImageModel({
+          salesReportId: savedEntry._id,
+          filename: meterReadingImageFilename,
+          mimetype: meterReadingImageMimetype,
+          data: imageBuffer,
+        });
+        await imageDoc.save();
+        console.log(`Image for sales report ${savedEntry._id} saved to images collection.`);
+      } catch (imageError: any) {
+        // Log image saving error but don't fail the whole sales report saving
+        console.error(`Failed to save image for sales report ${savedEntry._id}:`, imageError.message);
+        // Optionally, you could add a field to salesReportEntry to indicate image saving failure
+      }
+    }
+
+    return {
+      success: true,
+      message: 'Sales report has been successfully generated and saved.',
+      id: savedEntry._id.toString()
     };
   } catch (e: any) {
     console.error("Error saving document to MongoDB via Server Action: ", e);
@@ -67,10 +101,10 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
         let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
         dbErrorMessage = `MongoDB Validation Error: ${validationErrors}`;
     }
-    return { 
-      success: false, 
+    return {
+      success: false,
       message: dbErrorMessage,
-      error: e.message 
+      error: e.message
     };
   }
 }
@@ -82,14 +116,14 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
   try {
     await dbConnect();
     const lastReport = await SalesReportModel.findOne({ vehicleName: vehicleName })
-      .sort({ firestoreDate: -1 }) 
+      .sort({ firestoreDate: -1 })
       .select('currentMeterReading')
       .lean();
 
     if (lastReport) {
       return { success: true, reading: lastReport.currentMeterReading || 0 };
     }
-    return { success: true, reading: 0 }; 
+    return { success: true, reading: 0 };
   } catch (error: any) {
     console.error("Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
@@ -109,7 +143,7 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     if (!existingAdmin) {
       const adminUser = new UserModel({
         userId: DEFAULT_ADMIN_USER_ID,
-        password: DEFAULT_ADMIN_PASSWORD, 
+        password: DEFAULT_ADMIN_PASSWORD, // Storing plaintext password - HIGHLY INSECURE
         role: 'Admin',
       });
       await adminUser.save();
@@ -127,7 +161,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
     await dbConnect();
     const user = await UserModel.findOne({ userId: userIdInput }).lean();
 
-    if (user && user.password === passwordInput) { 
+    if (user && user.password === passwordInput) { // Plaintext password comparison - HIGHLY INSECURE
       return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
     }
     return { success: false, message: 'Invalid User ID or Password.' };
@@ -138,7 +172,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
 }
 
 export async function changeAdminPasswordAction(adminUserId: string, newPasswordInput: string): Promise<{ success: boolean; message: string }> {
-  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { 
+  if (adminUserId !== DEFAULT_ADMIN_USER_ID) { // Simple check, can be more robust
     return { success: false, message: "Unauthorized: Only the default admin can change their password through this action." };
   }
   try {
@@ -147,7 +181,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; 
+    admin.password = newPasswordInput; // Storing plaintext password - HIGHLY INSECURE
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in MongoDB.' };
   } catch (error: any) {
@@ -168,7 +202,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, 
+      password: passwordInput, // Storing plaintext password - HIGHLY INSECURE
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -186,7 +220,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; 
+    teamLeader.password = newPasswordInput; // Storing plaintext password - HIGHLY INSECURE
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in MongoDB.` };
   } catch (error: any) {

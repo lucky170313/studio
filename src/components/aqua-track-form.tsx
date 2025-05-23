@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Image as ImageIcon } from 'lucide-react';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, ImageIcon } from 'lucide-react';
 import NextImage from 'next/image'; // Renamed to avoid conflict with lucide-react Image
 
 
@@ -100,6 +100,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
           setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
         } else {
           setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
+          // Optionally, show a toast message for error if result.message exists
         }
         setIsLoadingPrevReading(false);
       };
@@ -171,7 +172,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     const dueCollectedVal = Number(watchedDueCollected) || 0;
     const cashReceivedVal = Number(watchedCashReceived) || 0;
     const onlineReceivedVal = Number(watchedOnlineReceived) || 0;
-    const newDueAmountVal = Number(watchedNewDueAmount) || 0;
+    const newDueAmountVal = Number(watchedNewDueAmount) || 0; // Added
     const tokenMoneyVal = Number(watchedTokenMoney) || 0;
     const extraAmountVal = Number(watchedExtraAmount) || 0;
     const staffExpenseVal = Number(watchedStaffExpense) || 0;
@@ -214,12 +215,12 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                       className={cn(
                         "w-full pl-3 text-left font-normal",
                         !field.value && "text-muted-foreground",
-                        currentUserRole === 'TeamLeader' && "cursor-not-allowed opacity-70"
+                         (currentUserRole === 'TeamLeader' && isClient) && "cursor-not-allowed opacity-70"
                       )}
-                      disabled={currentUserRole === 'TeamLeader'}
+                      disabled={currentUserRole === 'TeamLeader' && isClient}
                     >
                       {isClient && field.value ? (
-                        format(field.value, "PPP")
+                        format(field.value instanceof Date ? field.value : new Date(field.value || Date.now()), "PPP")
                       ) : (
                         <span>{isClient ? "Initializing date..." : "Pick a date"}</span>
                       )}
@@ -350,7 +351,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                         <FormItem>
                             <FormLabel className="flex items-center">
                                 <ImageIcon className="mr-2 h-4 w-4 text-primary" />
-                                Meter Reading Image
+                                Meter Reading Image (Optional)
                             </FormLabel>
                             <FormControl>
                                 <Input
@@ -360,7 +361,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                                     className="text-base"
                                 />
                             </FormControl>
-                            <FormDescription>Upload an image of the meter reading. Actual Google Drive upload not yet implemented.</FormDescription>
+                            <FormDescription>Upload an image of the meter reading. Image data will be stored directly in the database (not recommended for production).</FormDescription>
                             {imagePreview && (
                                 <div className="mt-2">
                                     <NextImage src={imagePreview} alt="Meter reading preview" width={200} height={200} className="rounded-md border" />
