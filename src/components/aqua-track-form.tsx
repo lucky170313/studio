@@ -25,12 +25,12 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
+import { getLastMeterReadingForVehicleAction } from '@/app/actions'; // Import the server action
 
 interface AquaTrackFormProps {
-  onSubmit: (values: SalesDataFormValues) => void; // Changed from Promise<void> to void as form doesn't await
+  onSubmit: (values: SalesDataFormValues) => void;
   isProcessing: boolean;
   currentUserRole: UserRole;
-  lastMeterReadingsByVehicle: Record<string, number>;
   riderNames: string[];
   persistentRatePerLiter: number;
 }
@@ -38,7 +38,7 @@ interface AquaTrackFormProps {
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
 const hoursWorkedOptions = Array.from({ length: 9 }, (_, i) => String(i + 1)); // 1 to 9
 
-export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMeterReadingsByVehicle, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
+export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
@@ -65,23 +65,21 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
   const { setValue, getValues, watch } = form;
 
   const [isClient, setIsClient] = useState(false);
+  const [isLoadingPrevReading, setIsLoadingPrevReading] = useState(false);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
-  // Effect to set persistentRatePerLiter for everyone initially (respects disabled state for TL)
   useEffect(() => {
     if (isClient) {
         setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
     }
   }, [persistentRatePerLiter, setValue, isClient]);
 
-  // Effect for role-specific defaults
   useEffect(() => {
     if (isClient && currentUserRole === 'TeamLeader') {
       setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
-      // Ensure ratePerLiter is also explicitly set to the global rate for TeamLeaders, even if already set by the above hook
       setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true }); 
     }
     if (isClient && currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
@@ -92,12 +90,22 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
 
   useEffect(() => {
     if (isClient && selectedVehicleName) {
-      const lastReading = lastMeterReadingsByVehicle[selectedVehicleName];
-      setValue('previousMeterReading', lastReading !== undefined ? lastReading : 0, { shouldValidate: true, shouldDirty: true });
-    } else if (isClient && !selectedVehicleName) { // Reset if vehicle is deselected
+      const fetchPrevReading = async () => {
+        setIsLoadingPrevReading(true);
+        const result = await getLastMeterReadingForVehicleAction(selectedVehicleName);
+        if (result.success) {
+          setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
+        } else {
+          // Optionally, show a toast or log error: toast({ title: "Error", description: result.message });
+          setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true }); // Default to 0 on error
+        }
+        setIsLoadingPrevReading(false);
+      };
+      fetchPrevReading();
+    } else if (isClient && !selectedVehicleName) { 
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
-  }, [selectedVehicleName, lastMeterReadingsByVehicle, setValue, isClient]);
+  }, [selectedVehicleName, setValue, isClient]);
 
   const [
     watchedPreviousMeterReading,
@@ -131,7 +139,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     const curr = Number(watchedCurrentMeterReading);
     const override = watchedOverrideLitersSold !== undefined ? Number(watchedOverrideLitersSold) : undefined;
 
-    if (currentUserRole === 'Admin' && typeof override === 'number' && override >= 0) { // Allow 0 for override
+    if (currentUserRole === 'Admin' && typeof override === 'number' && override >= 0) { 
       return override;
     }
     if (!isNaN(prev) && !isNaN(curr) && curr >= prev) {
@@ -161,7 +169,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled, editable by Admin." : "Auto-filled from session for vehicle." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: currentUserRole === 'Admin' ? "Auto-filled from DB, editable by Admin." : "Auto-filled from DB for selected vehicle." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: currentUserRole === 'TeamLeader' ? `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Set by Admin)` : `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Editable by Admin).` },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
@@ -233,7 +241,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
             const isRatePerLiterField = inputField.name === 'ratePerLiter';
             
             let fieldIsDisabled = false;
-            if (isPrevMeterReadingField && currentUserRole === 'TeamLeader') {
+            if (isPrevMeterReadingField && (currentUserRole === 'TeamLeader' || isLoadingPrevReading)) {
               fieldIsDisabled = true;
             }
             if (isRatePerLiterField && currentUserRole === 'TeamLeader') {
@@ -261,6 +269,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                     <FormLabel className="flex items-center">
                       {inputField.icon && <inputField.icon className="mr-2 h-4 w-4 text-primary" />}
                       {inputField.label}
+                      {isPrevMeterReadingField && isLoadingPrevReading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
                     </FormLabel>
                     <FormControl>
                       {inputField.componentType === 'select' ? (
@@ -268,10 +277,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                           onValueChange={(value) => {
                             const valToSet = inputField.name === 'hoursWorked' ? parseInt(value, 10) : value;
                             field.onChange(valToSet);
-                             if (inputField.name === 'vehicleName') {
-                                const lastReading = lastMeterReadingsByVehicle[value];
-                                setValue('previousMeterReading', lastReading !== undefined ? lastReading : 0, { shouldValidate: true, shouldDirty: true });
-                            }
                           }}
                           value={String(field.value === undefined || field.value === null ? (inputField.name === 'hoursWorked' ? '9' : '') : field.value)}
                           disabled={fieldIsDisabled}
@@ -313,7 +318,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
                       )}
                     </FormControl>
                     {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                    {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && lastMeterReadingsByVehicle[selectedVehicleName] === undefined && <FormDescription>No previous reading for this vehicle stored in session.</FormDescription>}
+                    {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No previous reading for this vehicle found in DB.</FormDescription>}
                     <FormMessage />
                   </FormItem>
                 )}
@@ -398,11 +403,16 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
           )}
         />
 
-        <Button type="submit" className="w-full text-lg py-6" disabled={isProcessing}>
+        <Button type="submit" className="w-full text-lg py-6" disabled={isProcessing || isLoadingPrevReading}>
           {isProcessing ? (
             <>
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
               Processing...
+            </>
+          ) : isLoadingPrevReading ? (
+             <>
+              <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+              Fetching Previous Reading...
             </>
           ) : (
             'Calculate & Generate Report'
@@ -412,4 +422,3 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, lastMet
     </Form>
   );
 }
-

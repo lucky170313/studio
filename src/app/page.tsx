@@ -39,7 +39,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 
-const LAST_METER_READINGS_KEY = 'lastMeterReadingsByVehicleDropAquaTrackApp';
 const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
 const DEFAULT_RIDER_NAMES = ['Rider Alpha', 'Rider Bravo', 'Rider Charlie'];
 const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
@@ -54,7 +53,7 @@ const DEFAULT_ADMIN_USER_ID = "lucky170313";
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [lastMeterReadingsByVehicle, setLastMeterReadingsByVehicle] = useState<Record<string, number>>({});
+  // Removed: lastMeterReadingsByVehicle state, as it's now fetched from DB
   const { toast } = useToast();
   const [currentYear, setCurrentYear] = useState<number | null>(null);
 
@@ -118,10 +117,7 @@ export default function AquaTrackPage() {
       }
     } catch (error) { console.error("Failed to parse login session from localStorage", error); }
   
-    try {
-      const storedReadings = localStorage.getItem(LAST_METER_READINGS_KEY);
-      if (storedReadings) setLastMeterReadingsByVehicle(JSON.parse(storedReadings));
-    } catch (error) { console.error("Failed to parse lastMeterReadingsByVehicle from localStorage", error); }
+    // Removed: Loading lastMeterReadingsByVehicle from localStorage
   
     try {
       const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
@@ -262,10 +258,9 @@ export default function AquaTrackPage() {
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      // Ensure firestoreDate is a valid Date object before passing to the action
       const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject, // This will be a Date object
+        firestoreDate: submissionDateObject, 
         riderName: values.riderName,
         vehicleName: values.vehicleName,
         previousMeterReading: values.previousMeterReading,
@@ -286,20 +281,19 @@ export default function AquaTrackPage() {
         comment: values.comment || "",
         recordedBy: loggedInUsername,
         totalSale, actualReceived, initialAdjustedExpected, 
-        aiAdjustedExpectedAmount, // Make sure this is passed
-        aiReasoning, // Make sure this is passed
+        aiAdjustedExpectedAmount, 
+        aiReasoning, 
         discrepancy, status,
       };
       
       const dbResult = await saveSalesReportAction(reportToSave);
 
       if (dbResult.success && dbResult.id) {
-        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully.', variant: 'default' });
+        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully to Drop Aqua Track.', variant: 'default' });
         const fullReportDataForDisplay: SalesReportData = {
           ...reportToSave,
           _id: dbResult.id, 
           id: dbResult.id,
-          // aiAdjustedExpectedAmount and aiReasoning are already in reportToSave
         };
         setReportData(fullReportDataForDisplay);
       } else {
@@ -312,11 +306,8 @@ export default function AquaTrackPage() {
         setReportData(localPreviewReportData);
       }
 
-      if (values.vehicleName && typeof values.currentMeterReading === 'number') {
-        const updatedReadings = { ...lastMeterReadingsByVehicle, [values.vehicleName as string]: values.currentMeterReading };
-        setLastMeterReadingsByVehicle(updatedReadings);
-        localStorage.setItem(LAST_METER_READINGS_KEY, JSON.stringify(updatedReadings));
-      }
+      // Removed: Updating lastMeterReadingsByVehicle in localStorage
+      // This will now be fetched directly from DB by the form component
 
     } catch (error) {
       console.error('Error processing sales data:', error);
@@ -558,7 +549,7 @@ export default function AquaTrackPage() {
         <p className="mt-1 text-xl text-muted-foreground">
           Daily Sales & Reconciliation Reporter
         </p>
-         {isLoggedIn && <p className="mt-1 text-sm text-green-600">Role: {currentUserRole}</p>}
+         {isLoggedIn && <p className="mt-1 text-sm text-green-600">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>}
       </header>
 
       <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
@@ -685,13 +676,12 @@ export default function AquaTrackPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <Card className="lg:col-span-3 shadow-xl">
-          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings, rider list, and global rate are persisted in browser. Data is saved.</CardDescription></CardHeader>
+          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary">Enter Sales Data</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings are fetched from DB. Rider list, and global rate are persisted in browser. Data is saved.</CardDescription></CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm
               onSubmit={handleFormSubmit}
               isProcessing={isProcessing}
               currentUserRole={currentUserRole || 'TeamLeader'} 
-              lastMeterReadingsByVehicle={lastMeterReadingsByVehicle}
               riderNames={riderNames}
               persistentRatePerLiter={globalRatePerLiter}
             />

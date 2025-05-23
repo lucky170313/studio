@@ -49,6 +49,28 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
   }
 }
 
+export async function getLastMeterReadingForVehicleAction(vehicleName: string): Promise<{ success: boolean; reading: number; message?: string }> {
+  if (!vehicleName) {
+    return { success: false, reading: 0, message: "Vehicle name is required." };
+  }
+  try {
+    await dbConnect();
+    const lastReport = await SalesReportModel.findOne({ vehicleName: vehicleName })
+      .sort({ firestoreDate: -1 }) // Get the most recent entry
+      .select('currentMeterReading')
+      .lean();
+
+    if (lastReport) {
+      return { success: true, reading: lastReport.currentMeterReading || 0 };
+    }
+    return { success: true, reading: 0 }; // No previous entry found for this vehicle
+  } catch (error: any) {
+    console.error("Error fetching last meter reading:", error);
+    return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
+  }
+}
+
+
 // --- User Management Actions ---
 
 const DEFAULT_ADMIN_USER_ID = "lucky170313";
