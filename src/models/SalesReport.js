@@ -34,6 +34,7 @@ const SalesReportSchema = new mongoose.Schema({
     enum: ['Match', 'Shortage', 'Overage'],
     required: true,
   },
+  meterReadingImageDriveLink: { type: String }, // Link to the image on Google Drive
 }, { timestamps: true });
 
 export default mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);

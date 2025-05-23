@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, BarChart3, User, Droplets, IndianRupee, Clock, Briefcase, Gift } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, BarChart3, User, Droplets, IndianRupee, Clock, Briefcase, Gift, Image as ImageIcon } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
 import {
@@ -86,7 +86,7 @@ export default function AdminViewDataPage() {
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
-  const [chartData, setChartData] = useState<{ name: string; totalSales: number }[]>([]);
+  // Chart data is removed from here, as per user request to move it to rider monthly report
 
   useEffect(() => {
     setIsLoading(true);
@@ -118,21 +118,7 @@ export default function AdminViewDataPage() {
     });
   }, [allSalesEntries, selectedYear, selectedMonth]);
 
-  useEffect(() => {
-    if (filteredEntries.length > 0) {
-      const salesByRider: { [key: string]: number } = {};
-      filteredEntries.forEach(entry => {
-        salesByRider[entry.riderName] = (salesByRider[entry.riderName] || 0) + entry.totalSale;
-      });
-      setChartData(
-        Object.entries(salesByRider)
-          .map(([name, totalSales]) => ({ name, totalSales: parseFloat(totalSales.toFixed(2)) }))
-          .sort((a, b) => b.totalSales - a.totalSales)
-      );
-    } else {
-      setChartData([]);
-    }
-  }, [filteredEntries]);
+  // useEffect for chartData is removed as chart is moved
 
   const sortedEntries = useMemo(() => {
     let sortableItems = [...filteredEntries];
@@ -177,12 +163,7 @@ export default function AdminViewDataPage() {
     return '';
   };
 
-  const chartConfig = {
-    totalSales: {
-      label: "Total Sales (₹)",
-      color: "hsl(var(--chart-1))",
-    },
-  } satisfies ChartConfig;
+  // chartConfig is removed as chart is moved
 
   if (isLoading) {
     return (
@@ -220,6 +201,7 @@ export default function AdminViewDataPage() {
     { key: 'newDueAmount', label: 'New Due (₹)', sortable: true, icon: IndianRupee },
     { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true, icon: IndianRupee },
     { key: 'status', label: 'Status', sortable: true },
+    { key: 'meterReadingImageDriveLink', label: 'Image Link', sortable: false, icon: ImageIcon },
     { key: 'comment', label: 'Comment' },
   ];
 
@@ -278,40 +260,7 @@ export default function AdminViewDataPage() {
         </CardContent>
       </Card>
       
-      {chartData.length > 0 && (
-        <Card className="mb-8 shadow-lg">
-          <CardHeader>
-            <CardTitle className="flex items-center">
-              <BarChart3 className="mr-2 h-5 w-5 text-primary" />
-              Total Sales per Rider (Filtered)
-            </CardTitle>
-            <CardDescription>
-              Showing total sales contribution by each rider based on the current filters.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pl-2 pr-6">
-            <div style={{ height: '300px' }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <ChartContainer config={chartConfig} className="min-h-[200px] w-full">
-                  <BarChart accessibilityLayer data={chartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
-                    <CartesianGrid vertical={false} />
-                    <XAxis
-                      dataKey="name"
-                      tickLine={false}
-                      tickMargin={10}
-                      axisLine={false}
-                    />
-                    <YAxis tickFormatter={(value) => `₹${value}`} />
-                    <ChartTooltip content={<ChartTooltipContent />} />
-                    <ChartLegend content={<ChartLegendContent />} />
-                    <Bar dataKey="totalSales" fill="var(--color-totalSales)" radius={4} />
-                  </BarChart>
-                </ChartContainer>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      {/* Chart rendering is removed from here */}
 
 
       <Card className="shadow-lg">
@@ -353,6 +302,8 @@ export default function AdminViewDataPage() {
                            cellValue = cellValue.toFixed(2);
                         } else if (cellValue === undefined || cellValue === null) {
                           cellValue = '-';
+                        } else if (header.key === 'meterReadingImageDriveLink' && typeof cellValue === 'string' && cellValue.startsWith('http')) {
+                            cellValue = <a href={cellValue as string} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">View Image</a>;
                         }
                         return (
                           <TableCell key={`${entry._id}-${header.key}`} className="whitespace-nowrap">

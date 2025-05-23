@@ -6,7 +6,9 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock } from 'lucide-react';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Image as ImageIcon } from 'lucide-react';
+import Image from 'next/image';
+
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -25,7 +27,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
-import { getLastMeterReadingForVehicleAction } from '@/app/actions'; // Import the server action
+import { getLastMeterReadingForVehicleAction } from '@/app/actions'; 
 
 interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => void;
@@ -36,7 +38,7 @@ interface AquaTrackFormProps {
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
-const hoursWorkedOptions = Array.from({ length: 9 }, (_, i) => String(i + 1)); // 1 to 9
+const hoursWorkedOptions = Array.from({ length: 9 }, (_, i) => String(i + 1)); 
 
 export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
@@ -58,29 +60,28 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
       extraAmount: 0,
       hoursWorked: 9, 
       comment: '',
+      meterReadingImage: undefined,
     },
   });
 
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
+  const meterReadingImageFile = useWatch({ control: form.control, name: 'meterReadingImage' });
   const { setValue, getValues, watch } = form;
 
   const [isClient, setIsClient] = useState(false);
   const [isLoadingPrevReading, setIsLoadingPrevReading] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
   }, []);
 
   useEffect(() => {
-    if (isClient) {
-        setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
-    }
-  }, [persistentRatePerLiter, setValue, isClient]);
-
-  useEffect(() => {
     if (isClient && currentUserRole === 'TeamLeader') {
       setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
       setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true }); 
+    } else if (isClient && currentUserRole === 'Admin') {
+       setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
     }
     if (isClient && currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
       setValue('overrideLitersSold', undefined, { shouldValidate: true });
@@ -96,8 +97,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
         if (result.success) {
           setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
         } else {
-          // Optionally, show a toast or log error: toast({ title: "Error", description: result.message });
-          setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true }); // Default to 0 on error
+          setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true }); 
         }
         setIsLoadingPrevReading(false);
       };
@@ -106,6 +106,18 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
   }, [selectedVehicleName, setValue, isClient]);
+
+  useEffect(() => {
+    if (meterReadingImageFile) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result as string);
+      };
+      reader.readAsDataURL(meterReadingImageFile);
+    } else {
+      setImagePreview(null);
+    }
+  }, [meterReadingImageFile]);
 
   const [
     watchedPreviousMeterReading,
@@ -262,7 +274,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
               <FormField
                 key={inputField.name}
                 control={form.control}
-                // @ts-ignore
                 name={inputField.name as keyof SalesDataFormValues} 
                 render={({ field }) => (
                   <FormItem>
@@ -326,6 +337,35 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
             );
           })}
         </div>
+
+        <FormField
+            control={form.control}
+            name="meterReadingImage"
+            render={({ field }) => (
+                <FormItem>
+                    <FormLabel className="flex items-center">
+                        <ImageIcon className="mr-2 h-4 w-4 text-primary" />
+                        Meter Reading Image (Optional)
+                    </FormLabel>
+                    <FormControl>
+                        <Input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => field.onChange(e.target.files ? e.target.files[0] : undefined)}
+                            className="text-base"
+                        />
+                    </FormControl>
+                    <FormDescription>Upload an image of the meter reading. This will not be uploaded to Google Drive yet.</FormDescription>
+                    {imagePreview && (
+                        <div className="mt-2">
+                            <Image src={imagePreview} alt="Meter reading preview" width={200} height={200} className="rounded-md border" />
+                        </div>
+                    )}
+                    <FormMessage />
+                </FormItem>
+            )}
+        />
+
 
         {currentUserRole === 'Admin' && (
           <FormField

@@ -6,7 +6,7 @@ export type UserRole = 'Admin' | 'TeamLeader';
 export interface UserCredentials {
   userId: string;
   role: UserRole;
-  password?: string;
+  password?: string; // Only present on the server for storage, not sent to client
 }
 
 
@@ -21,12 +21,13 @@ export const salesDataSchema = z.object({
   cashReceived: z.coerce.number().min(0, 'Cash received must be a positive number.'),
   onlineReceived: z.coerce.number().min(0, 'Online received must be a positive number.'),
   dueCollected: z.coerce.number().min(0, 'Due collected must be a positive number.'),
-  newDueAmount: z.coerce.number().min(0, 'New due amount must be a positive number.'),
+  newDueAmount: z.coerce.number().min(0, 'New due amount cannot be negative.'),
   tokenMoney: z.coerce.number().min(0, 'Token money must be a positive number.'),
   staffExpense: z.coerce.number().min(0, 'Staff expense must be a positive number.'),
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
+  meterReadingImage: z.custom<File | undefined>((val) => val === undefined || val instanceof File, "Invalid image file").optional(),
 }).refine(data => {
   // If overrideLitersSold is provided and is a positive number, skip meter reading check.
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold > 0) {
@@ -43,10 +44,10 @@ export const salesDataSchema = z.object({
 export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
-  id?: string;
+  id?: string; // Client-side identifier
   _id?: string; // For MongoDB
   date: string; 
-  firestoreDate: Date; // JS Date object for DB compatibility, storing JS Date
+  firestoreDate: Date; // JS Date object for DB compatibility
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -73,4 +74,5 @@ export interface SalesReportData {
   aiReasoning: string; 
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
+  meterReadingImageDriveLink?: string; // Link to the image on Google Drive
 }
