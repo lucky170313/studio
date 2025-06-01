@@ -1,10 +1,8 @@
 
 import mongoose from 'mongoose';
+import bcrypt from 'bcryptjs';
 
-// WARNING: THIS IS FOR PROTOTYPING ONLY.
-// STORING PASSWORDS IN PLAINTEXT IS EXTREMELY INSECURE.
-// In a production application, passwords MUST be securely hashed (e.g., using bcrypt)
-// before being stored, and comparisons should be done against the hashed value.
+// Passwords will now be hashed before saving using bcrypt.
 
 const UserSchema = new mongoose.Schema({
   userId: {
@@ -16,7 +14,6 @@ const UserSchema = new mongoose.Schema({
   password: {
     type: String,
     required: [true, 'Password is required.'],
-    // In a real app, NEVER store plaintext passwords. Store a hash.
   },
   role: {
     type: String,
@@ -24,5 +21,30 @@ const UserSchema = new mongoose.Schema({
     enum: ['Admin', 'TeamLeader'],
   },
 }, { timestamps: true });
+
+// Pre-save hook to hash password
+UserSchema.pre('save', async function(next) {
+  // Only hash the password if it has been modified (or is new)
+  if (!this.isModified('password')) return next();
+
+  try {
+    // Generate a salt
+    const salt = await bcrypt.genSalt(10);
+    // Hash the password using the new salt
+    this.password = await bcrypt.hash(this.password, salt);
+    next();
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Method to compare password for login
+UserSchema.methods.comparePassword = async function(candidatePassword) {
+  try {
+    return await bcrypt.compare(candidatePassword, this.password);
+  } catch (error) {
+    throw error;
+  }
+};
 
 export default mongoose.models.User || mongoose.model('User', UserSchema);

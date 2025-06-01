@@ -123,11 +123,11 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     if (!existingAdmin) {
       const adminUser = new UserModel({
         userId: adminUserId,
-        password: adminPassword,
+        password: adminPassword, // Password will be hashed by the pre-save hook
         role: 'Admin',
       });
       await adminUser.save();
-      return { success: true, message: 'Default admin initialized in database.' };
+      return { success: true, message: 'Default admin initialized in database with hashed password.' };
     }
     return { success: true, message: 'Default admin already exists in database.' };
   } catch (error: any) {
@@ -139,10 +139,14 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
 export async function verifyUserAction(userIdInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserCredentials | null; message: string }> {
   try {
     await dbConnect();
-    const user = await UserModel.findOne({ userId: userIdInput }).lean();
+    // Fetch the full Mongoose document, not a lean object, to use instance methods
+    const user = await UserModel.findOne({ userId: userIdInput });
 
-    if (user && user.password === passwordInput) {
-      return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
+    if (user) {
+      const isMatch = await user.comparePassword(passwordInput);
+      if (isMatch) {
+        return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
+      }
     }
     return { success: false, message: 'Invalid User ID or Password.' };
   } catch (error: any) {
@@ -162,9 +166,9 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput;
-    await admin.save();
-    return { success: true, message: 'Admin password updated successfully in database.' };
+    admin.password = newPasswordInput; // Set the new password
+    await admin.save(); // The pre-save hook will hash it
+    return { success: true, message: 'Admin password updated successfully in database (hashed).' };
   } catch (error: any) {
     console.error("Error changing admin password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
@@ -184,11 +188,11 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput,
+      password: passwordInput, // Password will be hashed by the pre-save hook
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
-    return { success: true, message: `Team Leader "${userIdInput}" added successfully to database.`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
+    return { success: true, message: `Team Leader "${userIdInput}" added successfully to database (password hashed).`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
   } catch (error: any) {
     console.error("Error adding team leader:", error);
     return { success: false, message: `Error adding team leader: ${error.message}` };
@@ -202,9 +206,9 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput;
-    await teamLeader.save();
-    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database.` };
+    teamLeader.password = newPasswordInput; // Set the new password
+    await teamLeader.save(); // The pre-save hook will hash it
+    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database (hashed).` };
   } catch (error: any) {
     console.error("Error updating team leader password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };

@@ -118,7 +118,7 @@ export default function AquaTrackPage() {
     setCurrentYear(new Date().getFullYear());
 
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message);
+      console.log(res.message); // Default admin password is now hashed on init
     });
 
     try {
@@ -340,7 +340,7 @@ export default function AquaTrackPage() {
     }
 
     if (result.success) {
-      toast({ title: "Success", description: result.message });
+      toast({ title: "Success", description: result.message }); // Message now confirms DB save
       await fetchRiders();
       handleCancelEditRider();
     } else {
@@ -362,7 +362,7 @@ export default function AquaTrackPage() {
     if (window.confirm(`Are you sure you want to delete rider "${riderToDelete.name}"? This action cannot be undone.`)) {
       const result = await deleteRiderAction(riderToDelete._id);
       if (result.success) {
-        toast({ title: "Success", description: result.message });
+        toast({ title: "Success", description: result.message }); // Message now confirms DB save
         if (selectedRiderIdForSalary === riderToDelete._id) {
           setSelectedRiderIdForSalary('');
           setSalaryInput('');
@@ -390,8 +390,8 @@ export default function AquaTrackPage() {
 
     const result = await updateRiderAction(selectedRiderIdForSalary, { perDaySalary: salaryValue });
     if (result.success) {
-      toast({ title: "Success", description: `Salary for ${result.rider?.name} updated to ₹${salaryValue}/day. (Database record updated.)` });
-      await fetchRiders(); // Re-fetch to update the list and potentially the selected rider's display salary
+      toast({ title: "Success", description: result.message }); // Message now confirms DB save
+      await fetchRiders(); 
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -421,7 +421,7 @@ export default function AquaTrackPage() {
     const result = await changeAdminPasswordAction(loggedInUsername, adminPasswordInput.trim());
     if (result.success) {
       setAdminPasswordInput('');
-      toast({ title: "Success", description: result.message });
+      toast({ title: "Success", description: result.message }); // Message now confirms DB save & hashing
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -446,7 +446,7 @@ export default function AquaTrackPage() {
     }
 
     if (result.success) {
-      toast({ title: "Success", description: result.message });
+      toast({ title: "Success", description: result.message }); // Message now confirms DB save & hashing
       await fetchTeamLeaders();
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -471,7 +471,7 @@ export default function AquaTrackPage() {
     if (window.confirm(`Are you sure you want to delete Team Leader "${userIdToDelete}"?`)) {
       const result = await deleteTeamLeaderAction(userIdToDelete);
       if (result.success) {
-        toast({ title: "Success", description: result.message });
+        toast({ title: "Success", description: result.message }); // Message now confirms DB save
         await fetchTeamLeaders();
         if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
       } else {
@@ -573,14 +573,6 @@ export default function AquaTrackPage() {
 
       {currentUserRole === 'Admin' && (
         <>
-          <Alert variant="destructive" className="mb-6">
-            <AlertCircleIcon className="h-4 w-4" />
-            <AlertTitle>Security Warning!</AlertTitle>
-            <AlertDescription>
-              The user and password management below uses a **PROTOTYPE** system with credentials stored in **PLAINTEXT** in the database.
-              This is **HIGHLY INSECURE** and for demonstration only. Real applications require secure password hashing.
-            </AlertDescription>
-          </Alert>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
             <Card className="shadow-md">
               <CardHeader>
