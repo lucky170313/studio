@@ -283,10 +283,10 @@ export default function RiderMonthlyReportPage() {
     });
 
     Object.keys(riderMonthlyData).forEach(rider => {
-      Object.keys(riderMonthlyData[rider][monthYear]).forEach(monthYear => {
-        const uniqueDaysForRiderInMonth = new Set(riderMonthlyData[rider][monthYear].dailyEntries.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
-        riderMonthlyData[rider][monthYear].daysActive = uniqueDaysForRiderInMonth.size;
-        riderMonthlyData[rider][monthYear].dailyEntries.sort((a,b) => a.firestoreDate.getTime() - b.firestoreDate.getTime());
+      Object.keys(riderMonthlyData[rider]).forEach(currentMonthYear => {
+        const uniqueDaysForRiderInMonth = new Set(riderMonthlyData[rider][currentMonthYear].dailyEntries.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
+        riderMonthlyData[rider][currentMonthYear].daysActive = uniqueDaysForRiderInMonth.size;
+        riderMonthlyData[rider][currentMonthYear].dailyEntries.sort((a,b) => a.firestoreDate.getTime() - b.firestoreDate.getTime());
       });
     });
 
