@@ -296,6 +296,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
             if (isPrevMeterReadingField && (currentUserRole === 'TeamLeader' || isLoadingPrevReading)) {
               fieldIsDisabled = true;
             }
+            // This logic ensures Admin and TeamLeader can edit ratePerLiter
             if (isRatePerLiterField && !(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader')) {
               fieldIsDisabled = true;
             }
@@ -539,3 +540,4 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     </Form>
   );
 }
+
