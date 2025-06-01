@@ -53,6 +53,12 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
     };
 
     console.log("Attempting to save sales report with data:", JSON.stringify(dataToSave, null, 2));
+    if (reportData.adminOverrideLitersSold !== undefined) {
+      console.log(`Admin override for litersSold was used: ${reportData.adminOverrideLitersSold} L`);
+    } else {
+      console.log("Liters sold calculated from meter readings.");
+    }
+
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
@@ -68,7 +74,6 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
     console.error("Error saving sales report to database via Server Action: ", e);
     let dbErrorMessage = 'Failed to save sales report to database.';
     if (e.name === 'ValidationError') {
-        // Log the full validation error object for more details
         console.error("Mongoose Validation Error details:", JSON.stringify(e.errors, null, 2));
         let validationErrors = Object.values(e.errors).map((err: any) => `${err.path}: ${err.message}`).join(', ');
         dbErrorMessage = `Database Validation Error: ${validationErrors}`;
@@ -79,7 +84,7 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
     return {
       success: false,
       message: dbErrorMessage,
-      error: e.message // Or e.toString() for more comprehensive error
+      error: e.message 
     };
   }
 }
@@ -285,7 +290,7 @@ export async function getRidersAction(): Promise<{ success: boolean; riders?: Ri
       return rider;
     });
 
-    return { success: true, riders: processedRiders, message: 'Riders fetched successfully.' };
+    return { success: true, riders: processedRiders, message: 'Riders fetched successfully from database.' };
   } catch (error: any) {
     console.error("Error fetching riders:", error);
     return { success: false, message: `Error fetching riders: ${error.message}` };
@@ -318,7 +323,7 @@ export async function updateRiderAction(riderId: string, riderData: { name?: str
     let errorMessage = `Error updating rider: ${error.message}`;
     if (error.name === 'ValidationError') {
       errorMessage = `Validation Error: ${Object.values(error.errors).map((e: any) => e.message).join(', ')}`;
-    } else if (error.code === 11000 && error.keyValue?.name) { // Duplicate key error for name
+    } else if (error.code === 11000 && error.keyValue?.name) { 
         errorMessage = `Rider name "${error.keyValue.name}" already exists.`;
     }
     return { success: false, message: errorMessage };
@@ -330,7 +335,7 @@ export async function deleteRiderAction(riderId: string): Promise<{ success: boo
     await dbConnect();
     const result = await RiderModel.findByIdAndDelete(riderId);
     if (!result) {
-      return { success: false, message: `Rider not found or already deleted.` };
+      return { success: false, message: `Rider not found or already deleted from database.` };
     }
     return { success: true, message: `Rider "${result.name}" deleted successfully from the database.` };
   } catch (error: any) {
@@ -392,16 +397,14 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
   try {
     await dbConnect();
     const paymentsFromDB = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
-    // Convert Date fields to ensure they are passed correctly if needed, though usually lean handles Dates well.
-    // For this specific action, SalaryPaymentData expects Date objects for createdAt/updatedAt.
-    // The critical part is ensuring these are not complex Mongoose Date types if not using .lean(), but .lean() is used.
+    
     const payments: SalaryPaymentData[] = paymentsFromDB.map(p => ({
         ...p,
         _id: p._id.toString(),
-        paymentDate: new Date(p.paymentDate), // Ensure it's a Date object
+        paymentDate: new Date(p.paymentDate), 
         createdAt: p.createdAt ? new Date(p.createdAt) : undefined,
         updatedAt: p.updatedAt ? new Date(p.updatedAt) : undefined,
-    })) as SalaryPaymentData[]; // Cast needed due to potential ObjectId/Date types from raw lean
+    })) as SalaryPaymentData[]; 
     return { success: true, payments: payments, message: 'Salary payments fetched successfully from database.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);
@@ -487,7 +490,7 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
     const processedReports = reportsFromDB.map(report => ({
       _id: report._id.toString(),
       recordedBy: report.recordedBy,
-      firestoreDate: new Date(report.firestoreDate), // Ensure Date object
+      firestoreDate: new Date(report.firestoreDate), 
       cashReceived: report.cashReceived,
     }));
 
