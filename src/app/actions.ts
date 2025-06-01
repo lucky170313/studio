@@ -52,9 +52,12 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
       status: reportData.status,
     };
 
+    console.log("Attempting to save sales report with data:", JSON.stringify(dataToSave, null, 2));
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
+
+    console.log("Sales report saved successfully, ID:", savedEntry._id.toString());
 
     return {
       success: true,
@@ -64,17 +67,19 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
   } catch (e: any) {
     console.error("Error saving sales report to database via Server Action: ", e);
     let dbErrorMessage = 'Failed to save sales report to database.';
-    if (e instanceof Error) {
+    if (e.name === 'ValidationError') {
+        // Log the full validation error object for more details
+        console.error("Mongoose Validation Error details:", JSON.stringify(e.errors, null, 2));
+        let validationErrors = Object.values(e.errors).map((err: any) => `${err.path}: ${err.message}`).join(', ');
+        dbErrorMessage = `Database Validation Error: ${validationErrors}`;
+    } else if (e instanceof Error) {
         dbErrorMessage = `Database Error: ${e.message}.`;
     }
-    if (e.name === 'ValidationError') {
-        let validationErrors = Object.values(e.errors).map((err: any) => err.message).join(', ');
-        dbErrorMessage = `Database Validation Error: ${validationErrors}`;
-    }
+    
     return {
       success: false,
       message: dbErrorMessage,
-      error: e.message
+      error: e.message // Or e.toString() for more comprehensive error
     };
   }
 }
@@ -492,3 +497,4 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
     return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
+
