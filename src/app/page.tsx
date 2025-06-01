@@ -9,7 +9,7 @@ import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
-import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials, SalesReportServerData, Rider } from '@/lib/types';
+import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials, Rider } from '@/lib/types'; // Removed SalesReportServerData as it's not directly used here
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
@@ -41,6 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { cn } from '@/lib/utils'; // Added missing import
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
@@ -255,7 +256,8 @@ export default function AquaTrackPage() {
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      const reportToSave: SalesReportServerData = {
+      // Using Omit<SalesReportData, 'id' | '_id'> for reportToSave ensures all necessary fields are included.
+      const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'),
         firestoreDate: submissionDateObject,
         riderName: values.riderName,
@@ -542,7 +544,7 @@ export default function AquaTrackPage() {
 
       <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
         <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Confirm Report Generation</AlertDialogTitle><AlertDialogDescription>Are you sure you want to generate and save this sales report? Please review the details before confirming.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogHeader><AlertDialogTitle>Confirm Report Generation</AlertDialogTitle><AlertDialogDescription>Are you sure you want to generate and save this sales report? Please review the details before confirming. This will save the data to the database.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel onClick={() => { setPendingFormValues(null); setIsConfirmationDialogOpen(false); }}>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeReportGeneration}>Confirm & Generate</AlertDialogAction></AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
@@ -702,3 +704,6 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
+
+    
