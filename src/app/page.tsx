@@ -45,7 +45,8 @@ import { cn } from '@/lib/utils';
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
-const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
+const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // For TeamLeaders
+const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp'; // For Admins (sessionStorage)
 
 
 export default function AquaTrackPage() {
@@ -96,7 +97,7 @@ export default function AquaTrackPage() {
   };
 
   const fetchRiders = async () => {
-    if (!isLoggedIn) return; // Only fetch if logged in
+    if (!isLoggedIn) return;
     setIsLoadingRiders(true);
     try {
       const result = await getRidersAction();
@@ -114,24 +115,81 @@ export default function AquaTrackPage() {
     }
   };
 
+  const saveLoginSession = (loggedIn: boolean, role: UserRole | null, username: string | null) => {
+    if (loggedIn && role && username) {
+      const sessionData = JSON.stringify({ isLoggedIn: true, currentUserRole: role, loggedInUsername: username });
+      if (role === 'Admin') {
+        sessionStorage.setItem(ADMIN_LOGIN_SESSION_KEY, sessionData);
+        localStorage.removeItem(LOGIN_SESSION_KEY); // Clear regular user session
+      } else { // TeamLeader
+        localStorage.setItem(LOGIN_SESSION_KEY, sessionData);
+        sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY); // Clear admin session
+      }
+    } else { // Logging out
+      localStorage.removeItem(LOGIN_SESSION_KEY);
+      sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
+    }
+  };
+
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
 
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message); // Default admin password is now hashed on init
+      console.log(res.message);
     });
 
+    let sessionLoaded = false;
+
+    // Try loading admin session from sessionStorage first
     try {
-      const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
-      if (storedSession) {
-        const session = JSON.parse(storedSession);
-        if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole) {
+      const storedAdminSession = sessionStorage.getItem(ADMIN_LOGIN_SESSION_KEY);
+      if (storedAdminSession) {
+        const session = JSON.parse(storedAdminSession);
+        if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole === 'Admin') {
           setIsLoggedIn(true);
           setCurrentUserRole(session.currentUserRole);
           setLoggedInUsername(session.loggedInUsername);
+          sessionLoaded = true;
+        } else {
+          // Malformed admin session, clear it
+          sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
         }
       }
-    } catch (error) { console.error("Failed to parse login session from localStorage", error); }
+    } catch (error) {
+      console.error("Failed to parse admin login session from sessionStorage", error);
+      sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
+    }
+
+    // If no admin session, try loading regular user session from localStorage
+    if (!sessionLoaded) {
+      try {
+        const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
+        if (storedSession) {
+          const session = JSON.parse(storedSession);
+          // Ensure it's not an admin session mistakenly in localStorage
+          if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole && session.currentUserRole !== 'Admin') {
+            setIsLoggedIn(true);
+            setCurrentUserRole(session.currentUserRole);
+            setLoggedInUsername(session.loggedInUsername);
+            sessionLoaded = true;
+          } else {
+            // Malformed or admin session in wrong place, clear it
+            localStorage.removeItem(LOGIN_SESSION_KEY);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to parse login session from localStorage", error);
+        localStorage.removeItem(LOGIN_SESSION_KEY);
+      }
+    }
+    
+    if (!sessionLoaded) {
+        // If no valid session found in either storage, ensure logged out state
+        setIsLoggedIn(false);
+        setCurrentUserRole(null);
+        setLoggedInUsername(null);
+    }
+
 
     try {
       const storedRate = localStorage.getItem(GLOBAL_RATE_PER_LITER_KEY);
@@ -161,20 +219,13 @@ export default function AquaTrackPage() {
       if (currentUserRole === 'Admin') {
         fetchTeamLeaders();
       }
-      fetchRiders(); // Fetch riders whenever login status changes to logged in
+      fetchRiders();
     } else {
-      setRiders([]); // Clear riders if not logged in
+      setRiders([]);
       setTeamLeaders([]);
     }
   }, [isLoggedIn, currentUserRole]);
 
-  const saveLoginSession = (loggedIn: boolean, role: UserRole | null, username: string | null) => {
-    if (loggedIn && role && username) {
-      localStorage.setItem(LOGIN_SESSION_KEY, JSON.stringify({ isLoggedIn: true, currentUserRole: role, loggedInUsername: username }));
-    } else {
-      localStorage.removeItem(LOGIN_SESSION_KEY);
-    }
-  };
 
   const handleLogin = async () => {
     setLoginError(null);
@@ -191,7 +242,6 @@ export default function AquaTrackPage() {
       saveLoginSession(true, result.user.role, result.user.userId);
       setUsernameInput('');
       setPasswordInput('');
-      // Fetching riders and team leaders is now handled by the useEffect hook based on isLoggedIn
     } else {
       setLoginError(result.message || "Invalid User ID or Password.");
       setIsLoggedIn(false);
@@ -207,7 +257,6 @@ export default function AquaTrackPage() {
     setCurrentUserRole(null);
     setLoggedInUsername(null);
     saveLoginSession(false, null, null);
-    // Clearing riders and teamLeaders is handled by useEffect based on isLoggedIn
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
@@ -256,7 +305,6 @@ export default function AquaTrackPage() {
       let commissionEarned = 0;
       if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
 
-      // Using Omit<SalesReportData, 'id' | '_id'> for reportToSave ensures all necessary fields are included.
       const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
         date: formatDateFns(submissionDateObject, 'PPP'),
         firestoreDate: submissionDateObject,
@@ -328,19 +376,19 @@ export default function AquaTrackPage() {
     const trimmedRiderName = riderNameInput.trim();
     let result;
 
-    if (editingRider) { // Editing existing rider's name
-      if (trimmedRiderName === editingRider.name) { // No change in name
+    if (editingRider) { 
+      if (trimmedRiderName === editingRider.name) { 
         toast({ title: "Info", description: "No changes made to rider name." });
         handleCancelEditRider();
         return;
       }
       result = await updateRiderAction(editingRider._id, { name: trimmedRiderName });
-    } else { // Adding new rider
-      result = await addRiderAction({ name: trimmedRiderName, perDaySalary: 0 }); // Default salary 0
+    } else { 
+      result = await addRiderAction({ name: trimmedRiderName, perDaySalary: 0 }); 
     }
 
     if (result.success) {
-      toast({ title: "Success", description: result.message }); // Message now confirms DB save
+      toast({ title: "Success", description: `${result.message} Database record updated.` }); 
       await fetchRiders();
       handleCancelEditRider();
     } else {
@@ -362,7 +410,7 @@ export default function AquaTrackPage() {
     if (window.confirm(`Are you sure you want to delete rider "${riderToDelete.name}"? This action cannot be undone.`)) {
       const result = await deleteRiderAction(riderToDelete._id);
       if (result.success) {
-        toast({ title: "Success", description: result.message }); // Message now confirms DB save
+        toast({ title: "Success", description: `${result.message} Database record updated.` });
         if (selectedRiderIdForSalary === riderToDelete._id) {
           setSelectedRiderIdForSalary('');
           setSalaryInput('');
@@ -390,7 +438,7 @@ export default function AquaTrackPage() {
 
     const result = await updateRiderAction(selectedRiderIdForSalary, { perDaySalary: salaryValue });
     if (result.success) {
-      toast({ title: "Success", description: result.message }); // Message now confirms DB save
+      toast({ title: "Success", description: `${result.message} Database record updated.` }); 
       await fetchRiders(); 
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -421,7 +469,7 @@ export default function AquaTrackPage() {
     const result = await changeAdminPasswordAction(loggedInUsername, adminPasswordInput.trim());
     if (result.success) {
       setAdminPasswordInput('');
-      toast({ title: "Success", description: result.message }); // Message now confirms DB save & hashing
+      toast({ title: "Success", description: result.message });
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
     }
@@ -446,7 +494,7 @@ export default function AquaTrackPage() {
     }
 
     if (result.success) {
-      toast({ title: "Success", description: result.message }); // Message now confirms DB save & hashing
+      toast({ title: "Success", description: result.message }); 
       await fetchTeamLeaders();
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
@@ -471,7 +519,7 @@ export default function AquaTrackPage() {
     if (window.confirm(`Are you sure you want to delete Team Leader "${userIdToDelete}"?`)) {
       const result = await deleteTeamLeaderAction(userIdToDelete);
       if (result.success) {
-        toast({ title: "Success", description: result.message }); // Message now confirms DB save
+        toast({ title: "Success", description: result.message }); 
         await fetchTeamLeaders();
         if (editingTlOriginalUserId === userIdToDelete) handleCancelEditTl();
       } else {
@@ -678,7 +726,7 @@ export default function AquaTrackPage() {
               onSubmit={handleFormSubmit}
               isProcessing={isProcessing || isLoadingRiders}
               currentUserRole={currentUserRole || 'TeamLeader'}
-              ridersFromDB={riders.map(r => r.name)} // Pass only names to the form
+              ridersFromDB={riders.map(r => r.name)} 
               persistentRatePerLiter={globalRatePerLiter}
             />
           </CardContent>
@@ -696,6 +744,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
-
     
