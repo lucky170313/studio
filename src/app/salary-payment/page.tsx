@@ -27,7 +27,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
 const defaultCurrentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => defaultCurrentYear - i); 
+const years = Array.from({ length: 5 }, (_, i) => defaultCurrentYear - i);
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
@@ -324,26 +324,26 @@ export default function SalaryPaymentPage() {
                   </FormItem>
                 )}
               />
-              
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                     control={form.control}
-                    name="riderName" // This should be the rider's name string for compatibility with getRiderMonthlyAggregatesAction
+                    name="riderName"
                     render={({ field }) => (
                     <FormItem className="sm:col-span-1">
                         <FormLabel className="flex items-center"><User className="mr-2 h-4 w-4 text-primary" />Select Rider</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingRiders || riders.length === 0}>
+                        <Select onValueChange={field.onChange} value={field.value || ""} disabled={isLoadingRiders || riders.length === 0}>
                         <FormControl>
                             <SelectTrigger>
                             <SelectValue placeholder="Select a rider" />
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            {isLoadingRiders ? <SelectItem value="" disabled>Loading riders...</SelectItem> :
+                            {isLoadingRiders ? <SelectItem value="loading_placeholder_riders" disabled>Loading riders...</SelectItem> :
                             riders.length > 0 ? (
-                            riders.map(r => <SelectItem key={r._id} value={r.name}>{r.name}</SelectItem>) // Use r.name as value
+                            riders.map(r => <SelectItem key={r._id} value={r.name}>{r.name}</SelectItem>)
                             ) : (
-                            <SelectItem value="" disabled>No riders available</SelectItem>
+                            <SelectItem value="no_riders_placeholder" disabled>No riders available</SelectItem>
                             )}
                         </SelectContent>
                         </Select>
@@ -479,7 +479,7 @@ export default function SalaryPaymentPage() {
                 <Input type="text" value={`₹${remainingAmount.toFixed(2)}`} readOnly className="bg-muted/50 font-semibold" />
                 <FormDescription>Calculated as: Salary Amount for Period - Amount Paid (for this period) - Deduction Amount.</FormDescription>
               </FormItem>
-              
+
               <FormField
                 control={form.control}
                 name="comment"

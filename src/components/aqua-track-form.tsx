@@ -107,7 +107,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
       }
       // Set ratePerLiter for all roles initially, can be edited by Admin/TL later
       setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
-      
+
       if (currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
         setValue('overrideLitersSold', undefined, { shouldValidate: true });
       }
@@ -296,8 +296,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
             if (isPrevMeterReadingField && (currentUserRole === 'TeamLeader' || isLoadingPrevReading)) {
               fieldIsDisabled = true;
             }
-            // Rate per liter is now editable by Admin and TeamLeader
-            // It is only disabled if it's not Admin or TeamLeader (which isn't a current role, but for safety)
             if (isRatePerLiterField && !(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader')) {
               fieldIsDisabled = true;
             }
@@ -342,7 +340,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
                                     </SelectItem>
                                 ))
                                 ) : (
-                                <SelectItem value="" disabled>
+                                <SelectItem value="placeholder-no-options" disabled>
                                     {inputField.name === 'riderName' ? 'No riders (manage in Admin Panel)' : 'No options'}
                                 </SelectItem>
                                 )}
