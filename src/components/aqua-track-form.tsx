@@ -7,7 +7,6 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
 import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet } from 'lucide-react';
-// NextImage and ImageIcon removed
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -30,7 +29,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { Label } // Keep Label import
+import { Label }
 from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
@@ -40,7 +39,7 @@ interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => void;
   isProcessing: boolean;
   currentUserRole: UserRole;
-  riderNames: string[];
+  ridersFromDB: string[]; // Changed from riderNames to ridersFromDB for clarity
   persistentRatePerLiter: number;
 }
 
@@ -65,7 +64,7 @@ const noteDenominations = [
 type DenominationQuantities = { [key: string]: string };
 
 
-export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNames, persistentRatePerLiter }: AquaTrackFormProps) {
+export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersFromDB, persistentRatePerLiter }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
@@ -85,19 +84,15 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
       extraAmount: 0,
       hoursWorked: 9,
       comment: '',
-      // meterReadingImage: undefined, // Removed
     },
   });
 
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
-  // meterReadingImageFile watch removed
   const { setValue, getValues, watch } = form;
 
   const [isClient, setIsClient] = useState(false);
   const [isLoadingPrevReading, setIsLoadingPrevReading] = useState(false);
-  // imagePreview state and related useEffect removed
 
-  // State for cash calculator
   const [denominationQuantities, setDenominationQuantities] = useState<DenominationQuantities>({});
   const [calculatedCashTotal, setCalculatedCashTotal] = useState(0);
 
@@ -109,10 +104,10 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     if (isClient) {
       if (currentUserRole === 'TeamLeader') {
         setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
-        setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
-      } else if (currentUserRole === 'Admin') {
-         setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
       }
+      // Set ratePerLiter for all roles initially, can be edited by Admin/TL later
+      setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
+      
       if (currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
         setValue('overrideLitersSold', undefined, { shouldValidate: true });
       }
@@ -138,9 +133,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     }
   }, [selectedVehicleName, setValue, isClient]);
 
-  // useEffect for imagePreview removed
 
-  // Effect for cash calculator total
   useEffect(() => {
     let total = 0;
     for (const den of coinDenominations) {
@@ -157,7 +150,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
   const handleDenominationQuantityChange = (type: 'coin' | 'note', value: number, quantity: string) => {
     setDenominationQuantities(prev => ({
       ...prev,
-      [`${type}_${value}`]: quantity.replace(/[^0-9]/g, ''), // Allow only numbers
+      [`${type}_${value}`]: quantity.replace(/[^0-9]/g, ''),
     }));
   };
 
@@ -216,7 +209,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
     const dueCollectedVal = Number(watchedDueCollected) || 0;
     const cashReceivedVal = Number(watchedCashReceived) || 0;
     const onlineReceivedVal = Number(watchedOnlineReceived) || 0;
-    const newDueAmountVal = Number(watchedNewDueAmount) || 0; 
+    const newDueAmountVal = Number(watchedNewDueAmount) || 0;
     const tokenMoneyVal = Number(watchedTokenMoney) || 0;
     const extraAmountVal = Number(watchedExtraAmount) || 0;
     const staffExpenseVal = Number(watchedStaffExpense) || 0;
@@ -225,14 +218,12 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
   }, [liveTotalSale, watchedCashReceived, watchedOnlineReceived, watchedDueCollected, watchedNewDueAmount, watchedTokenMoney, watchedStaffExpense, watchedExtraAmount]);
 
   const inputFieldsDefinition = [
-    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: riderNames },
+    { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: ridersFromDB },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
     { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB. Admin can edit." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
-    // Meter Reading Image related logic removed from here
-    { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: currentUserRole === 'TeamLeader' ? `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Set by Admin)` : `Global rate: ₹${persistentRatePerLiter.toFixed(2)} (Editable by Admin).` },
-    // Cash Calculator to be rendered manually before cashReceived
+    { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: `Global rate: ₹${persistentRatePerLiter.toFixed(2)}. Editable by Admin/Team Leader.` },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
     { name: 'onlineReceived', label: 'Online Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 500', componentType: 'input' },
     { name: 'dueCollected', label: 'Due Collected (Past Dues)', icon: IndianRupee, type: 'number', placeholder: 'e.g., 100', componentType: 'input' },
@@ -305,13 +296,15 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
             if (isPrevMeterReadingField && (currentUserRole === 'TeamLeader' || isLoadingPrevReading)) {
               fieldIsDisabled = true;
             }
-            if (isRatePerLiterField && currentUserRole === 'TeamLeader') {
+            // Rate per liter is now editable by Admin and TeamLeader
+            // It is only disabled if it's not Admin or TeamLeader (which isn't a current role, but for safety)
+            if (isRatePerLiterField && !(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader')) {
               fieldIsDisabled = true;
             }
 
+
             let currentOptions: string[] = [];
              if ('options' in inputField && inputField.options) {
-              // @ts-ignore
               currentOptions = inputField.options;
             }
 
@@ -336,9 +329,9 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                                 field.onChange(valToSet);
                             }}
                             value={String(field.value === undefined || field.value === null ? (inputField.name === 'hoursWorked' ? '9' : '') : field.value)}
-                            disabled={fieldIsDisabled}
+                            disabled={fieldIsDisabled || (inputField.name === 'riderName' && ridersFromDB.length === 0)}
                             >
-                            <SelectTrigger className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}>
+                            <SelectTrigger className={cn("text-base", (fieldIsDisabled || (inputField.name === 'riderName' && ridersFromDB.length === 0)) && "cursor-not-allowed opacity-70")}>
                                 <SelectValue placeholder={inputField.placeholder} />
                             </SelectTrigger>
                             <SelectContent>
@@ -350,7 +343,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
                                 ))
                                 ) : (
                                 <SelectItem value="" disabled>
-                                    {inputField.name === 'riderName' ? 'No riders available (add in Admin Panel)' : 'No options'}
+                                    {inputField.name === 'riderName' ? 'No riders (manage in Admin Panel)' : 'No options'}
                                 </SelectItem>
                                 )}
                             </SelectContent>
@@ -385,8 +378,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, riderNa
             return (
                 <React.Fragment key={`fragment_${inputField.name}`}>
                     {renderFormField}
-                    {/* Image related FormField removed from here */}
-                    {inputField.name === 'ratePerLiter' && ( // Insert calculator before cashReceived
+                    {inputField.name === 'ratePerLiter' && (
                       <div className="md:col-span-2 my-4">
                         <Accordion type="single" collapsible className="w-full border rounded-md shadow-sm">
                           <AccordionItem value="cash-calculator">

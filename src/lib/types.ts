@@ -6,13 +6,22 @@ export type UserRole = 'Admin' | 'TeamLeader';
 export interface UserCredentials {
   userId: string;
   role: UserRole;
-  password?: string; // Optional here because we don't always pass it around
+  password?: string; 
+}
+
+// Rider Type (from DB)
+export interface Rider {
+  _id: string;
+  name: string;
+  perDaySalary: number; // Salary for a full 9-hour day
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 
 export const salesDataSchema = z.object({
   date: z.date({ required_error: 'Date is required.' }),
-  riderName: z.string().min(1, 'Rider name is required.'),
+  riderName: z.string().min(1, 'Rider name is required.'), // This will now be selected from DB-sourced riders
   vehicleName: z.string().min(1, 'Vehicle name is required.'),
   previousMeterReading: z.coerce.number().min(0, 'Previous meter reading must be a positive number.'),
   currentMeterReading: z.coerce.number().min(0, 'Current meter reading must be a positive number.'),
@@ -42,9 +51,9 @@ export type SalesDataFormValues = z.infer<typeof salesDataSchema>;
 
 export interface SalesReportData {
   id?: string;
-  _id?: string; // Mongoose ID
-  date: string; // Formatted date for display
-  firestoreDate: Date; // JS Date object for DB storage and querying
+  _id?: string; 
+  date: string; 
+  firestoreDate: Date; 
   riderName: string;
   vehicleName: string;
   previousMeterReading: number;
@@ -63,7 +72,7 @@ export interface SalesReportData {
   dailySalaryCalculated?: number;
   commissionEarned?: number;
   comment?: string;
-  recordedBy: string; // User ID of the person who recorded the entry
+  recordedBy: string; 
   totalSale: number;
   actualReceived: number;
   initialAdjustedExpected: number;
@@ -71,17 +80,15 @@ export interface SalesReportData {
   aiReasoning: string;
   discrepancy: number;
   status: 'Match' | 'Shortage' | 'Overage';
-  // meterReadingImageDriveLink: string | null; // Removed as per user request
 }
 
-// Type for the data expected by the saveSalesReportAction, omitting DB-generated fields
 export type SalesReportServerSaveData = Omit<SalesReportData, 'id' | '_id'>;
 
 
 // Salary Payment Types
 export const salaryPaymentSchema = z.object({
   paymentDate: z.date({ required_error: 'Payment date is required.' }),
-  riderName: z.string().min(1, 'Rider name is required.'),
+  riderName: z.string().min(1, 'Rider name is required.'), // This will also be selected from DB-sourced riders
   salaryGiverName: z.string().min(1, 'Salary giver name is required.'),
   selectedYear: z.string().min(1, 'Year for salary calculation is required.'),
   selectedMonth: z.string().min(1, 'Month for salary calculation is required.'),
@@ -106,14 +113,14 @@ export interface SalaryPaymentData {
   _id?: string;
   paymentDate: Date;
   riderName: string;
-  salaryGiverName: string; 
+  salaryGiverName: string;
   salaryAmountForPeriod: number;
   amountPaid: number;
   deductionAmount?: number;
-  advancePayment?: number; 
-  remainingAmount: number; 
+  advancePayment?: number;
+  remainingAmount: number;
   comment?: string;
-  recordedBy: string; 
+  recordedBy: string;
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -128,10 +135,9 @@ export interface RiderMonthlyAggregates {
   netMonthlyEarning: number;
 }
 
-// New type for the specific data needed by the Collector's Cash Report
 export interface CollectorCashReportEntry {
-  _id: string; 
+  _id: string;
   recordedBy: string;
-  firestoreDate: Date; // Will be a JS Date object after fetching and mapping
+  firestoreDate: Date; 
   cashReceived: number;
 }

@@ -7,7 +7,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import Link from 'next/link';
-import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon, MinusCircle, DollarSign } from 'lucide-react';
+import { CalendarIcon, User, IndianRupee, FileText, Loader2, Landmark, ArrowLeft, Download, AlertCircleIcon, MinusCircle, DollarSign, RefreshCw } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -19,16 +19,15 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { SalaryPaymentFormValues } from '@/lib/types';
+import type { SalaryPaymentFormValues, Rider } from '@/lib/types';
 import { salaryPaymentSchema } from '@/lib/types';
-import { saveSalaryPaymentAction, getRiderMonthlyAggregatesAction } from '@/app/actions';
+import { saveSalaryPaymentAction, getRiderMonthlyAggregatesAction, getRidersAction } from '@/app/actions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
 const defaultCurrentYear = new Date().getFullYear();
-const years = Array.from({ length: 5 }, (_, i) => defaultCurrentYear - i); // Last 5 years
+const years = Array.from({ length: 5 }, (_, i) => defaultCurrentYear - i); 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December"
@@ -38,7 +37,8 @@ export default function SalaryPaymentPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isFetchingSalary, setIsFetchingSalary] = useState(false);
   const { toast } = useToast();
-  const [riderNames, setRiderNames] = useState<string[]>([]);
+  const [riders, setRiders] = useState<Rider[]>([]);
+  const [isLoadingRiders, setIsLoadingRiders] = useState(false);
   const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
 
   const form = useForm<SalaryPaymentFormValues>({
@@ -46,9 +46,9 @@ export default function SalaryPaymentPage() {
     defaultValues: {
       paymentDate: new Date(),
       riderName: '',
-      salaryGiverName: '', 
+      salaryGiverName: '',
       selectedYear: String(defaultCurrentYear),
-      selectedMonth: String(getMonth(new Date())), 
+      selectedMonth: String(getMonth(new Date())),
       salaryAmountForPeriod: 0,
       amountPaid: 0,
       deductionAmount: 0,
@@ -61,7 +61,7 @@ export default function SalaryPaymentPage() {
   const watchedSalaryAmount = watch('salaryAmountForPeriod');
   const watchedAmountPaid = watch('amountPaid');
   const watchedDeductionAmount = watch('deductionAmount');
-  const watchedAdvancePayment = watch('advancePayment'); // Watch the new field
+  const watchedAdvancePayment = watch('advancePayment');
   const watchedRiderName = watch('riderName');
   const watchedSelectedYear = watch('selectedYear');
   const watchedSelectedMonth = watch('selectedMonth');
@@ -70,23 +70,28 @@ export default function SalaryPaymentPage() {
     const salary = Number(watchedSalaryAmount) || 0;
     const paid = Number(watchedAmountPaid) || 0;
     const deduction = Number(watchedDeductionAmount) || 0;
-    // Advance payment does not affect the remaining amount of the current period's salary
     return salary - paid - deduction;
   }, [watchedSalaryAmount, watchedAmountPaid, watchedDeductionAmount]);
 
-  useEffect(() => {
+  const fetchRidersForDropdown = async () => {
+    setIsLoadingRiders(true);
     try {
-      const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
-      if (storedRiderNames) {
-        const parsedRiderNames = JSON.parse(storedRiderNames);
-        if (Array.isArray(parsedRiderNames) && parsedRiderNames.length > 0) {
-          setRiderNames(parsedRiderNames);
-        }
+      const result = await getRidersAction();
+      if (result.success && result.riders) {
+        setRiders(result.riders);
+      } else {
+        toast({ title: "Error", description: result.message || "Failed to fetch riders for dropdown.", variant: "destructive" });
+        setRiders([]);
       }
-    } catch (error) {
-      console.error("Failed to parse riderNames from localStorage", error);
+    } catch (error: any) {
+      toast({ title: "Error", description: `Failed to fetch riders: ${error.message}`, variant: "destructive" });
+      setRiders([]);
+    } finally {
+      setIsLoadingRiders(false);
     }
+  };
 
+  useEffect(() => {
     try {
       const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
       if (storedSession) {
@@ -94,6 +99,7 @@ export default function SalaryPaymentPage() {
         if (session.isLoggedIn && session.loggedInUsername) {
           setLoggedInUsername(session.loggedInUsername);
           setValue('salaryGiverName', session.loggedInUsername, { shouldValidate: true });
+          fetchRidersForDropdown(); // Fetch riders on successful login check
         } else {
           toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
         }
@@ -110,10 +116,10 @@ export default function SalaryPaymentPage() {
     const fetchAndSetSalary = async () => {
       if (watchedRiderName && watchedSelectedYear && watchedSelectedMonth) {
         setIsFetchingSalary(true);
-        setValue('salaryAmountForPeriod', 0); 
+        setValue('salaryAmountForPeriod', 0);
         try {
           const result = await getRiderMonthlyAggregatesAction(
-            watchedRiderName,
+            watchedRiderName, // watchedRiderName should be the name string
             parseInt(watchedSelectedYear),
             parseInt(watchedSelectedMonth)
           );
@@ -145,11 +151,11 @@ export default function SalaryPaymentPage() {
       const paymentDataToServer = {
         paymentDate: values.paymentDate,
         riderName: values.riderName,
-        salaryGiverName: loggedInUsername, 
+        salaryGiverName: loggedInUsername,
         salaryAmountForPeriod: values.salaryAmountForPeriod,
         amountPaid: values.amountPaid,
         deductionAmount: values.deductionAmount || 0,
-        advancePayment: values.advancePayment || 0, // Include advance payment
+        advancePayment: values.advancePayment || 0,
         comment: values.comment,
         recordedBy: loggedInUsername,
       };
@@ -258,8 +264,15 @@ export default function SalaryPaymentPage() {
 
       <Card className="w-full max-w-2xl mx-auto shadow-xl">
         <CardHeader>
-          <CardTitle>Record Salary Payment</CardTitle>
-          <CardDescription>Enter the details of the salary payment. Salary for period auto-fills based on rider's performance for selected month/year.</CardDescription>
+          <div className="flex justify-between items-center">
+            <div>
+              <CardTitle>Record Salary Payment</CardTitle>
+              <CardDescription>Enter the details of the salary payment. Salary for period auto-fills based on rider's performance for selected month/year.</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={fetchRidersForDropdown} disabled={isLoadingRiders}>
+                <RefreshCw className={cn("h-4 w-4", isLoadingRiders && "animate-spin")} />
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -315,21 +328,22 @@ export default function SalaryPaymentPage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                     control={form.control}
-                    name="riderName"
+                    name="riderName" // This should be the rider's name string for compatibility with getRiderMonthlyAggregatesAction
                     render={({ field }) => (
                     <FormItem className="sm:col-span-1">
                         <FormLabel className="flex items-center"><User className="mr-2 h-4 w-4 text-primary" />Select Rider</FormLabel>
-                        <Select onValueChange={field.onChange} value={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value} disabled={isLoadingRiders || riders.length === 0}>
                         <FormControl>
                             <SelectTrigger>
                             <SelectValue placeholder="Select a rider" />
                             </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                            {riderNames.length > 0 ? (
-                            riderNames.map(name => <SelectItem key={name} value={name}>{name}</SelectItem>)
+                            {isLoadingRiders ? <SelectItem value="" disabled>Loading riders...</SelectItem> :
+                            riders.length > 0 ? (
+                            riders.map(r => <SelectItem key={r._id} value={r.name}>{r.name}</SelectItem>) // Use r.name as value
                             ) : (
-                            <SelectItem value="" disabled>No riders (manage in Admin)</SelectItem>
+                            <SelectItem value="" disabled>No riders available</SelectItem>
                             )}
                         </SelectContent>
                         </Select>
@@ -480,7 +494,7 @@ export default function SalaryPaymentPage() {
                 )}
               />
               <div className="flex flex-col sm:flex-row gap-2 pt-4">
-                <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || isFetchingSalary}>
+                <Button type="submit" className="w-full sm:w-auto" disabled={isSubmitting || isFetchingSalary || isLoadingRiders}>
                   {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                   Record Payment
                 </Button>

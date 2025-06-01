@@ -4,13 +4,13 @@
 import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import type { SalesReportData } from '@/lib/types';
+import type { SalesReportData, Rider } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3, Clock, Briefcase, Gift, MinusCircle, PlusCircle, Printer } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, PieChart, CalendarDays, User, Droplets, IndianRupee, FileSpreadsheet, Wallet, TrendingUp, BarChart3, Clock, Briefcase, Gift, MinusCircle, PlusCircle, Printer, RefreshCw } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth, parse, format } from 'date-fns';
 import * as XLSX from 'xlsx';
 import {
@@ -22,8 +22,12 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
+import { getRidersAction } from '@/app/actions'; // Import action to get riders
+import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
-const RIDER_SALARIES_KEY = 'riderSalariesDropAquaTrackApp';
+const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
+
 
 interface DailyEntryDetail {
   id: string;
@@ -50,6 +54,7 @@ interface MonthlyRiderDetailedStats {
   totalDiscrepancy: number;
   netMonthlyEarning: number;
   daysActive: number;
+  riderBaseSalaryPerDay: number; // Added to store the fetched salary
 }
 
 interface RiderMonthlyData {
@@ -125,26 +130,44 @@ export default function RiderMonthlyReportPage() {
   const [allSalesEntries, setAllSalesEntries] = useState<SalesReportData[]>([]);
   const [reportData, setReportData] = useState<AggregatedReportData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRiders, setIsLoadingRiders] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [riderSalaries, setRiderSalaries] = useState<Record<string, number>>({});
+  const [dbRiders, setDbRiders] = useState<Rider[]>([]);
+  const { toast } = useToast();
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
- useEffect(() => {
+  const fetchRiderDataFromDB = async () => {
+    setIsLoadingRiders(true);
     try {
-      const storedSalaries = localStorage.getItem(RIDER_SALARIES_KEY);
-      if (storedSalaries) {
-        const parsedSalaries = JSON.parse(storedSalaries);
-        if (typeof parsedSalaries === 'object' && parsedSalaries !== null) {
-           setRiderSalaries(parsedSalaries);
-        }
+      const result = await getRidersAction();
+      if (result.success && result.riders) {
+        setDbRiders(result.riders);
+      } else {
+        toast({ title: "Error", description: result.message || "Failed to fetch riders.", variant: "destructive" });
+        setDbRiders([]);
       }
-    } catch (e) {
-      console.error("Failed to load rider salaries from localStorage", e);
+    } catch (e: any) {
+      toast({ title: "Error", description: `Failed to load riders: ${e.message}`, variant: "destructive" });
+      setDbRiders([]);
+    } finally {
+      setIsLoadingRiders(false);
     }
-  }, []);
+  };
+
+ useEffect(() => {
+    const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
+    if (storedSession) {
+      const session = JSON.parse(storedSession);
+      if (session.isLoggedIn) {
+        setIsLoggedIn(true);
+        fetchRiderDataFromDB();
+      }
+    }
+  }, [toast]);
 
 
   useEffect(() => {
@@ -179,7 +202,7 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading && allSalesEntries.length > 0 && Object.keys(riderSalaries).length === 0) return;
+    if (isLoading || isLoadingRiders || (allSalesEntries.length > 0 && dbRiders.length === 0)) return;
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
@@ -191,16 +214,20 @@ export default function RiderMonthlyReportPage() {
     const salesByRiderForChart: { [key: string]: number } = {};
 
     filteredEntries.forEach(entry => {
-      const rider = entry.riderName;
+      const riderName = entry.riderName;
       const entryDate = new Date(entry.firestoreDate);
       const monthYear = formatDisplayDateToMonthYear(entryDate);
       const dayKey = formatDisplayDateToDayKey(entryDate);
+      
+      const riderInfo = dbRiders.find(r => r.name === riderName);
+      const riderBaseSalaryPerDay = riderInfo ? riderInfo.perDaySalary : 0;
 
-      if (!riderMonthlyData[rider]) {
-        riderMonthlyData[rider] = {};
+
+      if (!riderMonthlyData[riderName]) {
+        riderMonthlyData[riderName] = {};
       }
-      if (!riderMonthlyData[rider][monthYear]) {
-        riderMonthlyData[rider][monthYear] = {
+      if (!riderMonthlyData[riderName][monthYear]) {
+        riderMonthlyData[riderName][monthYear] = {
           dailyEntries: [],
           totalLitersSold: 0,
           totalMoneyCollected: 0,
@@ -211,15 +238,20 @@ export default function RiderMonthlyReportPage() {
           totalDiscrepancy: 0,
           netMonthlyEarning: 0,
           daysActive: 0,
+          riderBaseSalaryPerDay: riderBaseSalaryPerDay,
         };
+      } else {
+          // Ensure riderBaseSalaryPerDay is set if monthYear object already exists
+          riderMonthlyData[riderName][monthYear].riderBaseSalaryPerDay = riderBaseSalaryPerDay;
       }
-
-      const baseDailySalary = entry.dailySalaryCalculated || 0;
-      const commissionEarned = entry.commissionEarned || 0;
+      
+      // Use the fetched riderBaseSalaryPerDay for calculation
+      const baseDailySalary = entry.hoursWorked >= 9 ? riderBaseSalaryPerDay : (riderBaseSalaryPerDay / 9) * entry.hoursWorked;
+      const commissionEarned = entry.commissionEarned || 0; // Assuming this is already correctly calculated if it exists
 
       const netEarning = baseDailySalary + commissionEarned - (entry.discrepancy || 0);
 
-      riderMonthlyData[rider][monthYear].dailyEntries.push({
+      riderMonthlyData[riderName][monthYear].dailyEntries.push({
         id: entry._id || `entry-${Math.random()}`,
         date: entry.date,
         firestoreDate: entry.firestoreDate,
@@ -233,25 +265,25 @@ export default function RiderMonthlyReportPage() {
         actualReceived: entry.actualReceived || 0,
       });
 
-      riderMonthlyData[rider][monthYear].totalLitersSold += entry.litersSold || 0;
+      riderMonthlyData[riderName][monthYear].totalLitersSold += entry.litersSold || 0;
       const actualReceived = typeof entry.actualReceived === 'number' ? entry.actualReceived : 0;
-      riderMonthlyData[rider][monthYear].totalMoneyCollected += actualReceived;
-      riderMonthlyData[rider][monthYear].totalTokenMoney += entry.tokenMoney || 0;
-      riderMonthlyData[rider][monthYear].totalSalesGenerated += entry.totalSale || 0;
-      riderMonthlyData[rider][monthYear].totalBaseSalary += baseDailySalary;
-      riderMonthlyData[rider][monthYear].totalCommissionEarned += commissionEarned;
-      riderMonthlyData[rider][monthYear].totalDiscrepancy += entry.discrepancy || 0;
-      riderMonthlyData[rider][monthYear].netMonthlyEarning += netEarning;
+      riderMonthlyData[riderName][monthYear].totalMoneyCollected += actualReceived;
+      riderMonthlyData[riderName][monthYear].totalTokenMoney += entry.tokenMoney || 0;
+      riderMonthlyData[riderName][monthYear].totalSalesGenerated += entry.totalSale || 0;
+      riderMonthlyData[riderName][monthYear].totalBaseSalary += baseDailySalary;
+      riderMonthlyData[riderName][monthYear].totalCommissionEarned += commissionEarned;
+      riderMonthlyData[riderName][monthYear].totalDiscrepancy += entry.discrepancy || 0;
+      riderMonthlyData[riderName][monthYear].netMonthlyEarning += netEarning;
 
 
-      salesByRiderForChart[rider] = (salesByRiderForChart[rider] || 0) + (entry.totalSale || 0);
+      salesByRiderForChart[riderName] = (salesByRiderForChart[riderName] || 0) + (entry.totalSale || 0);
 
       totalCollectionAcrossAllDays += actualReceived;
       uniqueDaysWithEntriesGlobal.add(dayKey);
     });
 
     Object.keys(riderMonthlyData).forEach(rider => {
-      Object.keys(riderMonthlyData[rider]).forEach(monthYear => {
+      Object.keys(riderMonthlyData[rider][monthYear]).forEach(monthYear => {
         const uniqueDaysForRiderInMonth = new Set(riderMonthlyData[rider][monthYear].dailyEntries.map(e => formatDisplayDateToDayKey(e.firestoreDate)));
         riderMonthlyData[rider][monthYear].daysActive = uniqueDaysForRiderInMonth.size;
         riderMonthlyData[rider][monthYear].dailyEntries.sort((a,b) => a.firestoreDate.getTime() - b.firestoreDate.getTime());
@@ -270,7 +302,7 @@ export default function RiderMonthlyReportPage() {
     setReportData({ riderData: riderMonthlyData, overallDailyAverageCollection, riderSalesChartData });
     setError(null);
 
-  }, [filteredEntries, riderSalaries, isLoading, allSalesEntries, selectedYear, selectedMonth]);
+  }, [filteredEntries, dbRiders, isLoading, isLoadingRiders, allSalesEntries, selectedYear, selectedMonth]);
 
   const exportCurrentReportData = () => {
     const sheetsToExport = [];
@@ -285,7 +317,7 @@ export default function RiderMonthlyReportPage() {
   };
 
   const handleDownloadSalarySlip = (riderName: string, monthYear: string, stats: MonthlyRiderDetailedStats) => {
-    const riderBaseSalaryPerDay = riderSalaries[riderName] || 0;
+    const riderBaseSalaryPerDay = stats.riderBaseSalaryPerDay;
 
     let dailyEntriesHtml = '';
     stats.dailyEntries.forEach(day => {
@@ -380,7 +412,18 @@ export default function RiderMonthlyReportPage() {
     },
   } satisfies ChartConfig;
 
-  if (isLoading && !reportData) {
+  if (!isLoggedIn && !(isLoading || isLoadingRiders)) {
+    return (
+       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
+          <p className="text-lg text-destructive">You must be logged in to view this report.</p>
+           <Link href="/" passHref className="mt-4">
+              <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4"/> Go to Login</Button>
+          </Link>
+       </main>
+    )
+  }
+
+  if ((isLoading || isLoadingRiders) && !reportData) {
     return (
       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
         <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
@@ -487,7 +530,7 @@ export default function RiderMonthlyReportPage() {
                     <User className="mr-2 h-6 w-6 text-primary" />
                     {riderName}
                   </CardTitle>
-                  <CardDescription>Monthly performance for {riderName}. Full Day Salary (9hr): ₹{(riderSalaries[riderName] || 0).toFixed(2) || 'Not Set'}</CardDescription>
+                  <CardDescription>Monthly performance for {riderName}. Full Day Salary (9hr): ₹{(riderMonths[0]?.[1]?.riderBaseSalaryPerDay || 0).toFixed(2)}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {riderMonths.map(([monthYear, stats]) => (
@@ -586,7 +629,12 @@ export default function RiderMonthlyReportPage() {
 
       <Card className="mb-8 shadow-lg">
         <CardHeader>
-          <CardTitle>Filters</CardTitle>
+          <div className="flex justify-between items-center">
+              <CardTitle>Filters</CardTitle>
+              <Button variant="ghost" size="sm" onClick={fetchRiderDataFromDB} disabled={isLoadingRiders || isLoading}>
+                  <RefreshCw className={cn("h-4 w-4", (isLoadingRiders || isLoading) && "animate-spin")} />
+              </Button>
+          </div>
         </CardHeader>
         <CardContent className="flex flex-col md:flex-row gap-4">
           <div className="flex-1">
@@ -628,4 +676,3 @@ export default function RiderMonthlyReportPage() {
     </main>
   );
 }
-

@@ -5,7 +5,8 @@ import dbConnect from '@/lib/dbConnect';
 import SalesReportModel from '@/models/SalesReport';
 import UserModel from '@/models/User';
 import SalaryPaymentModel from '@/models/SalaryPayment';
-import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates, CollectorCashReportEntry } from '@/lib/types';
+import RiderModel from '@/models/Rider'; // New Rider Model
+import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates, CollectorCashReportEntry, Rider } from '@/lib/types';
 import { startOfMonth, endOfMonth } from 'date-fns';
 
 
@@ -20,10 +21,9 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
   try {
     await dbConnect();
 
-    // Explicitly map fields to ensure all are present and undefined are handled if necessary
     const dataToSave: Omit<SalesReportData, 'id' | '_id'> = {
       date: reportData.date,
-      firestoreDate: new Date(reportData.firestoreDate), // Ensure it's a Date object
+      firestoreDate: new Date(reportData.firestoreDate),
       riderName: reportData.riderName,
       vehicleName: reportData.vehicleName,
       previousMeterReading: reportData.previousMeterReading,
@@ -86,14 +86,14 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
   try {
     await dbConnect();
     const lastReport = await SalesReportModel.findOne({ vehicleName: vehicleName })
-      .sort({ firestoreDate: -1 }) 
+      .sort({ firestoreDate: -1 })
       .select('currentMeterReading')
-      .lean(); 
+      .lean();
 
     if (lastReport) {
       return { success: true, reading: lastReport.currentMeterReading || 0 };
     }
-    return { success: true, reading: 0 }; 
+    return { success: true, reading: 0 };
   } catch (error: any) {
     console.error("Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
@@ -113,7 +113,7 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     if (!existingAdmin) {
       const adminUser = new UserModel({
         userId: adminUserId,
-        password: adminPassword, 
+        password: adminPassword,
         role: 'Admin',
       });
       await adminUser.save();
@@ -129,9 +129,9 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
 export async function verifyUserAction(userIdInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserCredentials | null; message: string }> {
   try {
     await dbConnect();
-    const user = await UserModel.findOne({ userId: userIdInput }).lean(); 
+    const user = await UserModel.findOne({ userId: userIdInput }).lean();
 
-    if (user && user.password === passwordInput) { 
+    if (user && user.password === passwordInput) {
       return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
     }
     return { success: false, message: 'Invalid User ID or Password.' };
@@ -152,7 +152,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; 
+    admin.password = newPasswordInput;
     await admin.save();
     return { success: true, message: 'Admin password updated successfully in database.' };
   } catch (error: any) {
@@ -174,7 +174,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, 
+      password: passwordInput,
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -192,7 +192,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; 
+    teamLeader.password = newPasswordInput;
     await teamLeader.save();
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database.` };
   } catch (error: any) {
@@ -227,6 +227,88 @@ export async function getTeamLeadersAction(): Promise<{ success: boolean; teamLe
   }
 }
 
+// --- Rider Management Actions ---
+export async function addRiderAction(riderData: { name: string; perDaySalary?: number }): Promise<{ success: boolean; message: string; rider?: Rider }> {
+  try {
+    await dbConnect();
+    const existingRider = await RiderModel.findOne({ name: riderData.name });
+    if (existingRider) {
+      return { success: false, message: `Rider with name "${riderData.name}" already exists.` };
+    }
+    const newRider = new RiderModel({
+      name: riderData.name,
+      perDaySalary: riderData.perDaySalary || 0,
+    });
+    const savedRider = await newRider.save();
+    return { success: true, message: `Rider "${savedRider.name}" added successfully.`, rider: savedRider.toObject() as Rider };
+  } catch (error: any) {
+    console.error("Error adding rider:", error);
+    let errorMessage = `Error adding rider: ${error.message}`;
+    if (error.name === 'ValidationError') {
+      errorMessage = `Validation Error: ${Object.values(error.errors).map((e: any) => e.message).join(', ')}`;
+    }
+    return { success: false, message: errorMessage };
+  }
+}
+
+export async function getRidersAction(): Promise<{ success: boolean; riders?: Rider[]; message: string }> {
+  try {
+    await dbConnect();
+    const riders = await RiderModel.find({}).sort({ name: 1 }).lean();
+    // Mongoose lean returns plain objects, ensure _id is string
+    const processedRiders = riders.map(rider => ({
+        ...rider,
+        _id: rider._id.toString(),
+    })) as Rider[];
+    return { success: true, riders: processedRiders, message: 'Riders fetched successfully.' };
+  } catch (error: any) {
+    console.error("Error fetching riders:", error);
+    return { success: false, message: `Error fetching riders: ${error.message}` };
+  }
+}
+
+export async function updateRiderAction(riderId: string, riderData: { name?: string; perDaySalary?: number }): Promise<{ success: boolean; message: string; rider?: Rider }> {
+  try {
+    await dbConnect();
+    if (riderData.name) {
+      const existingRiderWithNewName = await RiderModel.findOne({ name: riderData.name, _id: { $ne: riderId } });
+      if (existingRiderWithNewName) {
+        return { success: false, message: `Another rider with name "${riderData.name}" already exists.` };
+      }
+    }
+    const updatedRider = await RiderModel.findByIdAndUpdate(riderId, riderData, { new: true, runValidators: true }).lean();
+    if (!updatedRider) {
+      return { success: false, message: 'Rider not found.' };
+    }
+     const processedRider = { ...updatedRider, _id: updatedRider._id.toString() } as Rider;
+    return { success: true, message: `Rider "${processedRider.name}" updated successfully.`, rider: processedRider };
+  } catch (error: any) {
+    console.error("Error updating rider:", error);
+    let errorMessage = `Error updating rider: ${error.message}`;
+    if (error.name === 'ValidationError') {
+      errorMessage = `Validation Error: ${Object.values(error.errors).map((e: any) => e.message).join(', ')}`;
+    } else if (error.code === 11000 && error.keyValue?.name) { // Duplicate key error for name
+        errorMessage = `Rider name "${error.keyValue.name}" already exists.`;
+    }
+    return { success: false, message: errorMessage };
+  }
+}
+
+export async function deleteRiderAction(riderId: string): Promise<{ success: boolean; message: string }> {
+  try {
+    await dbConnect();
+    const result = await RiderModel.findByIdAndDelete(riderId);
+    if (!result) {
+      return { success: false, message: `Rider not found or already deleted.` };
+    }
+    return { success: true, message: `Rider "${result.name}" deleted successfully.` };
+  } catch (error: any) {
+    console.error("Error deleting rider:", error);
+    return { success: false, message: `Error deleting rider: ${error.message}` };
+  }
+}
+
+
 // --- Salary Payment Actions ---
 interface SaveSalaryPaymentResult {
   success: boolean;
@@ -239,13 +321,13 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
   try {
     await dbConnect();
     const dataToSave: Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'> & { remainingAmount: number } = {
-      paymentDate: paymentData.paymentDate, 
+      paymentDate: paymentData.paymentDate,
       riderName: paymentData.riderName,
       salaryGiverName: paymentData.salaryGiverName,
       salaryAmountForPeriod: paymentData.salaryAmountForPeriod,
       amountPaid: paymentData.amountPaid,
       deductionAmount: paymentData.deductionAmount || 0,
-      advancePayment: paymentData.advancePayment || 0, 
+      advancePayment: paymentData.advancePayment || 0,
       comment: paymentData.comment,
       recordedBy: paymentData.recordedBy,
       remainingAmount: paymentData.salaryAmountForPeriod - paymentData.amountPaid - (paymentData.deductionAmount || 0),
@@ -290,7 +372,7 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
 export async function getRiderMonthlyAggregatesAction(
   riderName: string,
   year: number,
-  month: number 
+  month: number
 ): Promise<{ success: boolean; aggregates?: RiderMonthlyAggregates; message: string }> {
   if (!riderName || year == null || month == null) {
     return { success: false, message: "Rider name, year, and month are required." };
@@ -304,18 +386,18 @@ export async function getRiderMonthlyAggregatesAction(
 
     const reports = await SalesReportModel.find({
       riderName: riderName,
-      firestoreDate: { 
+      firestoreDate: {
         $gte: startDate,
         $lte: endDate,
       },
     }).lean();
 
     if (!reports || reports.length === 0) {
-      return { 
-        success: true, 
-        aggregates: { 
-          totalDailySalaryCalculated: 0, 
-          totalCommissionEarned: 0, 
+      return {
+        success: true,
+        aggregates: {
+          totalDailySalaryCalculated: 0,
+          totalCommissionEarned: 0,
           totalDiscrepancy: 0,
           netMonthlyEarning: 0,
         },
@@ -332,7 +414,7 @@ export async function getRiderMonthlyAggregatesAction(
       totalCommissionEarned += report.commissionEarned || 0;
       totalDiscrepancy += report.discrepancy || 0;
     });
-    
+
     const netMonthlyEarning = totalDailySalaryCalculated + totalCommissionEarned - totalDiscrepancy;
 
     return {
@@ -357,19 +439,13 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
   try {
     await dbConnect();
     const reports = await SalesReportModel.find({})
-      .select('_id recordedBy firestoreDate cashReceived') // Select only necessary fields
+      .select('_id recordedBy firestoreDate cashReceived') 
       .sort({ firestoreDate: -1 })
       .lean();
-    
-    // Mongoose .lean() returns plain JS objects, but _id might be an ObjectId.
-    // Client components expect serializable data.
-    // Date objects also need to be handled if they aren't already strings by .lean() in some Mongoose versions/configs.
-    // For simplicity, we assume .lean() gives us serializable data and dates are handled client-side.
+
     const processedReports = reports.map(report => ({
       ...report,
-      _id: report._id.toString(), // Ensure _id is a string
-      // firestoreDate should be fine as .lean() usually converts Dates to strings or Date objects.
-      // The client-side mapping new Date(entry.firestoreDate) will handle it.
+      _id: report._id.toString(),
     }));
 
     return { success: true, data: processedReports as CollectorCashReportEntry[], message: 'Collector cash report data fetched successfully.' };

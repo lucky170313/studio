@@ -4,19 +4,19 @@
 import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
-import type { SalaryPaymentData } from '@/lib/types';
+import type { SalaryPaymentData, Rider } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFooter } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, History, CalendarDays, User, IndianRupee, FileSpreadsheet, Users, MinusCircle, DollarSign } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, History, CalendarDays, User, IndianRupee, FileSpreadsheet, Users, MinusCircle, DollarSign, RefreshCw } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
-import { getSalaryPaymentsAction } from '@/app/actions';
+import { getSalaryPaymentsAction, getRidersAction } from '@/app/actions';
+import { cn } from '@/lib/utils';
 
-const RIDER_NAMES_KEY = 'riderNamesDropAquaTrackApp';
-const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; 
+const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
@@ -26,68 +26,80 @@ const monthNames = [
 export default function SalaryHistoryPage() {
   const [allPayments, setAllPayments] = useState<SalaryPaymentData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRiders, setIsLoadingRiders] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false); 
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  const [selectedRider, setSelectedRider] = useState<string>("all");
+  const [selectedRiderName, setSelectedRiderName] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
 
-  const [availableRiders, setAvailableRiders] = useState<string[]>([]);
+  const [availableRiders, setAvailableRiders] = useState<Rider[]>([]);
   const [availableYears, setAvailableYears] = useState<number[]>([]);
 
-  useEffect(() => {
-    const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
-    if (storedSession) {
-      const session = JSON.parse(storedSession);
-      if (session.isLoggedIn) {
-        setIsLoggedIn(true);
-      }
-    }
-
-    try {
-      const storedRiderNames = localStorage.getItem(RIDER_NAMES_KEY);
-      if (storedRiderNames) {
-        setAvailableRiders(JSON.parse(storedRiderNames));
-      }
-    } catch (e) { console.error("Failed to load rider names for filter", e); }
-
+  const fetchInitialData = async () => {
     setIsLoading(true);
-    getSalaryPaymentsAction()
-      .then(result => {
-        if (result.success && result.payments) {
-          const paymentsWithDateObjects = result.payments.map(p => ({
+    setIsLoadingRiders(true);
+    try {
+      const session = localStorage.getItem(LOGIN_SESSION_KEY);
+      if (session && JSON.parse(session).isLoggedIn) {
+        setIsLoggedIn(true);
+
+        const [paymentsResult, ridersResult] = await Promise.all([
+          getSalaryPaymentsAction(),
+          getRidersAction()
+        ]);
+
+        if (paymentsResult.success && paymentsResult.payments) {
+          const paymentsWithDateObjects = paymentsResult.payments.map(p => ({
             ...p,
-            paymentDate: new Date(p.paymentDate) 
+            paymentDate: new Date(p.paymentDate)
           }));
           setAllPayments(paymentsWithDateObjects);
           if (paymentsWithDateObjects.length > 0) {
             const years = Array.from(new Set(paymentsWithDateObjects.map(p => getYear(p.paymentDate)))).sort((a, b) => b - a);
             setAvailableYears(years);
           }
-          setError(null);
         } else {
-          setError(result.message || "Failed to fetch salary payments.");
+          setError(paymentsResult.message || "Failed to fetch salary payments.");
           setAllPayments([]);
         }
-      })
-      .catch(err => {
-        console.error("Error fetching salary payments:", err);
-        setError(err.message || "Failed to load salary payments.");
-        setAllPayments([]);
-      })
-      .finally(() => setIsLoading(false));
+
+        if (ridersResult.success && ridersResult.riders) {
+          setAvailableRiders(ridersResult.riders);
+        } else {
+          setError(prevError => prevError ? `${prevError} ${ridersResult.message}` : ridersResult.message || "Failed to fetch riders.");
+          setAvailableRiders([]);
+        }
+
+      } else {
+        setIsLoggedIn(false);
+      }
+    } catch (err: any) {
+      console.error("Error fetching initial data:", err);
+      setError(err.message || "Failed to load page data.");
+      setAllPayments([]);
+      setAvailableRiders([]);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingRiders(false);
+    }
+  };
+  
+  useEffect(() => {
+    fetchInitialData();
   }, []);
+
 
   const filteredPayments = useMemo(() => {
     return allPayments.filter(payment => {
-      const paymentDateObj = payment.paymentDate; 
-      const riderMatch = selectedRider === "all" || payment.riderName === selectedRider;
+      const paymentDateObj = payment.paymentDate;
+      const riderMatch = selectedRiderName === "all" || payment.riderName === selectedRiderName;
       const yearMatch = selectedYear === "all" || getYear(paymentDateObj) === parseInt(selectedYear);
       const monthMatch = selectedMonth === "all" || getMonth(paymentDateObj) === parseInt(selectedMonth);
       return riderMatch && yearMatch && monthMatch;
-    }).sort((a, b) => b.paymentDate.getTime() - a.paymentDate.getTime()); 
-  }, [allPayments, selectedRider, selectedYear, selectedMonth]);
+    }).sort((a, b) => b.paymentDate.getTime() - a.paymentDate.getTime());
+  }, [allPayments, selectedRiderName, selectedYear, selectedMonth]);
 
   const totalAmountPaidFiltered = useMemo(() => {
     return filteredPayments.reduce((sum, p) => sum + p.amountPaid, 0);
@@ -127,7 +139,7 @@ export default function SalaryHistoryPage() {
     XLSX.writeFile(wb, `SalaryPaymentHistory_DropAquaTrack_${formatDateFns(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  if (!isLoggedIn) {
+  if (!isLoggedIn && !isLoading) { // Check isLoading to prevent flash of login message
     return (
        <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
           <p className="text-lg text-destructive">You must be logged in to view salary payment history.</p>
@@ -147,7 +159,7 @@ export default function SalaryHistoryPage() {
     );
   }
 
-  if (error) {
+  if (error && !isLoading) { // Show error only if not loading
     return (
       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -177,15 +189,22 @@ export default function SalaryHistoryPage() {
       </div>
 
       <Card className="mb-8 shadow-lg">
-        <CardHeader><CardTitle>Filters</CardTitle></CardHeader>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+              <CardTitle>Filters</CardTitle>
+              <Button variant="ghost" size="sm" onClick={fetchInitialData} disabled={isLoading || isLoadingRiders}>
+                  <RefreshCw className={cn("h-4 w-4", (isLoading || isLoadingRiders) && "animate-spin")} />
+              </Button>
+          </div>
+        </CardHeader>
         <CardContent className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
           <div>
             <Label htmlFor="rider-filter">Filter by Rider</Label>
-            <Select value={selectedRider} onValueChange={setSelectedRider}>
+            <Select value={selectedRiderName} onValueChange={setSelectedRiderName} disabled={isLoadingRiders}>
               <SelectTrigger id="rider-filter"><SelectValue placeholder="Select Rider" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Riders</SelectItem>
-                {availableRiders.map(rider => <SelectItem key={rider} value={rider}>{rider}</SelectItem>)}
+                {availableRiders.map(rider => <SelectItem key={rider._id} value={rider.name}>{rider.name}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
