@@ -9,7 +9,7 @@ import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
 import { AquaTrackReport } from '@/components/aqua-track-report';
-import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials, Rider } from '@/lib/types'; // Removed SalesReportServerData as it's not directly used here
+import type { SalesDataFormValues, SalesReportData, UserRole, UserCredentials, Rider } from '@/lib/types';
 import { useToast } from '@/hooks/use-toast';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from '@/components/ui/input';
@@ -41,7 +41,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { cn } from '@/lib/utils'; // Added missing import
+import { cn } from '@/lib/utils';
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
@@ -616,17 +616,17 @@ export default function AquaTrackPage() {
                     <div className="flex flex-col gap-2 sm:flex-row sm:space-x-2 sm:items-end">
                         <div className="flex-1">
                             <Label htmlFor="selectRiderForSalary">Select Rider</Label>
-                            <Select 
-                                value={selectedRiderIdForSalary} 
-                                onValueChange={(value) => { 
-                                    setSelectedRiderIdForSalary(value); 
+                            <Select
+                                value={selectedRiderIdForSalary}
+                                onValueChange={(value) => {
+                                    setSelectedRiderIdForSalary(value);
                                     const selected = riders.find(r => r._id === value);
                                     setSalaryInput(selected ? String(selected.perDaySalary) : '');
                                 }}
                                 disabled={isLoadingRiders || riders.length === 0}
                             >
                                 <SelectTrigger id="selectRiderForSalary"><SelectValue placeholder="Select a rider" /></SelectTrigger>
-                                <SelectContent>{riders.length > 0 ? riders.map(r => (<SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>)) : <SelectItem value="" disabled>No riders available</SelectItem>}</SelectContent>
+                                <SelectContent>{riders.length > 0 ? riders.map(r => (<SelectItem key={r._id} value={r._id}>{r.name}</SelectItem>)) : <SelectItem value="no_riders_placeholder_page" disabled>No riders available</SelectItem>}</SelectContent>
                             </Select>
                         </div>
                         <div className="sm:w-40">
