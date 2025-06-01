@@ -254,7 +254,7 @@ export async function addRiderAction(riderData: { name: string; perDaySalary?: n
       createdAt: plainRider.createdAt ? new Date(plainRider.createdAt).toISOString() : undefined,
       updatedAt: plainRider.updatedAt ? new Date(plainRider.updatedAt).toISOString() : undefined,
     };
-    return { success: true, message: `Rider "${finalRider.name}" added successfully.`, rider: finalRider };
+    return { success: true, message: `Rider "${finalRider.name}" added successfully to the database.`, rider: finalRider };
   } catch (error: any) {
     console.error("Error adding rider:", error);
     let errorMessage = `Error adding rider: ${error.message}`;
@@ -312,7 +312,7 @@ export async function updateRiderAction(riderId: string, riderData: { name?: str
         createdAt: updatedRiderDoc.createdAt ? new Date(updatedRiderDoc.createdAt).toISOString() : undefined,
         updatedAt: updatedRiderDoc.updatedAt ? new Date(updatedRiderDoc.updatedAt).toISOString() : undefined,
      };
-    return { success: true, message: `Rider "${finalRider.name}" updated successfully.`, rider: finalRider };
+    return { success: true, message: `Rider "${finalRider.name}" updated successfully in the database.`, rider: finalRider };
   } catch (error: any) {
     console.error("Error updating rider:", error);
     let errorMessage = `Error updating rider: ${error.message}`;
@@ -332,7 +332,7 @@ export async function deleteRiderAction(riderId: string): Promise<{ success: boo
     if (!result) {
       return { success: false, message: `Rider not found or already deleted.` };
     }
-    return { success: true, message: `Rider "${result.name}" deleted successfully.` };
+    return { success: true, message: `Rider "${result.name}" deleted successfully from the database.` };
   } catch (error: any) {
     console.error("Error deleting rider:", error);
     return { success: false, message: `Error deleting rider: ${error.message}` };
@@ -367,7 +367,7 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
     const savedEntry = await salaryPaymentEntry.save();
     return {
       success: true,
-      message: 'Salary payment has been successfully recorded.',
+      message: 'Salary payment has been successfully recorded in the database.',
       id: savedEntry._id.toString(),
     };
   } catch (e: any) {
@@ -402,7 +402,7 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
         createdAt: p.createdAt ? new Date(p.createdAt) : undefined,
         updatedAt: p.updatedAt ? new Date(p.updatedAt) : undefined,
     })) as SalaryPaymentData[]; // Cast needed due to potential ObjectId/Date types from raw lean
-    return { success: true, payments: payments, message: 'Salary payments fetched successfully.' };
+    return { success: true, payments: payments, message: 'Salary payments fetched successfully from database.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);
     return { success: false, message: `Error fetching salary payments: ${error.message}` };
@@ -466,7 +466,7 @@ export async function getRiderMonthlyAggregatesAction(
         totalDiscrepancy,
         netMonthlyEarning,
       },
-      message: 'Aggregates fetched successfully.'
+      message: 'Aggregates fetched successfully from database.'
     };
 
   } catch (error: any) {
@@ -491,7 +491,7 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
       cashReceived: report.cashReceived,
     }));
 
-    return { success: true, data: processedReports as CollectorCashReportEntry[], message: 'Collector cash report data fetched successfully.' };
+    return { success: true, data: processedReports as CollectorCashReportEntry[], message: 'Collector cash report data fetched successfully from database.' };
   } catch (error: any) {
     console.error("Error fetching data for collector's cash report:", error);
     return { success: false, message: `Error fetching data: ${error.message}` };

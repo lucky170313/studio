@@ -390,7 +390,7 @@ export default function AquaTrackPage() {
 
     const result = await updateRiderAction(selectedRiderIdForSalary, { perDaySalary: salaryValue });
     if (result.success) {
-      toast({ title: "Success", description: `Salary for ${result.rider?.name} updated to ₹${salaryValue}/day.` });
+      toast({ title: "Success", description: `Salary for ${result.rider?.name} updated to ₹${salaryValue}/day. (Database record updated.)` });
       await fetchRiders(); // Re-fetch to update the list and potentially the selected rider's display salary
     } else {
       toast({ title: "Error", description: result.message, variant: "destructive" });
