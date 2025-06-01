@@ -239,8 +239,17 @@ export async function addRiderAction(riderData: { name: string; perDaySalary?: n
       name: riderData.name,
       perDaySalary: riderData.perDaySalary || 0,
     });
-    const savedRider = await newRider.save();
-    return { success: true, message: `Rider "${savedRider.name}" added successfully.`, rider: savedRider.toObject() as Rider };
+    const savedRiderDoc = await newRider.save();
+    const plainRider = savedRiderDoc.toObject();
+
+    const finalRider: Rider = {
+      _id: plainRider._id.toString(),
+      name: plainRider.name,
+      perDaySalary: plainRider.perDaySalary,
+      createdAt: plainRider.createdAt ? new Date(plainRider.createdAt).toISOString() : undefined,
+      updatedAt: plainRider.updatedAt ? new Date(plainRider.updatedAt).toISOString() : undefined,
+    };
+    return { success: true, message: `Rider "${finalRider.name}" added successfully.`, rider: finalRider };
   } catch (error: any) {
     console.error("Error adding rider:", error);
     let errorMessage = `Error adding rider: ${error.message}`;
@@ -254,12 +263,23 @@ export async function addRiderAction(riderData: { name: string; perDaySalary?: n
 export async function getRidersAction(): Promise<{ success: boolean; riders?: Rider[]; message: string }> {
   try {
     await dbConnect();
-    const riders = await RiderModel.find({}).sort({ name: 1 }).lean();
-    // Mongoose lean returns plain objects, ensure _id is string
-    const processedRiders = riders.map(rider => ({
-        ...rider,
-        _id: rider._id.toString(),
-    })) as Rider[];
+    const ridersFromDB = await RiderModel.find({}).sort({ name: 1 }).lean();
+    
+    const processedRiders: Rider[] = ridersFromDB.map(dbRider => {
+      const rider: Rider = {
+        _id: dbRider._id.toString(),
+        name: dbRider.name,
+        perDaySalary: dbRider.perDaySalary,
+      };
+      if (dbRider.createdAt) {
+        rider.createdAt = new Date(dbRider.createdAt).toISOString();
+      }
+      if (dbRider.updatedAt) {
+        rider.updatedAt = new Date(dbRider.updatedAt).toISOString();
+      }
+      return rider;
+    });
+
     return { success: true, riders: processedRiders, message: 'Riders fetched successfully.' };
   } catch (error: any) {
     console.error("Error fetching riders:", error);
@@ -276,12 +296,18 @@ export async function updateRiderAction(riderId: string, riderData: { name?: str
         return { success: false, message: `Another rider with name "${riderData.name}" already exists.` };
       }
     }
-    const updatedRider = await RiderModel.findByIdAndUpdate(riderId, riderData, { new: true, runValidators: true }).lean();
-    if (!updatedRider) {
+    const updatedRiderDoc = await RiderModel.findByIdAndUpdate(riderId, riderData, { new: true, runValidators: true }).lean();
+    if (!updatedRiderDoc) {
       return { success: false, message: 'Rider not found.' };
     }
-     const processedRider = { ...updatedRider, _id: updatedRider._id.toString() } as Rider;
-    return { success: true, message: `Rider "${processedRider.name}" updated successfully.`, rider: processedRider };
+     const finalRider: Rider = {
+        _id: updatedRiderDoc._id.toString(),
+        name: updatedRiderDoc.name,
+        perDaySalary: updatedRiderDoc.perDaySalary,
+        createdAt: updatedRiderDoc.createdAt ? new Date(updatedRiderDoc.createdAt).toISOString() : undefined,
+        updatedAt: updatedRiderDoc.updatedAt ? new Date(updatedRiderDoc.updatedAt).toISOString() : undefined,
+     };
+    return { success: true, message: `Rider "${finalRider.name}" updated successfully.`, rider: finalRider };
   } catch (error: any) {
     console.error("Error updating rider:", error);
     let errorMessage = `Error updating rider: ${error.message}`;
@@ -360,8 +386,18 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
 export async function getSalaryPaymentsAction(): Promise<{ success: boolean; payments?: SalaryPaymentData[]; message: string }> {
   try {
     await dbConnect();
-    const payments = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
-    return { success: true, payments: payments as SalaryPaymentData[], message: 'Salary payments fetched successfully.' };
+    const paymentsFromDB = await SalaryPaymentModel.find({}).sort({ paymentDate: -1 }).lean();
+    // Convert Date fields to ensure they are passed correctly if needed, though usually lean handles Dates well.
+    // For this specific action, SalaryPaymentData expects Date objects for createdAt/updatedAt.
+    // The critical part is ensuring these are not complex Mongoose Date types if not using .lean(), but .lean() is used.
+    const payments: SalaryPaymentData[] = paymentsFromDB.map(p => ({
+        ...p,
+        _id: p._id.toString(),
+        paymentDate: new Date(p.paymentDate), // Ensure it's a Date object
+        createdAt: p.createdAt ? new Date(p.createdAt) : undefined,
+        updatedAt: p.updatedAt ? new Date(p.updatedAt) : undefined,
+    })) as SalaryPaymentData[]; // Cast needed due to potential ObjectId/Date types from raw lean
+    return { success: true, payments: payments, message: 'Salary payments fetched successfully.' };
   } catch (error: any) {
     console.error("Error fetching salary payments:", error);
     return { success: false, message: `Error fetching salary payments: ${error.message}` };
@@ -438,14 +474,16 @@ export async function getRiderMonthlyAggregatesAction(
 export async function getCollectorCashReportDataAction(): Promise<{ success: boolean; data?: CollectorCashReportEntry[]; message: string }> {
   try {
     await dbConnect();
-    const reports = await SalesReportModel.find({})
+    const reportsFromDB = await SalesReportModel.find({})
       .select('_id recordedBy firestoreDate cashReceived') 
       .sort({ firestoreDate: -1 })
       .lean();
 
-    const processedReports = reports.map(report => ({
-      ...report,
+    const processedReports = reportsFromDB.map(report => ({
       _id: report._id.toString(),
+      recordedBy: report.recordedBy,
+      firestoreDate: new Date(report.firestoreDate), // Ensure Date object
+      cashReceived: report.cashReceived,
     }));
 
     return { success: true, data: processedReports as CollectorCashReportEntry[], message: 'Collector cash report data fetched successfully.' };

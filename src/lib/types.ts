@@ -14,8 +14,8 @@ export interface Rider {
   _id: string;
   name: string;
   perDaySalary: number; // Salary for a full 9-hour day
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: string; // Changed from Date
+  updatedAt?: string; // Changed from Date
 }
 
 
@@ -121,8 +121,8 @@ export interface SalaryPaymentData {
   remainingAmount: number;
   comment?: string;
   recordedBy: string;
-  createdAt?: Date;
-  updatedAt?: Date;
+  createdAt?: Date; // Kept as Date as it's used for sorting/display, ensure conversion if passed to client
+  updatedAt?: Date; // Kept as Date
 }
 
 export type SalaryPaymentServerData = Omit<SalaryPaymentData, '_id' | 'createdAt' | 'updatedAt' | 'remainingAmount'>;
