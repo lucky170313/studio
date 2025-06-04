@@ -134,13 +134,15 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
         role: 'Admin',
       });
     } else {
-      console.log('[initializeDefaultAdminAction] Default admin found. Ensuring password is up to date with .env.');
-      // Explicitly set the password to ensure the pre-save hook for hashing runs if it changed in .env
+      console.log(`[initializeDefaultAdminAction] Default admin found. Current stored password (start): ${adminUser.password ? adminUser.password.substring(0,10) : 'N/A'}...`);
+      console.log(`[initializeDefaultAdminAction] Password from .env (or default): ${adminPassword.substring(0,3)}...`);
+      // Explicitly set the password to ensure the pre-save hook for hashing runs if it changed in .env or needs re-hashing
       adminUser.password = adminPassword;
+      console.log(`[initializeDefaultAdminAction] Is password field marked as modified? ${adminUser.isModified('password')}`);
     }
     
     await adminUser.save();
-    console.log(`[initializeDefaultAdminAction] Admin user processed. Stored password (first 10 chars): ${adminUser.password ? adminUser.password.substring(0,10) : 'N/A'}...`);
+    console.log(`[initializeDefaultAdminAction] Admin user processed. Stored password after save (first 10 chars): ${adminUser.password ? adminUser.password.substring(0,10) : 'N/A'}...`);
     return { success: true, message: 'Default admin initialization complete in database (password hashed).' };
 
   } catch (error: any) {
@@ -164,6 +166,7 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
       console.log(`[verifyUserAction] User found in DB. User ID: ${user.userId}, Role: ${user.role}`);
       // Log the stored hashed password (or a portion of it for security, though for debugging it's fine to see more)
       console.log(`[verifyUserAction] Stored hashed password (first 10 chars): ${user.password ? user.password.substring(0, 10) : 'N/A'}...`);
+      console.log(`[verifyUserAction] Attempting to compare input password (length ${passwordInput.length}) with stored hash (length ${user.password ? user.password.length : 0}).`);
       
       const isMatch = await user.comparePassword(passwordInput);
       console.log(`[verifyUserAction] Password comparison result for ${userIdInput}: ${isMatch}`);
