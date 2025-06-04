@@ -115,68 +115,49 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
 // --- User Management Actions ---
 
 export async function initializeDefaultAdminAction(): Promise<{ success: boolean; message: string }> {
-  console.log('[initializeDefaultAdminAction] Starting initialization...');
+  console.log('[initializeDefaultAdminAction] Starting simplified delete and recreate process...');
   try {
     await dbConnect();
-    console.log('[initializeDefaultAdminAction] Database connected.');
     const adminUserId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
     const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole";
     console.log(`[initializeDefaultAdminAction] Default Admin User ID: ${adminUserId}`);
-    console.log(`[initializeDefaultAdminAction] Default Admin Password (for hashing/comparison): ${adminPassword.substring(0,3)}... (length: ${adminPassword.length})`);
+    console.log(`[initializeDefaultAdminAction] Default Admin Password (for hashing): ${adminPassword.substring(0,3)}... (length: ${adminPassword.length})`);
 
-    let adminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-    
-    if (!adminUser) {
-      console.log('[initializeDefaultAdminAction] Default admin not found. Creating new admin...');
-      adminUser = new UserModel({
-        userId: adminUserId,
-        password: adminPassword, // This will be hashed by pre-save on new user
-        role: 'Admin',
-      });
-      await adminUser.save();
-      console.log(`[initializeDefaultAdminAction] New admin created.`);
-      const freshlyCreatedAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-      if (freshlyCreatedAdmin && freshlyCreatedAdmin.password) {
-        console.log(`[initializeDefaultAdminAction] Freshly created admin's stored password hash (start): ${freshlyCreatedAdmin.password.substring(0,10)}...`);
-        const testCompareNew = await bcrypt.compare(adminPassword, freshlyCreatedAdmin.password);
-        console.log(`[initializeDefaultAdminAction] Test comparison for newly created admin with '${adminPassword.substring(0,3)}...': ${testCompareNew}`);
+    // Attempt to delete the existing admin user
+    const deleteResult = await UserModel.deleteOne({ userId: adminUserId, role: 'Admin' });
+    if (deleteResult.deletedCount > 0) {
+      console.log(`[initializeDefaultAdminAction] Existing admin user '${adminUserId}' deleted.`);
+    } else {
+      console.log(`[initializeDefaultAdminAction] No existing admin user '${adminUserId}' found to delete, or deletion failed (count: ${deleteResult.deletedCount}). Proceeding to create.`);
+    }
+
+    console.log('[initializeDefaultAdminAction] Creating new default admin...');
+    const newAdminUser = new UserModel({
+      userId: adminUserId,
+      password: adminPassword, // This will be hashed by pre-save on new user
+      role: 'Admin',
+    });
+    await newAdminUser.save();
+    console.log(`[initializeDefaultAdminAction] New admin '${adminUserId}' created.`);
+
+    // Re-fetch the freshly created admin to verify its password hash
+    const freshlyCreatedAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
+    if (freshlyCreatedAdmin && freshlyCreatedAdmin.password) {
+      console.log(`[initializeDefaultAdminAction] Freshly created admin's stored password hash (start): ${freshlyCreatedAdmin.password.substring(0,10)}...`);
+      const testCompareNew = await bcrypt.compare(adminPassword, freshlyCreatedAdmin.password);
+      console.log(`[initializeDefaultAdminAction] Test comparison for newly created admin with '${adminPassword.substring(0,3)}...': ${testCompareNew}`);
+      if (testCompareNew) {
+        return { success: true, message: `Default admin '${adminUserId}' successfully created/recreated with hashed password. Internal test comparison PASSED.` };
       } else {
-        console.log('[initializeDefaultAdminAction] Could not re-fetch freshly created admin or password.');
+        return { success: false, message: `Default admin '${adminUserId}' created/recreated, but internal password test comparison FAILED.` };
       }
     } else {
-      console.log(`[initializeDefaultAdminAction] Default admin found. User ID: ${adminUser.userId}.`);
-      console.log(`[initializeDefaultAdminAction] Current stored password hash (start): ${adminUser.password ? adminUser.password.substring(0,10) : 'N/A'}...`);
-      
-      const isCurrentPasswordCorrect = await adminUser.comparePassword(adminPassword);
-      console.log(`[initializeDefaultAdminAction] Does current .env password ("${adminPassword.substring(0,3)}...") match stored hash? ${isCurrentPasswordCorrect}`);
-      
-      if (!isCurrentPasswordCorrect) {
-        console.log('[initializeDefaultAdminAction] Stored hash does NOT match current .env password. Updating password...');
-        adminUser.password = adminPassword;
-        console.log(`[initializeDefaultAdminAction] Is password field marked as modified by Mongoose now? ${adminUser.isModified('password')}`);
-        await adminUser.save();
-        
-        const updatedAdminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-        if (updatedAdminUser && updatedAdminUser.password) {
-          console.log(`[initializeDefaultAdminAction] Password update triggered. Re-fetched admin. New stored password hash (start): ${updatedAdminUser.password.substring(0,10)}...`);
-          const testCompareUpdated = await bcrypt.compare(adminPassword, updatedAdminUser.password);
-          console.log(`[initializeDefaultAdminAction] Test comparison for updated admin with '${adminPassword.substring(0,3)}...': ${testCompareUpdated}`);
-        } else {
-            console.log('[initializeDefaultAdminAction] Could not re-fetch updated admin or password after update.');
-        }
-      } else {
-        console.log('[initializeDefaultAdminAction] Stored hash already matches current .env password. No password update needed.');
-        // Test comparison even if no update needed, just to be sure
-        if (adminUser.password) {
-             const testCompareExisting = await bcrypt.compare(adminPassword, adminUser.password);
-             console.log(`[initializeDefaultAdminAction] Test comparison for existing matching admin with '${adminPassword.substring(0,3)}...': ${testCompareExisting}`);
-        }
-      }
+      console.log('[initializeDefaultAdminAction] Could not re-fetch freshly created admin or password after creation.');
+      return { success: false, message: 'Failed to re-fetch admin after creation for verification.' };
     }
-    return { success: true, message: 'Default admin initialization check complete. Password in DB is hashed and up-to-date with .env (verified by internal test).' };
 
   } catch (error: any) {
-    console.error("[initializeDefaultAdminAction] Error initializing default admin:", error);
+    console.error("[initializeDefaultAdminAction] Error during simplified delete and recreate admin:", error);
     if (error.errors) {
         console.error("[initializeDefaultAdminAction] Mongoose validation errors:", JSON.stringify(error.errors, null, 2));
     }
@@ -198,9 +179,15 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
       console.log(`[verifyUserAction] User found in DB. User ID: ${user.userId}, Role: ${user.role}`);
       console.log(`[verifyUserAction] Is user document new? ${user.isNew}`);
       console.log(`[verifyUserAction] Is user.password modified? ${user.isModified('password')}`);
-      console.log(`[verifyUserAction] Stored hashed password from DB (first 10 chars): "${user.password ? user.password.substring(0, 10) : 'N/A'}" (length: ${user.password ? user.password.length : 0})`);
       
-      const isMatch = await user.comparePassword(passwordInput);
+      if (!user.password) {
+        console.log(`[verifyUserAction] User '${userIdInput}' found, but NO password hash stored in DB!`);
+        return { success: false, message: 'User found, but no password set. Please contact admin.' };
+      }
+      console.log(`[verifyUserAction] Stored hashed password from DB for '${userIdInput}' (first 10 chars): "${user.password.substring(0, 10)}..." (length: ${user.password.length})`);
+      
+      console.log(`[verifyUserAction] About to call bcrypt.compare with input: "${passwordInput.substring(0,3)}..." and DB hash: "${user.password.substring(0,10)}..."`);
+      const isMatch = await bcrypt.compare(passwordInput, user.password);
       console.log(`[verifyUserAction] bcrypt.compare result for "${userIdInput}": ${isMatch}`);
 
       if (isMatch) {
@@ -231,8 +218,9 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput;
+    admin.password = newPasswordInput; // Will be hashed by pre-save
     await admin.save();
+    console.log(`[changeAdminPasswordAction] Admin password for '${adminUserId}' updated. Should be hashed by pre-save.`);
     return { success: true, message: 'Admin password updated successfully in database (password hashed).' };
   } catch (error: any) {
     console.error("[changeAdminPasswordAction] Error changing admin password:", error);
@@ -253,7 +241,7 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput,
+      password: passwordInput, // Will be hashed by pre-save
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
@@ -273,7 +261,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput;
+    teamLeader.password = newPasswordInput; // Will be hashed by pre-save
     await teamLeader.save();
     console.log(`[updateTeamLeaderPasswordAction] Password for TL "${userIdInput}" updated. Password should be hashed by pre-save hook.`);
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database (password hashed).` };
@@ -331,7 +319,7 @@ export async function addRiderAction(riderData: { name: string; perDaySalary?: n
       createdAt: plainRider.createdAt ? new Date(plainRider.createdAt).toISOString() : undefined,
       updatedAt: plainRider.updatedAt ? new Date(plainRider.updatedAt).toISOString() : undefined,
     };
-    return { success: true, message: `Rider "${finalRider.name}" added successfully to the database.`, rider: finalRider };
+    return { success: true, message: `Rider "${finalRider.name}" added successfully to the database. Database record updated.`, rider: finalRider };
   } catch (error: any) {
     console.error("[addRiderAction] Error adding rider:", error);
     let errorMessage = `Error adding rider: ${error.message}`;
@@ -389,7 +377,7 @@ export async function updateRiderAction(riderId: string, riderData: { name?: str
         createdAt: updatedRiderDoc.createdAt ? new Date(updatedRiderDoc.createdAt).toISOString() : undefined,
         updatedAt: updatedRiderDoc.updatedAt ? new Date(updatedRiderDoc.updatedAt).toISOString() : undefined,
      };
-    return { success: true, message: `Rider "${finalRider.name}" updated successfully in the database.`, rider: finalRider };
+    return { success: true, message: `Rider "${finalRider.name}" updated successfully in the database. Database record updated.`, rider: finalRider };
   } catch (error: any) {
     console.error("[updateRiderAction] Error updating rider:", error);
     let errorMessage = `Error updating rider: ${error.message}`;
@@ -409,7 +397,7 @@ export async function deleteRiderAction(riderId: string): Promise<{ success: boo
     if (!result) {
       return { success: false, message: `Rider not found or already deleted from database.` };
     }
-    return { success: true, message: `Rider "${result.name}" deleted successfully from the database.` };
+    return { success: true, message: `Rider "${result.name}" deleted successfully from the database. Database record updated.` };
   } catch (error: any) {
     console.error("[deleteRiderAction] Error deleting rider:", error);
     return { success: false, message: `Error deleting rider: ${error.message}` };
@@ -572,3 +560,4 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
     return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
+
