@@ -52,18 +52,18 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
       status: reportData.status,
     };
 
-    console.log("Attempting to save sales report with data:", JSON.stringify(dataToSave, null, 2));
+    console.log("[saveSalesReportAction] Attempting to save sales report with data:", JSON.stringify(dataToSave, null, 2));
     if (reportData.adminOverrideLitersSold !== undefined) {
-      console.log(`Admin override for litersSold was used: ${reportData.adminOverrideLitersSold} L`);
+      console.log(`[saveSalesReportAction] Admin override for litersSold was used: ${reportData.adminOverrideLitersSold} L`);
     } else {
-      console.log("Liters sold calculated from meter readings.");
+      console.log("[saveSalesReportAction] Liters sold calculated from meter readings.");
     }
 
 
     const salesReportEntry = new SalesReportModel(dataToSave);
     const savedEntry = await salesReportEntry.save();
 
-    console.log("Sales report saved successfully, ID:", savedEntry._id.toString());
+    console.log("[saveSalesReportAction] Sales report saved successfully, ID:", savedEntry._id.toString());
 
     return {
       success: true,
@@ -71,10 +71,10 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
       id: savedEntry._id.toString()
     };
   } catch (e: any) {
-    console.error("Error saving sales report to database via Server Action: ", e);
+    console.error("[saveSalesReportAction] Error saving sales report to database via Server Action: ", e);
     let dbErrorMessage = 'Failed to save sales report to database.';
     if (e.name === 'ValidationError') {
-        console.error("Mongoose Validation Error details:", JSON.stringify(e.errors, null, 2));
+        console.error("[saveSalesReportAction] Mongoose Validation Error details:", JSON.stringify(e.errors, null, 2));
         let validationErrors = Object.values(e.errors).map((err: any) => `${err.path}: ${err.message}`).join(', ');
         dbErrorMessage = `Database Validation Error: ${validationErrors}`;
     } else if (e instanceof Error) {
@@ -105,7 +105,7 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
     }
     return { success: true, reading: 0 };
   } catch (error: any) {
-    console.error("Error fetching last meter reading:", error);
+    console.error("[getLastMeterReadingForVehicleAction] Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
   }
 }
@@ -121,7 +121,7 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     const adminUserId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
     const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole"; // Plaintext from .env or default
     console.log(`[initializeDefaultAdminAction] Default Admin User ID: ${adminUserId}`);
-    console.log(`[initializeDefaultAdminAction] Default Admin Password (for hashing/comparison): ${adminPassword.substring(0,3)}...`);
+    console.log(`[initializeDefaultAdminAction] Default Admin Password (for hashing/comparison): ${adminPassword.substring(0,3)}... (length: ${adminPassword.length})`);
 
     let adminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password'); // Ensure password is selected for comparison
     
@@ -141,14 +141,17 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
       
       // Check if the current plaintext password (from .env) matches the stored hash
       const isCurrentPasswordCorrect = await adminUser.comparePassword(adminPassword);
+      console.log(`[initializeDefaultAdminAction] Does current .env password ("${adminPassword.substring(0,3)}...") match stored hash? ${isCurrentPasswordCorrect}`);
       
       if (!isCurrentPasswordCorrect) {
         console.log('[initializeDefaultAdminAction] Stored hash does NOT match current .env password. Updating password...');
         adminUser.password = adminPassword; // Set to plaintext, pre-save hook will hash it
+        console.log(`[initializeDefaultAdminAction] Is password field marked as modified by Mongoose now? ${adminUser.isModified('password')}`);
         await adminUser.save(); // Triggers pre-save hook
-        // Fetch again to confirm the new hash
+        
+        // Fetch again immediately to confirm the new hash was persisted and is readable
         const updatedAdminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-        console.log(`[initializeDefaultAdminAction] Password updated. New stored password hash (start): ${updatedAdminUser && updatedAdminUser.password ? updatedAdminUser.password.substring(0,10) : 'N/A'}...`);
+        console.log(`[initializeDefaultAdminAction] Password update triggered. Re-fetched admin. New stored password hash (start): ${updatedAdminUser && updatedAdminUser.password ? updatedAdminUser.password.substring(0,10) : 'N/A'}...`);
       } else {
         console.log('[initializeDefaultAdminAction] Stored hash already matches current .env password. No password update needed.');
       }
@@ -216,7 +219,7 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     await admin.save(); // The pre-save hook will hash it
     return { success: true, message: 'Admin password updated successfully in database (password hashed).' };
   } catch (error: any) {
-    console.error("Error changing admin password:", error);
+    console.error("[changeAdminPasswordAction] Error changing admin password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
   }
 }
@@ -239,8 +242,9 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     });
     await newTeamLeader.save();
     return { success: true, message: `Team Leader "${userIdInput}" added successfully to database (password hashed).`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
-  } catch (error: any) {
-    console.error("Error adding team leader:", error);
+  } catch (error: any)
+{
+    console.error("[addTeamLeaderAction] Error adding team leader:", error);
     return { success: false, message: `Error adding team leader: ${error.message}` };
   }
 }
@@ -256,7 +260,7 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     await teamLeader.save(); // The pre-save hook will hash it
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database (password hashed).` };
   } catch (error: any) {
-    console.error("Error updating team leader password:", error);
+    console.error("[updateTeamLeaderPasswordAction] Error updating team leader password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
   }
 }
@@ -270,7 +274,7 @@ export async function deleteTeamLeaderAction(userIdToDelete: string): Promise<{ 
     }
     return { success: true, message: `Team Leader "${userIdToDelete}" deleted successfully from database.` };
   } catch (error: any) {
-    console.error("Error deleting team leader:", error);
+    console.error("[deleteTeamLeaderAction] Error deleting team leader:", error);
     return { success: false, message: `Error deleting team leader: ${error.message}` };
   }
 }
@@ -282,7 +286,7 @@ export async function getTeamLeadersAction(): Promise<{ success: boolean; teamLe
     const mappedLeaders = leaders.map(leader => ({ userId: leader.userId, role: leader.role as 'TeamLeader' } ));
     return { success: true, teamLeaders: mappedLeaders, message: 'Team leaders fetched successfully from database.' };
   } catch (error: any) {
-    console.error("Error fetching team leaders:", error);
+    console.error("[getTeamLeadersAction] Error fetching team leaders:", error);
     return { success: false, message: `Error fetching team leaders: ${error.message}` };
   }
 }
@@ -311,7 +315,7 @@ export async function addRiderAction(riderData: { name: string; perDaySalary?: n
     };
     return { success: true, message: `Rider "${finalRider.name}" added successfully to the database.`, rider: finalRider };
   } catch (error: any) {
-    console.error("Error adding rider:", error);
+    console.error("[addRiderAction] Error adding rider:", error);
     let errorMessage = `Error adding rider: ${error.message}`;
     if (error.name === 'ValidationError') {
       errorMessage = `Validation Error: ${Object.values(error.errors).map((e: any) => e.message).join(', ')}`;
@@ -342,7 +346,7 @@ export async function getRidersAction(): Promise<{ success: boolean; riders?: Ri
 
     return { success: true, riders: processedRiders, message: 'Riders fetched successfully from database.' };
   } catch (error: any) {
-    console.error("Error fetching riders:", error);
+    console.error("[getRidersAction] Error fetching riders:", error);
     return { success: false, message: `Error fetching riders: ${error.message}` };
   }
 }
@@ -369,7 +373,7 @@ export async function updateRiderAction(riderId: string, riderData: { name?: str
      };
     return { success: true, message: `Rider "${finalRider.name}" updated successfully in the database.`, rider: finalRider };
   } catch (error: any) {
-    console.error("Error updating rider:", error);
+    console.error("[updateRiderAction] Error updating rider:", error);
     let errorMessage = `Error updating rider: ${error.message}`;
     if (error.name === 'ValidationError') {
       errorMessage = `Validation Error: ${Object.values(error.errors).map((e: any) => e.message).join(', ')}`;
@@ -389,7 +393,7 @@ export async function deleteRiderAction(riderId: string): Promise<{ success: boo
     }
     return { success: true, message: `Rider "${result.name}" deleted successfully from the database.` };
   } catch (error: any) {
-    console.error("Error deleting rider:", error);
+    console.error("[deleteRiderAction] Error deleting rider:", error);
     return { success: false, message: `Error deleting rider: ${error.message}` };
   }
 }
@@ -426,7 +430,7 @@ export async function saveSalaryPaymentAction(paymentData: SalaryPaymentServerDa
       id: savedEntry._id.toString(),
     };
   } catch (e: any) {
-    console.error("Error saving salary payment to database: ", e);
+    console.error("[saveSalaryPaymentAction] Error saving salary payment to database: ", e);
     let dbErrorMessage = 'Failed to save salary payment to database.';
      if (e instanceof Error) {
         dbErrorMessage = `Database Error: ${e.message}.`;
@@ -457,7 +461,7 @@ export async function getSalaryPaymentsAction(): Promise<{ success: boolean; pay
     })) as SalaryPaymentData[]; 
     return { success: true, payments: payments, message: 'Salary payments fetched successfully from database.' };
   } catch (error: any) {
-    console.error("Error fetching salary payments:", error);
+    console.error("[getSalaryPaymentsAction] Error fetching salary payments:", error);
     return { success: false, message: `Error fetching salary payments: ${error.message}` };
   }
 }
@@ -523,7 +527,7 @@ export async function getRiderMonthlyAggregatesAction(
     };
 
   } catch (error: any) {
-    console.error("Error fetching rider monthly aggregates:", error);
+    console.error("[getRiderMonthlyAggregatesAction] Error fetching rider monthly aggregates:", error);
     return { success: false, message: `Error fetching aggregates: ${error.message}` };
   }
 }
@@ -546,9 +550,11 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
 
     return { success: true, data: processedReports as CollectorCashReportEntry[], message: 'Collector cash report data fetched successfully from database.' };
   } catch (error: any) {
-    console.error("Error fetching data for collector's cash report:", error);
+    console.error("[getCollectorCashReportDataAction] Error fetching data for collector's cash report:", error);
     return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
+
+    
 
     
