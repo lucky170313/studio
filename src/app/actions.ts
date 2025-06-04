@@ -212,18 +212,40 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
   if (adminUserId !== defaultAdminId) {
     return { success: false, message: "Unauthorized: Only the default admin can change their password through this action." };
   }
+  console.log(`[changeAdminPasswordAction] Attempting to change password for admin: ${adminUserId}`);
   try {
     await dbConnect();
     const admin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' });
     if (!admin) {
+      console.log(`[changeAdminPasswordAction] Admin user '${adminUserId}' not found.`);
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; // Will be hashed by pre-save
+
+    admin.password = newPasswordInput; // Will be hashed by pre-save hook
     await admin.save();
-    console.log(`[changeAdminPasswordAction] Admin password for '${adminUserId}' updated. Should be hashed by pre-save.`);
-    return { success: true, message: 'Admin password updated successfully in database (password hashed).' };
+    console.log(`[changeAdminPasswordAction] Admin password for '${adminUserId}' updated in Mongoose document. Save called. Password should be hashed by pre-save hook.`);
+
+    // Re-fetch the admin to verify its new password hash
+    const updatedAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
+    if (updatedAdmin && updatedAdmin.password) {
+      console.log(`[changeAdminPasswordAction] Updated admin '${adminUserId}' re-fetched. Stored password hash (start): ${updatedAdmin.password.substring(0,10)}...`);
+      const testCompareNew = await bcrypt.compare(newPasswordInput, updatedAdmin.password);
+      console.log(`[changeAdminPasswordAction] Test comparison for updated admin '${adminUserId}' with new password ('${newPasswordInput.substring(0,3)}...'): ${testCompareNew}`);
+      if (testCompareNew) {
+        return { success: true, message: `Admin password for '${adminUserId}' successfully updated. Internal test comparison PASSED.` };
+      } else {
+        return { success: false, message: `Admin password for '${adminUserId}' updated in database, but internal password test comparison FAILED.` };
+      }
+    } else {
+      console.log(`[changeAdminPasswordAction] Could not re-fetch updated admin '${adminUserId}' or password after update for verification.`);
+      return { success: false, message: 'Failed to re-fetch admin after password update for verification.' };
+    }
+
   } catch (error: any) {
     console.error("[changeAdminPasswordAction] Error changing admin password:", error);
+    if (error.errors) {
+        console.error("[changeAdminPasswordAction] Mongoose validation errors:", JSON.stringify(error.errors, null, 2));
+    }
     return { success: false, message: `Error updating password: ${error.message}` };
   }
 }
