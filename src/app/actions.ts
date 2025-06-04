@@ -114,46 +114,76 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string): 
 // --- User Management Actions ---
 
 export async function initializeDefaultAdminAction(): Promise<{ success: boolean; message: string }> {
+  console.log('[initializeDefaultAdminAction] Starting initialization...');
   try {
     await dbConnect();
+    console.log('[initializeDefaultAdminAction] Database connected.');
     const adminUserId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
     const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole";
+    console.log(`[initializeDefaultAdminAction] Default Admin User ID: ${adminUserId}`);
+    console.log(`[initializeDefaultAdminAction] Default Admin Password (first 3 chars): ${adminPassword.substring(0,3)}...`);
 
-    const existingAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' });
-    if (!existingAdmin) {
-      const adminUser = new UserModel({
+
+    let adminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' });
+    
+    if (!adminUser) {
+      console.log('[initializeDefaultAdminAction] Default admin not found. Creating new admin...');
+      adminUser = new UserModel({
         userId: adminUserId,
         password: adminPassword, // Password will be hashed by the pre-save hook
         role: 'Admin',
       });
-      await adminUser.save();
-      return { success: true, message: 'Default admin initialized in database with hashed password.' };
+    } else {
+      console.log('[initializeDefaultAdminAction] Default admin found. Ensuring password is up to date with .env.');
+      // Explicitly set the password to ensure the pre-save hook for hashing runs if it changed in .env
+      adminUser.password = adminPassword;
     }
-    return { success: true, message: 'Default admin already exists in database.' };
+    
+    await adminUser.save();
+    console.log(`[initializeDefaultAdminAction] Admin user processed. Stored password (first 10 chars): ${adminUser.password ? adminUser.password.substring(0,10) : 'N/A'}...`);
+    return { success: true, message: 'Default admin initialization complete in database (password hashed).' };
+
   } catch (error: any) {
-    console.error("Error initializing default admin:", error);
+    console.error("[initializeDefaultAdminAction] Error initializing default admin:", error);
     return { success: false, message: `Error initializing default admin: ${error.message}` };
   }
 }
 
 export async function verifyUserAction(userIdInput: string, passwordInput: string): Promise<{ success: boolean; user?: UserCredentials | null; message: string }> {
+  console.log(`[verifyUserAction] Attempting to verify user: ${userIdInput}`);
+  console.log(`[verifyUserAction] Password input (first 3 chars): ${passwordInput.substring(0, 3)}...`);
+
   try {
     await dbConnect();
+    console.log('[verifyUserAction] Database connected.');
+
     // Fetch the full Mongoose document, not a lean object, to use instance methods
     const user = await UserModel.findOne({ userId: userIdInput });
 
     if (user) {
+      console.log(`[verifyUserAction] User found in DB. User ID: ${user.userId}, Role: ${user.role}`);
+      // Log the stored hashed password (or a portion of it for security, though for debugging it's fine to see more)
+      console.log(`[verifyUserAction] Stored hashed password (first 10 chars): ${user.password ? user.password.substring(0, 10) : 'N/A'}...`);
+      
       const isMatch = await user.comparePassword(passwordInput);
+      console.log(`[verifyUserAction] Password comparison result for ${userIdInput}: ${isMatch}`);
+
       if (isMatch) {
+        console.log(`[verifyUserAction] Password match for ${userIdInput}. Login successful.`);
         return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
+      } else {
+        console.log(`[verifyUserAction] Password mismatch for ${userIdInput}.`);
       }
+    } else {
+      console.log(`[verifyUserAction] User "${userIdInput}" not found in database.`);
     }
     return { success: false, message: 'Invalid User ID or Password.' };
   } catch (error: any) {
-    console.error("Error verifying user:", error);
+    console.error("[verifyUserAction] Error during user verification:", error);
     return { success: false, message: `Login error: ${error.message}` };
   }
 }
+
 
 export async function changeAdminPasswordAction(adminUserId: string, newPasswordInput: string): Promise<{ success: boolean; message: string }> {
   const defaultAdminId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
