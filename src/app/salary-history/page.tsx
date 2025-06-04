@@ -17,6 +17,7 @@ import { getSalaryPaymentsAction, getRidersAction } from '@/app/actions';
 import { cn } from '@/lib/utils';
 
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
+const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp';
 
 const monthNames = [
   "January", "February", "March", "April", "May", "June",
@@ -29,6 +30,7 @@ export default function SalaryHistoryPage() {
   const [isLoadingRiders, setIsLoadingRiders] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState<string | null>(null);
 
   const [selectedRiderName, setSelectedRiderName] = useState<string>("all");
   const [selectedYear, setSelectedYear] = useState<string>("all");
@@ -40,11 +42,34 @@ export default function SalaryHistoryPage() {
   const fetchInitialData = async () => {
     setIsLoading(true);
     setIsLoadingRiders(true);
-    try {
-      const session = localStorage.getItem(LOGIN_SESSION_KEY);
-      if (session && JSON.parse(session).isLoggedIn) {
-        setIsLoggedIn(true);
+    let userIsAuthenticated = false;
+    let role = null;
 
+    try {
+      const adminSessionData = sessionStorage.getItem(ADMIN_LOGIN_SESSION_KEY);
+      if (adminSessionData) {
+        const session = JSON.parse(adminSessionData);
+        if (session.isLoggedIn && session.currentUserRole === 'Admin') {
+          userIsAuthenticated = true;
+          role = session.currentUserRole;
+        }
+      }
+
+      if (!userIsAuthenticated) {
+        const teamLeaderSessionData = localStorage.getItem(LOGIN_SESSION_KEY);
+        if (teamLeaderSessionData) {
+          const session = JSON.parse(teamLeaderSessionData);
+          if (session.isLoggedIn && (session.currentUserRole === 'TeamLeader' || session.currentUserRole === 'Admin')) { // Allow Admin if somehow in localStorage
+            userIsAuthenticated = true;
+            role = session.currentUserRole;
+          }
+        }
+      }
+      
+      setIsLoggedIn(userIsAuthenticated);
+      setCurrentUserRole(role);
+
+      if (userIsAuthenticated) {
         const [paymentsResult, ridersResult] = await Promise.all([
           getSalaryPaymentsAction(),
           getRidersAction()
@@ -73,13 +98,16 @@ export default function SalaryHistoryPage() {
         }
 
       } else {
-        setIsLoggedIn(false);
+        // Not logged in, clear data
+        setAllPayments([]);
+        setAvailableRiders([]);
       }
     } catch (err: any) {
       console.error("Error fetching initial data:", err);
       setError(err.message || "Failed to load page data.");
       setAllPayments([]);
       setAvailableRiders([]);
+      setIsLoggedIn(false); // Ensure logged out state on error
     } finally {
       setIsLoading(false);
       setIsLoadingRiders(false);
@@ -139,7 +167,7 @@ export default function SalaryHistoryPage() {
     XLSX.writeFile(wb, `SalaryPaymentHistory_DropAquaTrack_${formatDateFns(new Date(), 'yyyy-MM-dd')}.xlsx`);
   };
 
-  if (!isLoggedIn && !isLoading) { // Check isLoading to prevent flash of login message
+  if (!isLoggedIn && !isLoading) { 
     return (
        <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
           <p className="text-lg text-destructive">You must be logged in to view salary payment history.</p>
@@ -147,7 +175,7 @@ export default function SalaryHistoryPage() {
               <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4"/> Go to Login</Button>
           </Link>
        </main>
-    )
+    );
   }
 
   if (isLoading) {
@@ -159,7 +187,7 @@ export default function SalaryHistoryPage() {
     );
   }
 
-  if (error && !isLoading) { // Show error only if not loading
+  if (error && !isLoading) { 
     return (
       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
         <AlertCircle className="h-12 w-12 text-destructive mb-4" />
@@ -187,6 +215,7 @@ export default function SalaryHistoryPage() {
           </Link>
         </div>
       </div>
+      { currentUserRole && <p className="text-sm text-muted-foreground mb-4">Logged in as: {currentUserRole}</p> }
 
       <Card className="mb-8 shadow-lg">
         <CardHeader>
