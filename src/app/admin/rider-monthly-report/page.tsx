@@ -22,12 +22,11 @@ import {
 } from "@/components/ui/chart";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
 import type { ChartConfig } from "@/components/ui/chart";
-import { getRidersAction } from '@/app/actions'; // Import action to get riders
+import { getRidersAction } from '@/app/actions'; 
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 
-const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
-
+// LOGIN_SESSION_KEY constant removed as AdminLayout handles authorization
 
 interface DailyEntryDetail {
   id: string;
@@ -54,7 +53,7 @@ interface MonthlyRiderDetailedStats {
   totalDiscrepancy: number;
   netMonthlyEarning: number;
   daysActive: number;
-  riderBaseSalaryPerDay: number; // Added to store the fetched salary
+  riderBaseSalaryPerDay: number; 
 }
 
 interface RiderMonthlyData {
@@ -134,7 +133,7 @@ export default function RiderMonthlyReportPage() {
   const [error, setError] = useState<string | null>(null);
   const [dbRiders, setDbRiders] = useState<Rider[]>([]);
   const { toast } = useToast();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  // isLoggedIn state removed, AdminLayout handles authorization
 
   const [selectedYear, setSelectedYear] = useState<string>("all");
   const [selectedMonth, setSelectedMonth] = useState<string>("all");
@@ -159,15 +158,9 @@ export default function RiderMonthlyReportPage() {
   };
 
  useEffect(() => {
-    const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
-    if (storedSession) {
-      const session = JSON.parse(storedSession);
-      if (session.isLoggedIn) {
-        setIsLoggedIn(true);
-        fetchRiderDataFromDB();
-      }
-    }
-  }, [toast]);
+    // AdminLayout handles authorization. We can directly fetch data.
+    fetchRiderDataFromDB();
+  }, []); // Removed toast dependency, run once on mount or if needed based on other logic
 
 
   useEffect(() => {
@@ -202,7 +195,7 @@ export default function RiderMonthlyReportPage() {
   }, [allSalesEntries, selectedYear, selectedMonth, isLoading]);
 
   useEffect(() => {
-    if (isLoading || isLoadingRiders || (allSalesEntries.length > 0 && dbRiders.length === 0)) return;
+    if (isLoading || isLoadingRiders || (allSalesEntries.length > 0 && dbRiders.length === 0 && !isLoadingRiders) ) return; // ensure dbRiders is loaded if allSalesEntries exist
     if (allSalesEntries.length === 0 && !isLoading) {
         setReportData({ riderData: {}, overallDailyAverageCollection: 0, riderSalesChartData: [] });
         return;
@@ -241,13 +234,11 @@ export default function RiderMonthlyReportPage() {
           riderBaseSalaryPerDay: riderBaseSalaryPerDay,
         };
       } else {
-          // Ensure riderBaseSalaryPerDay is set if monthYear object already exists
           riderMonthlyData[riderName][monthYear].riderBaseSalaryPerDay = riderBaseSalaryPerDay;
       }
       
-      // Use the fetched riderBaseSalaryPerDay for calculation
       const baseDailySalary = entry.hoursWorked >= 9 ? riderBaseSalaryPerDay : (riderBaseSalaryPerDay / 9) * entry.hoursWorked;
-      const commissionEarned = entry.commissionEarned || 0; // Assuming this is already correctly calculated if it exists
+      const commissionEarned = entry.commissionEarned || 0; 
 
       const netEarning = baseDailySalary + commissionEarned - (entry.discrepancy || 0);
 
@@ -412,16 +403,8 @@ export default function RiderMonthlyReportPage() {
     },
   } satisfies ChartConfig;
 
-  if (!isLoggedIn && !(isLoading || isLoadingRiders)) {
-    return (
-       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
-          <p className="text-lg text-destructive">You must be logged in to view this report.</p>
-           <Link href="/" passHref className="mt-4">
-              <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4"/> Go to Login</Button>
-          </Link>
-       </main>
-    )
-  }
+  // Conditional rendering for "You must be logged in" removed
+  // AdminLayout.tsx handles authorization for this page.
 
   if ((isLoading || isLoadingRiders) && !reportData) {
     return (
@@ -451,7 +434,7 @@ export default function RiderMonthlyReportPage() {
     : "No sales data found to generate the report.";
 
   const mainContent = () => {
-    if (!reportData || (Object.keys(reportData.riderData).length === 0 && filteredEntries.length === 0 && !isLoading) ) {
+    if (!reportData || (Object.keys(reportData.riderData).length === 0 && filteredEntries.length === 0 && !isLoading && !isLoadingRiders) ) { // Adjusted condition
          return <p className="text-muted-foreground text-center py-10">{noDataMessage}</p>;
     }
 

@@ -239,17 +239,44 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     if (userIdInput === defaultAdminId) {
       return { success: false, message: 'Cannot use Admin User ID for a Team Leader.' };
     }
+
+    console.log(`[addTeamLeaderAction] Attempting to create Team Leader: ${userIdInput}`);
     const newTeamLeader = new UserModel({
       userId: userIdInput,
       password: passwordInput, // Will be hashed by pre-save
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
-    console.log(`[addTeamLeaderAction] Team Leader "${userIdInput}" added. Password should be hashed by pre-save hook.`);
-    return { success: true, message: `Team Leader "${userIdInput}" added successfully to database (password hashed).`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
-  } catch (error: any)
-{
+    console.log(`[addTeamLeaderAction] Team Leader "${userIdInput}" saved. Password should be hashed.`);
+
+    // Re-fetch and verify password hash
+    const freshlyCreatedTL = await UserModel.findOne({ userId: userIdInput, role: 'TeamLeader' }).select('+password');
+    if (freshlyCreatedTL && freshlyCreatedTL.password) {
+      console.log(`[addTeamLeaderAction] Freshly created TL '${userIdInput}' stored password hash (start): ${freshlyCreatedTL.password.substring(0,10)}...`);
+      const testCompareNew = await bcrypt.compare(passwordInput, freshlyCreatedTL.password);
+      console.log(`[addTeamLeaderAction] Test comparison for newly created TL '${userIdInput}' with '${passwordInput.substring(0,3)}...': ${testCompareNew}`);
+      if (testCompareNew) {
+        return { 
+          success: true, 
+          message: `Team Leader "${userIdInput}" added successfully. Internal password test PASSED.`, 
+          user: { userId: newTeamLeader.userId, role: 'TeamLeader' } 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: `Team Leader "${userIdInput}" created, but internal password test FAILED.` 
+        };
+      }
+    } else {
+      console.log(`[addTeamLeaderAction] Could not re-fetch freshly created TL '${userIdInput}' or password after creation.`);
+      return { success: false, message: 'Failed to re-fetch TL after creation for verification.' };
+    }
+
+  } catch (error: any) {
     console.error("[addTeamLeaderAction] Error adding team leader:", error);
+    if (error.errors) {
+        console.error("[addTeamLeaderAction] Mongoose validation errors:", JSON.stringify(error.errors, null, 2));
+    }
     return { success: false, message: `Error adding team leader: ${error.message}` };
   }
 }
@@ -264,7 +291,22 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     teamLeader.password = newPasswordInput; // Will be hashed by pre-save
     await teamLeader.save();
     console.log(`[updateTeamLeaderPasswordAction] Password for TL "${userIdInput}" updated. Password should be hashed by pre-save hook.`);
-    return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database (password hashed).` };
+
+    // Re-fetch and verify password hash
+    const updatedTL = await UserModel.findOne({ userId: userIdInput, role: 'TeamLeader' }).select('+password');
+    if (updatedTL && updatedTL.password) {
+        console.log(`[updateTeamLeaderPasswordAction] Updated TL '${userIdInput}' stored password hash (start): ${updatedTL.password.substring(0,10)}...`);
+        const testCompare = await bcrypt.compare(newPasswordInput, updatedTL.password);
+        console.log(`[updateTeamLeaderPasswordAction] Test comparison for updated TL '${userIdInput}' with new password: ${testCompare}`);
+        if (testCompare) {
+            return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully. Internal test PASSED.` };
+        } else {
+            return { success: false, message: `Password for Team Leader "${userIdInput}" updated, but internal test FAILED.` };
+        }
+    } else {
+        return { success: false, message: `Password for Team Leader "${userIdInput}" updated, but failed to re-fetch for verification.` };
+    }
+
   } catch (error: any) {
     console.error("[updateTeamLeaderPasswordAction] Error updating team leader password:", error);
     return { success: false, message: `Error updating password: ${error.message}` };
@@ -560,4 +602,3 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
     return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
-
