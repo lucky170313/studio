@@ -19,12 +19,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import type { SalaryPaymentFormValues, Rider } from '@/lib/types';
+import type { SalaryPaymentFormValues, Rider, UserRole } from '@/lib/types';
 import { salaryPaymentSchema } from '@/lib/types';
 import { saveSalaryPaymentAction, getRiderMonthlyAggregatesAction, getRidersAction } from '@/app/actions';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp';
+const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp';
+
 
 const defaultCurrentYear = new Date().getFullYear();
 const years = Array.from({ length: 5 }, (_, i) => defaultCurrentYear - i);
@@ -40,6 +42,8 @@ export default function SalaryPaymentPage() {
   const [riders, setRiders] = useState<Rider[]>([]);
   const [isLoadingRiders, setIsLoadingRiders] = useState(false);
   const [loggedInUsername, setLoggedInUsername] = useState<string | null>(null);
+  const [currentUserRole, setCurrentUserRole] = useState<UserRole | null>(null);
+
 
   const form = useForm<SalaryPaymentFormValues>({
     resolver: zodResolver(salaryPaymentSchema),
@@ -92,34 +96,61 @@ export default function SalaryPaymentPage() {
   };
 
   useEffect(() => {
+    let userIsAuthenticated = false;
+    let username: string | null = null;
+    let role: UserRole | null = null;
+
     try {
-      const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
-      if (storedSession) {
-        const session = JSON.parse(storedSession);
-        if (session.isLoggedIn && session.loggedInUsername) {
-          setLoggedInUsername(session.loggedInUsername);
-          setValue('salaryGiverName', session.loggedInUsername, { shouldValidate: true });
-          fetchRidersForDropdown(); // Fetch riders on successful login check
-        } else {
-          toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
+      // Check Admin session first (sessionStorage)
+      const adminSessionData = sessionStorage.getItem(ADMIN_LOGIN_SESSION_KEY);
+      if (adminSessionData) {
+        const session = JSON.parse(adminSessionData);
+        if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole === 'Admin') {
+          userIsAuthenticated = true;
+          username = session.loggedInUsername;
+          role = session.currentUserRole;
         }
+      }
+
+      // If no Admin session, check TeamLeader session (localStorage)
+      if (!userIsAuthenticated) {
+        const teamLeaderSessionData = localStorage.getItem(LOGIN_SESSION_KEY);
+        if (teamLeaderSessionData) {
+          const session = JSON.parse(teamLeaderSessionData);
+           if (session.isLoggedIn && session.loggedInUsername && (session.currentUserRole === 'TeamLeader' || session.currentUserRole === 'Admin')) { // Also allow admin here for robustness
+            userIsAuthenticated = true;
+            username = session.loggedInUsername;
+            role = session.currentUserRole;
+          }
+        }
+      }
+      
+      if (userIsAuthenticated && username && role) {
+        setLoggedInUsername(username);
+        setCurrentUserRole(role);
+        setValue('salaryGiverName', username, { shouldValidate: true });
+        fetchRidersForDropdown();
       } else {
-         toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
+        toast({ title: "Access Denied", description: "You must be logged in to access this page.", variant: "destructive" });
+        setLoggedInUsername(null);
+        setCurrentUserRole(null);
       }
     } catch (error) {
-      console.error("Failed to parse login session from localStorage", error);
-       toast({ title: "Error", description: "Could not verify login status.", variant: "destructive" });
+      console.error("Failed to parse login session", error);
+      toast({ title: "Error", description: "Could not verify login status.", variant: "destructive" });
+      setLoggedInUsername(null);
+      setCurrentUserRole(null);
     }
   }, [setValue, toast]);
 
   useEffect(() => {
     const fetchAndSetSalary = async () => {
-      if (watchedRiderName && watchedSelectedYear && watchedSelectedMonth) {
+      if (loggedInUsername && watchedRiderName && watchedSelectedYear && watchedSelectedMonth) {
         setIsFetchingSalary(true);
         setValue('salaryAmountForPeriod', 0);
         try {
           const result = await getRiderMonthlyAggregatesAction(
-            watchedRiderName, // watchedRiderName should be the name string
+            watchedRiderName, 
             parseInt(watchedSelectedYear),
             parseInt(watchedSelectedMonth)
           );
@@ -137,8 +168,10 @@ export default function SalaryPaymentPage() {
         }
       }
     };
-    fetchAndSetSalary();
-  }, [watchedRiderName, watchedSelectedYear, watchedSelectedMonth, setValue, toast]);
+    if (loggedInUsername) { // Only fetch if user is logged in
+        fetchAndSetSalary();
+    }
+  }, [loggedInUsername, watchedRiderName, watchedSelectedYear, watchedSelectedMonth, setValue, toast]);
 
 
   const onSubmit = async (values: SalaryPaymentFormValues) => {
@@ -151,13 +184,13 @@ export default function SalaryPaymentPage() {
       const paymentDataToServer = {
         paymentDate: values.paymentDate,
         riderName: values.riderName,
-        salaryGiverName: loggedInUsername,
+        salaryGiverName: loggedInUsername, // Ensure this is from state
         salaryAmountForPeriod: values.salaryAmountForPeriod,
         amountPaid: values.amountPaid,
         deductionAmount: values.deductionAmount || 0,
         advancePayment: values.advancePayment || 0,
         comment: values.comment,
-        recordedBy: loggedInUsername,
+        recordedBy: loggedInUsername, // Ensure this is from state
       };
 
       const result = await saveSalaryPaymentAction(paymentDataToServer);
@@ -167,7 +200,7 @@ export default function SalaryPaymentPage() {
         form.reset({
           paymentDate: new Date(),
           riderName: '',
-          salaryGiverName: loggedInUsername,
+          salaryGiverName: loggedInUsername, // Reset with current username
           selectedYear: String(defaultCurrentYear),
           selectedMonth: String(getMonth(new Date())),
           salaryAmountForPeriod: 0,
@@ -235,7 +268,7 @@ export default function SalaryPaymentPage() {
     slipWindow?.document.close();
   };
 
-  if (!loggedInUsername) {
+  if (!loggedInUsername && !isLoadingRiders) { // Ensure not to show this if riders are just loading
       return (
          <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
             <Alert variant="destructive" className="mb-4 max-w-md">
@@ -249,6 +282,16 @@ export default function SalaryPaymentPage() {
          </main>
       )
   }
+  
+  if (isLoadingRiders && !loggedInUsername) { // Show loader if session check is pending and might grant access
+    return (
+      <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
+        <Loader2 className="h-12 w-12 animate-spin text-primary mb-4" />
+        <p className="text-lg text-muted-foreground">Verifying access and loading data...</p>
+      </main>
+    );
+  }
+
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
@@ -261,6 +304,8 @@ export default function SalaryPaymentPage() {
           <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4"/> Back to Dashboard</Button>
         </Link>
       </div>
+       {currentUserRole && <p className="text-sm text-muted-foreground mb-4">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>}
+
 
       <Card className="w-full max-w-2xl mx-auto shadow-xl">
         <CardHeader>
@@ -512,3 +557,4 @@ export default function SalaryPaymentPage() {
     </main>
   );
 }
+
