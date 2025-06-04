@@ -4,9 +4,11 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2 } from 'lucide-react'; // Assuming lucide-react is used for icons
+import { Loader2 } from 'lucide-react';
+import type { UserRole } from '@/lib/types'; // Assuming UserRole is 'Admin' | 'TeamLeader'
 
 const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp';
+const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // For TeamLeaders
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -14,43 +16,73 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isAuthorized, setIsAuthorized] = useState(false);
 
   useEffect(() => {
-    let sessionChecked = false;
+    console.log('[AdminLayout] useEffect triggered.');
+    let sessionIsValid = false;
+    let detectedRole: UserRole | null = null;
+
     try {
+      // Check for Admin session first (sessionStorage)
       const storedAdminSession = sessionStorage.getItem(ADMIN_LOGIN_SESSION_KEY);
+      console.log('[AdminLayout] Attempting to load Admin session from sessionStorage. Found:', !!storedAdminSession);
       if (storedAdminSession) {
         const session = JSON.parse(storedAdminSession);
+        console.log('[AdminLayout] Parsed Admin session:', session);
         if (session.isLoggedIn && session.currentUserRole === 'Admin') {
-          setIsAuthorized(true);
+          console.log('[AdminLayout] Valid Admin session found.');
+          sessionIsValid = true;
+          detectedRole = 'Admin';
         } else {
-          // Invalid or non-admin session
-          sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
-          router.replace('/'); 
+          console.log('[AdminLayout] Admin session found but invalid (isLoggedIn:', session.isLoggedIn, ', role:', session.currentUserRole, ')');
         }
+      }
+
+      // If no valid Admin session, check for TeamLeader session (localStorage)
+      if (!sessionIsValid) {
+        console.log('[AdminLayout] No valid Admin session. Checking for TeamLeader session from localStorage.');
+        const storedTlSession = localStorage.getItem(LOGIN_SESSION_KEY);
+        console.log('[AdminLayout] Attempting to load TeamLeader session from localStorage. Found:', !!storedTlSession);
+        if (storedTlSession) {
+          const session = JSON.parse(storedTlSession);
+          console.log('[AdminLayout] Parsed TeamLeader session:', session);
+          // A TeamLeader session should specifically have the 'TeamLeader' role.
+          if (session.isLoggedIn && session.currentUserRole === 'TeamLeader') {
+            console.log('[AdminLayout] Valid TeamLeader session found.');
+            sessionIsValid = true;
+            detectedRole = 'TeamLeader';
+          } else {
+            console.log('[AdminLayout] TeamLeader session found but invalid (isLoggedIn:', session.isLoggedIn, ', role:', session.currentUserRole, ')');
+          }
+        } else {
+            console.log('[AdminLayout] No TeamLeader session found in localStorage.');
+        }
+      }
+
+      if (sessionIsValid) {
+        console.log('[AdminLayout] Authorization successful. Detected role:', detectedRole);
+        setIsAuthorized(true);
       } else {
-        // No admin session
-        router.replace('/'); 
+        console.log('[AdminLayout] Authorization failed. Clearing sessions and redirecting to login.');
+        // No valid session or invalid role, clear both and redirect
+        sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
+        localStorage.removeItem(LOGIN_SESSION_KEY); // Also clear TL session just in case
+        router.replace('/');
       }
     } catch (error) {
-      console.error("Error reading admin session:", error);
+      console.error("[AdminLayout] Error reading or parsing session:", error);
       sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
-      router.replace('/'); 
+      localStorage.removeItem(LOGIN_SESSION_KEY);
+      router.replace('/');
     } finally {
-      sessionChecked = true;
+      console.log('[AdminLayout] Setting isLoading to false. Current isAuthorized state:', isAuthorized); // Log state before it might change due to re-render
       setIsLoading(false);
     }
-
-    // Fallback if redirect somehow didn't happen during initial evaluation in effect
-    if (sessionChecked && !isAuthorized && router.pathname?.startsWith('/admin')) {
-        // router.replace('/'); // This might cause issues if component unmounts before redirect completes
-    }
-
-  }, [router, isAuthorized]); // Added isAuthorized to dependencies to re-evaluate if it changes externally, though unlikely here.
+  }, [router]); // Only run on mount and route changes
 
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-background">
         <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        <p className="ml-4 text-muted-foreground">Verifying admin access...</p>
+        <p className="ml-4 text-muted-foreground">Verifying access to admin area...</p>
       </div>
     );
   }
@@ -58,8 +90,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   if (!isAuthorized) {
     // This state should ideally not be reached for long if router.replace works promptly.
     // It acts as a final gate before rendering children if authorization fails.
-    // Depending on Next.js behavior, router.replace might cause an unmount,
-    // so rendering null or a loader here might be brief or not seen.
+     console.log('[AdminLayout] Render: Not authorized, showing redirecting message.');
     return (
          <div className="flex min-h-screen items-center justify-center bg-background">
             <Loader2 className="h-12 w-12 animate-spin text-destructive" />
@@ -67,6 +98,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </div>
     );
   }
-
+  console.log('[AdminLayout] Render: Authorized, rendering children.');
   return <>{children}</>;
 }

@@ -49,6 +49,48 @@ const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // For TeamLeaders
 const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp'; // For Admins (sessionStorage)
 
 
+// Extracted LoginForm component
+const LoginForm = ({ onLogin, username, onUsernameChange, password, onPasswordChange, loginError }: {
+  onLogin: () => void;
+  username: string;
+  onUsernameChange: (value: string) => void;
+  password: string;
+  onPasswordChange: (value: string) => void;
+  loginError: string | null;
+}) => {
+  return (
+    <Card className="w-full max-w-md shadow-xl">
+      <CardHeader className="text-center">
+        <div className="flex items-center justify-center mb-4">
+          <Droplets className="h-10 w-10 text-primary" />
+          <h1 className="text-3xl font-bold text-primary ml-2">Drop Aqua Track Login</h1>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        {loginError && (
+          <Alert variant="destructive">
+            <AlertCircleIcon className="h-4 w-4" />
+            <AlertTitle>Login Failed</AlertTitle>
+            <AlertDescription>{loginError}</AlertDescription>
+          </Alert>
+        )}
+        <div className="space-y-2">
+          <Label htmlFor="username">User ID</Label>
+          <Input id="username" type="text" placeholder="Enter your User ID" value={username} onChange={(e) => onUsernameChange(e.target.value)} className="text-base" />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="password">Password</Label>
+          <Input id="password" type="password" placeholder="Enter your password" value={password} onChange={(e) => onPasswordChange(e.target.value)} className="text-base" />
+        </div>
+        <Button onClick={onLogin} className="w-full text-lg py-3">
+          <LogIn className="mr-2 h-5 w-5" /> Login
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+
 export default function AquaTrackPage() {
   const [reportData, setReportData] = useState<SalesReportData | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -86,6 +128,7 @@ export default function AquaTrackPage() {
 
   const fetchTeamLeaders = async () => {
     if (isLoggedIn && currentUserRole === 'Admin') {
+      console.log("[Page Effect] Fetching team leaders as Admin.");
       const result = await getTeamLeadersAction();
       if (result.success && result.teamLeaders) {
         setTeamLeaders(result.teamLeaders);
@@ -99,6 +142,7 @@ export default function AquaTrackPage() {
   const fetchRiders = async () => {
     if (!isLoggedIn) return;
     setIsLoadingRiders(true);
+    console.log("[Page Effect] Fetching riders.");
     try {
       const result = await getRidersAction();
       if (result.success && result.riders) {
@@ -116,47 +160,55 @@ export default function AquaTrackPage() {
   };
 
   const saveLoginSession = (loggedIn: boolean, role: UserRole | null, username: string | null) => {
+    console.log(`[saveLoginSession] Called with: loggedIn=${loggedIn}, role=${role}, username=${username}`);
     if (loggedIn && role && username) {
       const sessionData = JSON.stringify({ isLoggedIn: true, currentUserRole: role, loggedInUsername: username });
       if (role === 'Admin') {
+        console.log(`[saveLoginSession] Saving Admin session to sessionStorage (${ADMIN_LOGIN_SESSION_KEY}):`, sessionData);
         sessionStorage.setItem(ADMIN_LOGIN_SESSION_KEY, sessionData);
         localStorage.removeItem(LOGIN_SESSION_KEY); // Clear regular user session
       } else { // TeamLeader
+        console.log(`[saveLoginSession] Saving TeamLeader session to localStorage (${LOGIN_SESSION_KEY}):`, sessionData);
         localStorage.setItem(LOGIN_SESSION_KEY, sessionData);
         sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY); // Clear admin session
       }
     } else { // Logging out
+      console.log(`[saveLoginSession] Clearing both Admin and TeamLeader sessions.`);
       localStorage.removeItem(LOGIN_SESSION_KEY);
       sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
     }
   };
 
   useEffect(() => {
+    console.log("[Page Initial Mount Effect] Running...");
     setCurrentYear(new Date().getFullYear());
 
     initializeDefaultAdminAction().then(res => {
-      console.log(res.message);
+      console.log("[Page Effect] initializeDefaultAdminAction result:", res.message, "(Success:", res.success, ")");
     });
 
     let sessionLoaded = false;
+    let loadedRole: UserRole | null = null;
+    let loadedUsername: string | null = null;
 
     // Try loading admin session from sessionStorage first
     try {
       const storedAdminSession = sessionStorage.getItem(ADMIN_LOGIN_SESSION_KEY);
+      console.log("[Page Effect] Checking Admin session (sessionStorage). Found:", !!storedAdminSession);
       if (storedAdminSession) {
         const session = JSON.parse(storedAdminSession);
         if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole === 'Admin') {
-          setIsLoggedIn(true);
-          setCurrentUserRole(session.currentUserRole);
-          setLoggedInUsername(session.loggedInUsername);
+          loadedRole = session.currentUserRole;
+          loadedUsername = session.loggedInUsername;
           sessionLoaded = true;
+          console.log("[Page Effect] Admin session loaded from sessionStorage:", { role: loadedRole, username: loadedUsername });
         } else {
-          // Malformed admin session, clear it
+          console.log("[Page Effect] Malformed Admin session in sessionStorage, removing.");
           sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
         }
       }
     } catch (error) {
-      console.error("Failed to parse admin login session from sessionStorage", error);
+      console.error("[Page Effect] Failed to parse admin login session from sessionStorage", error);
       sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
     }
 
@@ -164,30 +216,36 @@ export default function AquaTrackPage() {
     if (!sessionLoaded) {
       try {
         const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
+        console.log("[Page Effect] Checking TeamLeader session (localStorage). Found:", !!storedSession);
         if (storedSession) {
           const session = JSON.parse(storedSession);
           // Ensure it's not an admin session mistakenly in localStorage
           if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole && session.currentUserRole !== 'Admin') {
-            setIsLoggedIn(true);
-            setCurrentUserRole(session.currentUserRole);
-            setLoggedInUsername(session.loggedInUsername);
+            loadedRole = session.currentUserRole;
+            loadedUsername = session.loggedInUsername;
             sessionLoaded = true;
+            console.log("[Page Effect] TeamLeader session loaded from localStorage:", { role: loadedRole, username: loadedUsername });
           } else {
-            // Malformed or admin session in wrong place, clear it
+            console.log("[Page Effect] Malformed/Admin session in localStorage, removing.");
             localStorage.removeItem(LOGIN_SESSION_KEY);
           }
         }
       } catch (error) {
-        console.error("Failed to parse login session from localStorage", error);
+        console.error("[Page Effect] Failed to parse login session from localStorage", error);
         localStorage.removeItem(LOGIN_SESSION_KEY);
       }
     }
     
-    if (!sessionLoaded) {
-        // If no valid session found in either storage, ensure logged out state
+    if (sessionLoaded && loadedRole && loadedUsername) {
+        setIsLoggedIn(true);
+        setCurrentUserRole(loadedRole);
+        setLoggedInUsername(loadedUsername);
+        console.log("[Page Effect] Session successfully loaded and applied to state.");
+    } else {
         setIsLoggedIn(false);
         setCurrentUserRole(null);
         setLoggedInUsername(null);
+        console.log("[Page Effect] No valid session found. State set to logged out.");
     }
 
 
@@ -208,13 +266,14 @@ export default function AquaTrackPage() {
         localStorage.setItem(GLOBAL_RATE_PER_LITER_KEY, String(DEFAULT_GLOBAL_RATE));
       }
     } catch (error) {
-      console.error("Failed to parse globalRatePerLiter from localStorage", error);
+      console.error("[Page Effect] Failed to parse globalRatePerLiter from localStorage", error);
       setGlobalRatePerLiter(DEFAULT_GLOBAL_RATE);
       setRateInput(String(DEFAULT_GLOBAL_RATE));
     }
   }, []);
 
   useEffect(() => {
+    console.log(`[Page Effect for LoggedIn Change] isLoggedIn: ${isLoggedIn}, currentUserRole: ${currentUserRole}`);
     if (isLoggedIn) {
       if (currentUserRole === 'Admin') {
         fetchTeamLeaders();
@@ -239,7 +298,7 @@ export default function AquaTrackPage() {
       setCurrentUserRole(result.user.role);
       setLoggedInUsername(result.user.userId);
       setLoginError(null);
-      saveLoginSession(true, result.user.role, result.user.userId);
+      saveLoginSession(true, result.user.role, result.user.userId); // This will call console.log inside
       setUsernameInput('');
       setPasswordInput('');
     } else {
@@ -247,7 +306,7 @@ export default function AquaTrackPage() {
       setIsLoggedIn(false);
       setCurrentUserRole(null);
       setLoggedInUsername(null);
-      saveLoginSession(false, null, null);
+      saveLoginSession(false, null, null); // This will call console.log inside
       setPasswordInput('');
     }
   };
@@ -256,7 +315,7 @@ export default function AquaTrackPage() {
     setIsLoggedIn(false);
     setCurrentUserRole(null);
     setLoggedInUsername(null);
-    saveLoginSession(false, null, null);
+    saveLoginSession(false, null, null); // This will call console.log inside
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
@@ -532,34 +591,14 @@ export default function AquaTrackPage() {
   if (!isLoggedIn) {
     return (
       <main className="min-h-screen container mx-auto px-4 py-8 flex flex-col items-center justify-center">
-        <Card className="w-full max-w-md shadow-xl">
-          <CardHeader className="text-center">
-            <div className="flex items-center justify-center mb-4">
-                <Droplets className="h-10 w-10 text-primary" />
-                <h1 className="text-3xl font-bold text-primary ml-2">Drop Aqua Track Login</h1>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {loginError && (
-              <Alert variant="destructive">
-                <AlertCircleIcon className="h-4 w-4" />
-                <AlertTitle>Login Failed</AlertTitle>
-                <AlertDescription>{loginError}</AlertDescription>
-              </Alert>
-            )}
-            <div className="space-y-2">
-              <Label htmlFor="username">User ID</Label>
-              <Input id="username" type="text" placeholder="Enter your User ID" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} className="text-base" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input id="password" type="password" placeholder="Enter your password" value={passwordInput} onChange={(e) => setPasswordInput(e.target.value)} className="text-base" />
-            </div>
-            <Button onClick={handleLogin} className="w-full text-lg py-3">
-              <LogIn className="mr-2 h-5 w-5" /> Login
-            </Button>
-          </CardContent>
-        </Card>
+        <LoginForm
+          onLogin={handleLogin}
+          username={usernameInput}
+          onUsernameChange={setUsernameInput}
+          password={passwordInput}
+          onPasswordChange={setPasswordInput}
+          loginError={loginError}
+        />
          <footer className="mt-12 text-center text-sm text-muted-foreground">
             {currentYear !== null ? <p>&copy; {currentYear} Drop Aqua Track. Streamlining your water delivery business.</p> : <p>Loading year...</p>}
         </footer>
@@ -599,19 +638,23 @@ export default function AquaTrackPage() {
 
       <Card className="mb-8 shadow-md">
         <CardHeader>
-          <CardTitle className="text-xl text-primary flex items-center"><Shield className="mr-2 h-5 w-5"/>Dashboard</CardTitle>
+          <CardTitle className="text-xl text-primary flex items-center"><Shield className="mr-2 h-5 w-5"/>Dashboard Links</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
             {(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader') && (
                 <>
-                    <Link href="/admin/rider-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report</Button></Link>
-                    <Link href="/admin/user-monthly-cash-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report</Button></Link>
+                    {/* Links accessible by both Admin and TeamLeader */}
                     <Link href="/salary-payment" passHref><Button variant="outline" className="w-full sm:w-auto"><Landmark className="mr-2 h-4 w-4" /> Salary Payment Entry</Button></Link>
                     <Link href="/salary-history" passHref><Button variant="outline" className="w-full sm:w-auto"><History className="mr-2 h-4 w-4" /> Salary Payment History</Button></Link>
+                    
+                    {/* Reports now accessible by both Admin and TeamLeader, protected by AdminLayout */}
+                    <Link href="/admin/rider-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report</Button></Link>
+                    <Link href="/admin/user-monthly-cash-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report</Button></Link>
                 </>
             )}
             {currentUserRole === 'Admin' && (
                 <>
+                    {/* Links strictly for Admin */}
                     <Link href="/admin/view-data" passHref><Button variant="outline" className="w-full sm:w-auto"><Eye className="mr-2 h-4 w-4" /> View All Sales Data</Button></Link>
                     <Link href="/admin/monthly-summary" passHref><Button variant="outline" className="w-full sm:w-auto"><BarChartHorizontal className="mr-2 h-4 w-4" /> Monthly Sales Summary</Button></Link>
                 </>
@@ -745,3 +788,4 @@ export default function AquaTrackPage() {
   );
 }
     
+
