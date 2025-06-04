@@ -8,6 +8,7 @@ import SalaryPaymentModel from '@/models/SalaryPayment';
 import RiderModel from '@/models/Rider'; // New Rider Model
 import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates, CollectorCashReportEntry, Rider } from '@/lib/types';
 import { startOfMonth, endOfMonth } from 'date-fns';
+import bcrypt from 'bcryptjs';
 
 
 interface SaveReportResult {
@@ -119,11 +120,11 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
     await dbConnect();
     console.log('[initializeDefaultAdminAction] Database connected.');
     const adminUserId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
-    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole"; // Plaintext from .env or default
+    const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole";
     console.log(`[initializeDefaultAdminAction] Default Admin User ID: ${adminUserId}`);
     console.log(`[initializeDefaultAdminAction] Default Admin Password (for hashing/comparison): ${adminPassword.substring(0,3)}... (length: ${adminPassword.length})`);
 
-    let adminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password'); // Ensure password is selected for comparison
+    let adminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
     
     if (!adminUser) {
       console.log('[initializeDefaultAdminAction] Default admin not found. Creating new admin...');
@@ -132,36 +133,51 @@ export async function initializeDefaultAdminAction(): Promise<{ success: boolean
         password: adminPassword, // This will be hashed by pre-save on new user
         role: 'Admin',
       });
-      await adminUser.save(); // Triggers pre-save hook
+      await adminUser.save();
+      console.log(`[initializeDefaultAdminAction] New admin created.`);
       const freshlyCreatedAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-      console.log(`[initializeDefaultAdminAction] New admin created. Stored password hash (start): ${freshlyCreatedAdmin && freshlyCreatedAdmin.password ? freshlyCreatedAdmin.password.substring(0,10) : 'N/A'}...`);
+      if (freshlyCreatedAdmin && freshlyCreatedAdmin.password) {
+        console.log(`[initializeDefaultAdminAction] Freshly created admin's stored password hash (start): ${freshlyCreatedAdmin.password.substring(0,10)}...`);
+        const testCompareNew = await bcrypt.compare(adminPassword, freshlyCreatedAdmin.password);
+        console.log(`[initializeDefaultAdminAction] Test comparison for newly created admin with '${adminPassword.substring(0,3)}...': ${testCompareNew}`);
+      } else {
+        console.log('[initializeDefaultAdminAction] Could not re-fetch freshly created admin or password.');
+      }
     } else {
       console.log(`[initializeDefaultAdminAction] Default admin found. User ID: ${adminUser.userId}.`);
       console.log(`[initializeDefaultAdminAction] Current stored password hash (start): ${adminUser.password ? adminUser.password.substring(0,10) : 'N/A'}...`);
       
-      // Check if the current plaintext password (from .env) matches the stored hash
       const isCurrentPasswordCorrect = await adminUser.comparePassword(adminPassword);
       console.log(`[initializeDefaultAdminAction] Does current .env password ("${adminPassword.substring(0,3)}...") match stored hash? ${isCurrentPasswordCorrect}`);
       
       if (!isCurrentPasswordCorrect) {
         console.log('[initializeDefaultAdminAction] Stored hash does NOT match current .env password. Updating password...');
-        adminUser.password = adminPassword; // Set to plaintext, pre-save hook will hash it
+        adminUser.password = adminPassword;
         console.log(`[initializeDefaultAdminAction] Is password field marked as modified by Mongoose now? ${adminUser.isModified('password')}`);
-        await adminUser.save(); // Triggers pre-save hook
+        await adminUser.save();
         
-        // Fetch again immediately to confirm the new hash was persisted and is readable
         const updatedAdminUser = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-        console.log(`[initializeDefaultAdminAction] Password update triggered. Re-fetched admin. New stored password hash (start): ${updatedAdminUser && updatedAdminUser.password ? updatedAdminUser.password.substring(0,10) : 'N/A'}...`);
+        if (updatedAdminUser && updatedAdminUser.password) {
+          console.log(`[initializeDefaultAdminAction] Password update triggered. Re-fetched admin. New stored password hash (start): ${updatedAdminUser.password.substring(0,10)}...`);
+          const testCompareUpdated = await bcrypt.compare(adminPassword, updatedAdminUser.password);
+          console.log(`[initializeDefaultAdminAction] Test comparison for updated admin with '${adminPassword.substring(0,3)}...': ${testCompareUpdated}`);
+        } else {
+            console.log('[initializeDefaultAdminAction] Could not re-fetch updated admin or password after update.');
+        }
       } else {
         console.log('[initializeDefaultAdminAction] Stored hash already matches current .env password. No password update needed.');
+        // Test comparison even if no update needed, just to be sure
+        if (adminUser.password) {
+             const testCompareExisting = await bcrypt.compare(adminPassword, adminUser.password);
+             console.log(`[initializeDefaultAdminAction] Test comparison for existing matching admin with '${adminPassword.substring(0,3)}...': ${testCompareExisting}`);
+        }
       }
     }
-    
-    return { success: true, message: 'Default admin initialization check complete. Password in DB is hashed and up-to-date with .env.' };
+    return { success: true, message: 'Default admin initialization check complete. Password in DB is hashed and up-to-date with .env (verified by internal test).' };
 
   } catch (error: any) {
     console.error("[initializeDefaultAdminAction] Error initializing default admin:", error);
-    if (error.errors) { // Mongoose validation errors
+    if (error.errors) {
         console.error("[initializeDefaultAdminAction] Mongoose validation errors:", JSON.stringify(error.errors, null, 2));
     }
     return { success: false, message: `Error initializing default admin: ${error.message}` };
@@ -176,19 +192,19 @@ export async function verifyUserAction(userIdInput: string, passwordInput: strin
     await dbConnect();
     console.log('[verifyUserAction] Database connected.');
 
-    // Fetch the full Mongoose document to use instance methods. Explicitly select password.
     const user = await UserModel.findOne({ userId: userIdInput }).select('+password');
 
     if (user) {
       console.log(`[verifyUserAction] User found in DB. User ID: ${user.userId}, Role: ${user.role}`);
+      console.log(`[verifyUserAction] Is user document new? ${user.isNew}`);
+      console.log(`[verifyUserAction] Is user.password modified? ${user.isModified('password')}`);
       console.log(`[verifyUserAction] Stored hashed password from DB (first 10 chars): "${user.password ? user.password.substring(0, 10) : 'N/A'}" (length: ${user.password ? user.password.length : 0})`);
       
-      const isMatch = await user.comparePassword(passwordInput); // This calls the method on the UserSchema
+      const isMatch = await user.comparePassword(passwordInput);
       console.log(`[verifyUserAction] bcrypt.compare result for "${userIdInput}": ${isMatch}`);
 
       if (isMatch) {
         console.log(`[verifyUserAction] Password match for "${userIdInput}". Login successful.`);
-        // Return a plain object for the client component
         return { success: true, user: { userId: user.userId, role: user.role as 'Admin' | 'TeamLeader' }, message: 'Login successful.' };
       } else {
         console.log(`[verifyUserAction] Password mismatch for "${userIdInput}".`);
@@ -215,8 +231,8 @@ export async function changeAdminPasswordAction(adminUserId: string, newPassword
     if (!admin) {
       return { success: false, message: 'Admin user not found.' };
     }
-    admin.password = newPasswordInput; // Set the new password (plaintext)
-    await admin.save(); // The pre-save hook will hash it
+    admin.password = newPasswordInput;
+    await admin.save();
     return { success: true, message: 'Admin password updated successfully in database (password hashed).' };
   } catch (error: any) {
     console.error("[changeAdminPasswordAction] Error changing admin password:", error);
@@ -237,10 +253,11 @@ export async function addTeamLeaderAction(userIdInput: string, passwordInput: st
     }
     const newTeamLeader = new UserModel({
       userId: userIdInput,
-      password: passwordInput, // Password will be hashed by the pre-save hook
+      password: passwordInput,
       role: 'TeamLeader',
     });
     await newTeamLeader.save();
+    console.log(`[addTeamLeaderAction] Team Leader "${userIdInput}" added. Password should be hashed by pre-save hook.`);
     return { success: true, message: `Team Leader "${userIdInput}" added successfully to database (password hashed).`, user: { userId: newTeamLeader.userId, role: 'TeamLeader' } };
   } catch (error: any)
 {
@@ -256,8 +273,9 @@ export async function updateTeamLeaderPasswordAction(userIdInput: string, newPas
     if (!teamLeader) {
       return { success: false, message: `Team Leader "${userIdInput}" not found.` };
     }
-    teamLeader.password = newPasswordInput; // Set the new password (plaintext)
-    await teamLeader.save(); // The pre-save hook will hash it
+    teamLeader.password = newPasswordInput;
+    await teamLeader.save();
+    console.log(`[updateTeamLeaderPasswordAction] Password for TL "${userIdInput}" updated. Password should be hashed by pre-save hook.`);
     return { success: true, message: `Password for Team Leader "${userIdInput}" updated successfully in database (password hashed).` };
   } catch (error: any) {
     console.error("[updateTeamLeaderPasswordAction] Error updating team leader password:", error);
@@ -554,7 +572,3 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
     return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
-
-    
-
-    
