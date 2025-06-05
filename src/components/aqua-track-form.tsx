@@ -88,6 +88,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
   });
 
   const selectedVehicleName = useWatch({ control: form.control, name: 'vehicleName' });
+  const selectedDate = useWatch({ control: form.control, name: 'date' });
   const { setValue, getValues, watch } = form;
 
   const [isClient, setIsClient] = useState(false);
@@ -119,11 +120,20 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     if (isClient && selectedVehicleName) {
       const fetchPrevReading = async () => {
         setIsLoadingPrevReading(true);
-        const result = await getLastMeterReadingForVehicleAction(selectedVehicleName);
+        // Pass selectedDate to the action. If selectedDate is not a valid Date, undefined will be passed.
+        const dateToQueryISO = selectedDate instanceof Date && !isNaN(selectedDate.getTime()) 
+          ? selectedDate.toISOString() 
+          : undefined;
+          
+        const result = await getLastMeterReadingForVehicleAction(selectedVehicleName, dateToQueryISO);
         if (result.success) {
           setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
+          if(result.message && (result.reading === 0)) { // Optionally show message if no reading found for specific date
+             console.info(`[AquaTrackForm] Fetch previous reading: ${result.message}`);
+          }
         } else {
           setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
+          console.error(`[AquaTrackForm] Error fetching previous reading: ${result.message}`);
         }
         setIsLoadingPrevReading(false);
       };
@@ -131,7 +141,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     } else if (isClient && !selectedVehicleName) {
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
-  }, [selectedVehicleName, setValue, isClient]);
+  }, [selectedVehicleName, selectedDate, setValue, isClient]);
 
 
   useEffect(() => {
@@ -221,7 +231,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     { name: 'riderName', label: 'Rider Name', icon: User, placeholder: 'Select rider name', componentType: 'select', options: ridersFromDB },
     { name: 'vehicleName', label: 'Vehicle Name', icon: Truck, componentType: 'select', options: vehicleOptions, placeholder: 'Select vehicle name' },
     { name: 'hoursWorked', label: 'Hours Worked', icon: Clock, componentType: 'select', options: hoursWorkedOptions, placeholder: 'Select hours' },
-    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled from DB. Admin can edit." },
+    { name: 'previousMeterReading', label: 'Previous Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12300', componentType: 'input', description: "Auto-filled. Admin can edit." },
     { name: 'currentMeterReading', label: 'Current Meter Reading', icon: Gauge, type: 'number', placeholder: 'e.g., 12450', componentType: 'input' },
     { name: 'ratePerLiter', label: 'Rate Per Liter', icon: IndianRupee, type: 'number', placeholder: 'e.g., 2.5', componentType: 'input', description: `Global rate: ₹${persistentRatePerLiter.toFixed(2)}. Editable by Admin/Team Leader.` },
     { name: 'cashReceived', label: 'Cash Received', icon: IndianRupee, type: 'number', placeholder: 'e.g., 3000', componentType: 'input' },
@@ -367,7 +377,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
                         )}
                         </FormControl>
                         {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                        {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No previous reading for this vehicle found in DB.</FormDescription>}
+                        {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No prior reading for this vehicle before selected date.</FormDescription>}
                         <FormMessage />
                     </FormItem>
                     )}
