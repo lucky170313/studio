@@ -43,7 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from '@/components/ui/separator';
-import { Badge } from '@/components/ui/badge'; // Added import for Badge
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
@@ -137,6 +137,7 @@ export default function AquaTrackPage() {
   const [tlUserIdInput, setTlUserIdInput] = useState('');
   const [tlPasswordInput, setTlPasswordInput] = useState('');
   const [editingTlOriginalUserId, setEditingTlOriginalUserId] = useState<string | null>(null);
+  const [formRefreshTrigger, setFormRefreshTrigger] = useState(0);
 
 
   const fetchTeamLeaders = async () => {
@@ -428,6 +429,7 @@ export default function AquaTrackPage() {
           id: dbResult.id,
         };
         setReportData(fullReportDataForDisplay);
+        setFormRefreshTrigger(prev => prev + 1); // Trigger form refresh
       } else {
         toast({ title: 'Database Error', description: dbResult.message || "Failed to save sales report.", variant: 'destructive' });
         // Show local preview even if DB save fails, but with an indicator it's not saved.
@@ -887,6 +889,7 @@ export default function AquaTrackPage() {
               currentUserRole={currentUserRole || 'TeamLeader'}
               ridersFromDB={riders.map(r => r.name)} 
               persistentRatePerLiter={globalRatePerLiter}
+              formRefreshTrigger={formRefreshTrigger}
             />
           </CardContent>
         </Card>

@@ -39,8 +39,9 @@ interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => void;
   isProcessing: boolean;
   currentUserRole: UserRole;
-  ridersFromDB: string[]; // Changed from riderNames to ridersFromDB for clarity
+  ridersFromDB: string[]; 
   persistentRatePerLiter: number;
+  formRefreshTrigger: number; // New prop
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
@@ -64,7 +65,7 @@ const noteDenominations = [
 type DenominationQuantities = { [key: string]: string };
 
 
-export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersFromDB, persistentRatePerLiter }: AquaTrackFormProps) {
+export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersFromDB, persistentRatePerLiter, formRefreshTrigger }: AquaTrackFormProps) {
   const form = useForm<SalesDataFormValues>({
     resolver: zodResolver(salesDataSchema),
     defaultValues: {
@@ -120,7 +121,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     if (isClient && selectedVehicleName) {
       const fetchPrevReading = async () => {
         setIsLoadingPrevReading(true);
-        // Pass selectedDate to the action. If selectedDate is not a valid Date, undefined will be passed.
         const dateToQueryISO = selectedDate instanceof Date && !isNaN(selectedDate.getTime()) 
           ? selectedDate.toISOString() 
           : undefined;
@@ -128,7 +128,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
         const result = await getLastMeterReadingForVehicleAction(selectedVehicleName, dateToQueryISO);
         if (result.success) {
           setValue('previousMeterReading', result.reading, { shouldValidate: true, shouldDirty: true });
-          if(result.message && (result.reading === 0)) { // Optionally show message if no reading found for specific date
+          if(result.message && (result.reading === 0)) { 
              console.info(`[AquaTrackForm] Fetch previous reading: ${result.message}`);
           }
         } else {
@@ -141,7 +141,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     } else if (isClient && !selectedVehicleName) {
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
-  }, [selectedVehicleName, selectedDate, setValue, isClient]);
+  }, [selectedVehicleName, selectedDate, setValue, isClient, formRefreshTrigger]); // Added formRefreshTrigger
 
 
   useEffect(() => {
