@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge'; // Added import for Badge
 import { cn } from '@/lib/utils';
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
@@ -904,4 +905,3 @@ export default function AquaTrackPage() {
   );
 }
     
-
