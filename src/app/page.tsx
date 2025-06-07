@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -39,14 +39,26 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
+  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Separator } from '@/components/ui/separator';
 import { cn } from '@/lib/utils';
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // For TeamLeaders
 const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp'; // For Admins (sessionStorage)
+
+const ConfirmationDialogItem: React.FC<{ label: string; value: string | number; unit?: string; highlight?: boolean }> = ({ label, value, unit, highlight }) => (
+  <div className="flex justify-between py-1">
+    <span className={cn("text-sm text-muted-foreground", highlight && "font-semibold text-foreground")}>{label}:</span>
+    <span className={cn("text-sm font-medium text-right", highlight && "font-semibold text-primary")}>
+      {typeof value === 'number' && (label.toLowerCase().includes('rate') || label.toLowerCase().includes('sale') || label.toLowerCase().includes('received') || label.toLowerCase().includes('expected') || label.toLowerCase().includes('discrepancy') || label.toLowerCase().includes('money') || label.toLowerCase().includes('expense') || label.toLowerCase().includes('amount') || label.toLowerCase().includes('new due') || label.toLowerCase().includes('salary') || label.toLowerCase().includes('commission')) ? `₹${value.toFixed(2)}` : value}
+      {unit && ` ${unit}`}
+    </span>
+  </div>
+);
 
 
 // Extracted LoginForm component
@@ -108,7 +120,7 @@ export default function AquaTrackPage() {
   const [globalRatePerLiter, setGlobalRatePerLiter] = useState<number>(DEFAULT_GLOBAL_RATE);
   const [rateInput, setRateInput] = useState<string>(String(DEFAULT_GLOBAL_RATE));
 
-  const [pendingFormValues, setPendingFormValues] = useState<SalesDataFormValues | null>(null);
+  const [pendingReportDetailsForConfirmation, setPendingReportDetailsForConfirmation] = useState<SalesReportData | null>(null);
   const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -166,13 +178,13 @@ export default function AquaTrackPage() {
       if (role === 'Admin') {
         console.log(`[saveLoginSession] Saving Admin session to sessionStorage (${ADMIN_LOGIN_SESSION_KEY}):`, sessionData);
         sessionStorage.setItem(ADMIN_LOGIN_SESSION_KEY, sessionData);
-        localStorage.removeItem(LOGIN_SESSION_KEY); // Clear regular user session
-      } else { // TeamLeader
+        localStorage.removeItem(LOGIN_SESSION_KEY); 
+      } else { 
         console.log(`[saveLoginSession] Saving TeamLeader session to localStorage (${LOGIN_SESSION_KEY}):`, sessionData);
         localStorage.setItem(LOGIN_SESSION_KEY, sessionData);
-        sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY); // Clear admin session
+        sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY); 
       }
-    } else { // Logging out
+    } else { 
       console.log(`[saveLoginSession] Clearing both Admin and TeamLeader sessions.`);
       localStorage.removeItem(LOGIN_SESSION_KEY);
       sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
@@ -191,7 +203,6 @@ export default function AquaTrackPage() {
     let loadedRole: UserRole | null = null;
     let loadedUsername: string | null = null;
 
-    // Try loading admin session from sessionStorage first
     try {
       const storedAdminSession = sessionStorage.getItem(ADMIN_LOGIN_SESSION_KEY);
       console.log("[Page Effect] Checking Admin session (sessionStorage). Found:", !!storedAdminSession);
@@ -212,14 +223,12 @@ export default function AquaTrackPage() {
       sessionStorage.removeItem(ADMIN_LOGIN_SESSION_KEY);
     }
 
-    // If no admin session, try loading regular user session from localStorage
     if (!sessionLoaded) {
       try {
         const storedSession = localStorage.getItem(LOGIN_SESSION_KEY);
         console.log("[Page Effect] Checking TeamLeader session (localStorage). Found:", !!storedSession);
         if (storedSession) {
           const session = JSON.parse(storedSession);
-          // Ensure it's not an admin session mistakenly in localStorage
           if (session.isLoggedIn && session.loggedInUsername && session.currentUserRole && session.currentUserRole !== 'Admin') {
             loadedRole = session.currentUserRole;
             loadedUsername = session.loggedInUsername;
@@ -298,7 +307,7 @@ export default function AquaTrackPage() {
       setCurrentUserRole(result.user.role);
       setLoggedInUsername(result.user.userId);
       setLoginError(null);
-      saveLoginSession(true, result.user.role, result.user.userId); // This will call console.log inside
+      saveLoginSession(true, result.user.role, result.user.userId); 
       setUsernameInput('');
       setPasswordInput('');
     } else {
@@ -306,7 +315,7 @@ export default function AquaTrackPage() {
       setIsLoggedIn(false);
       setCurrentUserRole(null);
       setLoggedInUsername(null);
-      saveLoginSession(false, null, null); // This will call console.log inside
+      saveLoginSession(false, null, null); 
       setPasswordInput('');
     }
   };
@@ -315,97 +324,117 @@ export default function AquaTrackPage() {
     setIsLoggedIn(false);
     setCurrentUserRole(null);
     setLoggedInUsername(null);
-    saveLoginSession(false, null, null); // This will call console.log inside
+    saveLoginSession(false, null, null); 
     toast({ title: "Logged Out", description: "You have been successfully logged out." });
   };
 
-  const executeReportGeneration = async () => {
-    if (!pendingFormValues || !loggedInUsername) return;
+  const handleFormSubmit = (formValues: SalesDataFormValues) => {
+    if (!loggedInUsername) {
+        toast({ title: "Error", description: "Cannot proceed. Logged in user not found.", variant: "destructive"});
+        return;
+    }
+    setReportData(null); // Clear previous report
+
+    let finalLitersSold: number;
+    const calculatedLitersFromMeter = formValues.currentMeterReading - formValues.previousMeterReading;
+
+    if (currentUserRole === 'Admin' && typeof formValues.overrideLitersSold === 'number' && formValues.overrideLitersSold >= 0) {
+      finalLitersSold = formValues.overrideLitersSold;
+    } else {
+      finalLitersSold = calculatedLitersFromMeter;
+    }
+
+    if (finalLitersSold < 0) {
+      toast({ title: 'Validation Error', description: 'Liters sold cannot be negative. Check meter readings or override value.', variant: 'destructive'});
+      return;
+    }
+
+    const totalSale = finalLitersSold * formValues.ratePerLiter;
+    const actualReceived = formValues.cashReceived + formValues.onlineReceived;
+    const submissionDateObject = formValues.date instanceof Date ? formValues.date : new Date(formValues.date);
+
+    const initialAdjustedExpected = totalSale + formValues.dueCollected - formValues.newDueAmount - formValues.tokenMoney - formValues.staffExpense - formValues.extraAmount;
+    const discrepancy = initialAdjustedExpected - actualReceived;
+
+    const aiAdjustedExpectedAmount = initialAdjustedExpected; // Placeholder for AI logic
+    const aiReasoning = "AI analysis currently bypassed. Using initial system calculation."; // Placeholder
+
+    let status: SalesReportData['status'];
+    if (Math.abs(discrepancy) < 0.01) status = 'Match';
+    else if (discrepancy > 0) status = 'Shortage';
+    else status = 'Overage';
+
+    const selectedRiderForSalaryCalc = riders.find(r => r.name === formValues.riderName);
+    const riderPerDaySalary = selectedRiderForSalaryCalc ? selectedRiderForSalaryCalc.perDaySalary : 0;
+
+    const hoursWorked = formValues.hoursWorked || 9;
+    const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
+    let commissionEarned = 0;
+    if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
+
+    const reportToConfirm: SalesReportData = {
+      date: formatDateFns(submissionDateObject, 'PPP'),
+      firestoreDate: submissionDateObject,
+      riderName: formValues.riderName,
+      vehicleName: formValues.vehicleName,
+      previousMeterReading: formValues.previousMeterReading,
+      currentMeterReading: formValues.currentMeterReading,
+      litersSold: finalLitersSold,
+      adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof formValues.overrideLitersSold === 'number' && formValues.overrideLitersSold >= 0) ? formValues.overrideLitersSold : undefined,
+      ratePerLiter: formValues.ratePerLiter,
+      cashReceived: formValues.cashReceived,
+      onlineReceived: formValues.onlineReceived,
+      dueCollected: formValues.dueCollected,
+      newDueAmount: formValues.newDueAmount,
+      tokenMoney: formValues.tokenMoney,
+      staffExpense: formValues.staffExpense,
+      extraAmount: formValues.extraAmount,
+      hoursWorked: hoursWorked,
+      dailySalaryCalculated: dailySalaryCalculated,
+      commissionEarned: commissionEarned,
+      comment: formValues.comment || "",
+      recordedBy: loggedInUsername,
+      totalSale, actualReceived, initialAdjustedExpected,
+      aiAdjustedExpectedAmount, aiReasoning, discrepancy, status,
+    };
+
+    setPendingReportDetailsForConfirmation(reportToConfirm);
+    setIsConfirmationDialogOpen(true);
+  };
+
+  const handleConfirmAndSaveReport = async () => {
+    if (!pendingReportDetailsForConfirmation || !loggedInUsername) {
+      toast({ title: "Error", description: "No report data to save or user not logged in.", variant: "destructive"});
+      setIsConfirmationDialogOpen(false);
+      setPendingReportDetailsForConfirmation(null);
+      return;
+    }
 
     setIsProcessing(true);
-    const values = pendingFormValues;
+    const reportToSave = pendingReportDetailsForConfirmation;
+
+    // Remove id and _id if they exist, as saveSalesReportAction expects Omit<...>
+    const { id, _id, ...dataToSaveOnServer } = reportToSave;
 
     try {
-      let finalLitersSold: number;
-      const calculatedLitersFromMeter = values.currentMeterReading - values.previousMeterReading;
-
-      if (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold >= 0) {
-        finalLitersSold = values.overrideLitersSold;
-      } else {
-        finalLitersSold = calculatedLitersFromMeter;
-      }
-
-      if (finalLitersSold < 0) {
-        toast({ title: 'Validation Error', description: 'Liters sold cannot be negative. Check meter readings or override value.', variant: 'destructive'});
-        setIsProcessing(false); setIsConfirmationDialogOpen(false); setPendingFormValues(null);
-        return;
-      }
-
-      const totalSale = finalLitersSold * values.ratePerLiter;
-      const actualReceived = values.cashReceived + values.onlineReceived;
-      const submissionDateObject = values.date instanceof Date ? values.date : new Date(values.date);
-
-      const initialAdjustedExpected = totalSale + values.dueCollected - values.newDueAmount - values.tokenMoney - values.staffExpense - values.extraAmount;
-      const discrepancy = initialAdjustedExpected - actualReceived;
-
-      const aiAdjustedExpectedAmount = initialAdjustedExpected;
-      const aiReasoning = "AI analysis currently bypassed. Using initial system calculation.";
-
-      let status: SalesReportData['status'];
-      if (Math.abs(discrepancy) < 0.01) status = 'Match';
-      else if (discrepancy > 0) status = 'Shortage';
-      else status = 'Overage';
-
-      const selectedRiderForSalaryCalc = riders.find(r => r.name === values.riderName);
-      const riderPerDaySalary = selectedRiderForSalaryCalc ? selectedRiderForSalaryCalc.perDaySalary : 0;
-
-      const hoursWorked = values.hoursWorked || 9;
-      const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
-      let commissionEarned = 0;
-      if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
-
-      const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
-        date: formatDateFns(submissionDateObject, 'PPP'),
-        firestoreDate: submissionDateObject,
-        riderName: values.riderName,
-        vehicleName: values.vehicleName,
-        previousMeterReading: values.previousMeterReading,
-        currentMeterReading: values.currentMeterReading,
-        litersSold: finalLitersSold,
-        adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof values.overrideLitersSold === 'number' && values.overrideLitersSold >= 0) ? values.overrideLitersSold : undefined,
-        ratePerLiter: values.ratePerLiter,
-        cashReceived: values.cashReceived,
-        onlineReceived: values.onlineReceived,
-        dueCollected: values.dueCollected,
-        newDueAmount: values.newDueAmount,
-        tokenMoney: values.tokenMoney,
-        staffExpense: values.staffExpense,
-        extraAmount: values.extraAmount,
-        hoursWorked: hoursWorked,
-        dailySalaryCalculated: dailySalaryCalculated,
-        commissionEarned: commissionEarned,
-        comment: values.comment || "",
-        recordedBy: loggedInUsername,
-        totalSale, actualReceived, initialAdjustedExpected,
-        aiAdjustedExpectedAmount, aiReasoning, discrepancy, status,
-      };
-
-      const dbResult = await saveSalesReportAction(reportToSave);
+      const dbResult = await saveSalesReportAction(dataToSaveOnServer);
 
       if (dbResult.success && dbResult.id) {
         toast({ title: 'Report Generated & Saved', description: 'Data saved successfully to database.', variant: 'default' });
         const fullReportDataForDisplay: SalesReportData = {
-          ...reportToSave,
-          _id: dbResult.id,
+          ...reportToSave, // This includes all fields, including those not sent to server action if any were filtered
+          _id: dbResult.id, // Use the ID from the database response
           id: dbResult.id,
         };
         setReportData(fullReportDataForDisplay);
       } else {
         toast({ title: 'Database Error', description: dbResult.message || "Failed to save sales report.", variant: 'destructive' });
-         const localPreviewReportData: SalesReportData = {
+        // Show local preview even if DB save fails, but with an indicator it's not saved.
+        const localPreviewReportData: SalesReportData = {
             ...reportToSave,
-            _id: `local-preview-${Date.now()}`,
+            _id: `local-preview-${Date.now()}`, // Mark as local
             id: `local-preview-${Date.now()}`,
+            status: 'Overage', // Or some other indicator of DB save failure in report if needed
         };
         setReportData(localPreviewReportData);
       }
@@ -414,16 +443,11 @@ export default function AquaTrackPage() {
       toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to process sales data.', variant: 'destructive' });
     } finally {
       setIsProcessing(false);
-      setPendingFormValues(null);
       setIsConfirmationDialogOpen(false);
+      setPendingReportDetailsForConfirmation(null);
     }
   };
 
-  const handleFormSubmit = (values: SalesDataFormValues) => {
-    setPendingFormValues(values);
-    setIsConfirmationDialogOpen(true);
-    setReportData(null);
-  };
 
   const handleRiderNameInputChange = (e: React.ChangeEvent<HTMLInputElement>) => setRiderNameInput(e.target.value);
 
@@ -630,9 +654,104 @@ export default function AquaTrackPage() {
       </header>
 
       <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader><AlertDialogTitle>Confirm Report Generation</AlertDialogTitle><AlertDialogDescription>Are you sure you want to generate and save this sales report? Please review the details before confirming. This will save the data to the database.</AlertDialogDescription></AlertDialogHeader>
-          <AlertDialogFooter><AlertDialogCancel onClick={() => { setPendingFormValues(null); setIsConfirmationDialogOpen(false); }}>Cancel</AlertDialogCancel><AlertDialogAction onClick={executeReportGeneration}>Confirm & Generate</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogContent className="max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center text-xl">
+              <CheckCircle className="mr-2 h-6 w-6 text-primary" />
+              Confirm Report Details
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Please review the following sales report details before saving. This action will record the data to the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          
+          {pendingReportDetailsForConfirmation && (
+            <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 text-sm my-4">
+              <Card className="shadow-none border-dashed">
+                <CardContent className="p-4 space-y-2">
+                    <ConfirmationDialogItem label="Date" value={pendingReportDetailsForConfirmation.date} />
+                    <ConfirmationDialogItem label="Rider Name" value={pendingReportDetailsForConfirmation.riderName} />
+                    <ConfirmationDialogItem label="Vehicle Name" value={pendingReportDetailsForConfirmation.vehicleName} />
+                    <ConfirmationDialogItem label="Hours Worked" value={pendingReportDetailsForConfirmation.hoursWorked} unit="hrs"/>
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-none border-dashed">
+                <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Meter & Sales</CardTitle></CardHeader>
+                <CardContent className="p-4 space-y-2">
+                    <ConfirmationDialogItem label="Previous Meter" value={pendingReportDetailsForConfirmation.previousMeterReading} />
+                    <ConfirmationDialogItem label="Current Meter" value={pendingReportDetailsForConfirmation.currentMeterReading} />
+                    {pendingReportDetailsForConfirmation.adminOverrideLitersSold !== undefined && (
+                       <ConfirmationDialogItem label="Liters Sold (Calculated from Meters)" value={(pendingReportDetailsForConfirmation.currentMeterReading - pendingReportDetailsForConfirmation.previousMeterReading).toFixed(2)} unit="L" />
+                    )}
+                    <ConfirmationDialogItem 
+                        label={pendingReportDetailsForConfirmation.adminOverrideLitersSold !== undefined ? "Liters Sold (Admin Override)" : "Liters Sold (Calculated)"} 
+                        value={pendingReportDetailsForConfirmation.litersSold} 
+                        unit="L"
+                        highlight
+                    />
+                    <ConfirmationDialogItem label="Rate Per Liter" value={pendingReportDetailsForConfirmation.ratePerLiter} />
+                    <ConfirmationDialogItem label="Total Sale" value={pendingReportDetailsForConfirmation.totalSale} highlight />
+                </CardContent>
+              </Card>
+
+              <Card className="shadow-none border-dashed">
+                 <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Collections & Adjustments</CardTitle></CardHeader>
+                 <CardContent className="p-4 space-y-2">
+                    <ConfirmationDialogItem label="Cash Received" value={pendingReportDetailsForConfirmation.cashReceived} />
+                    <ConfirmationDialogItem label="Online Received" value={pendingReportDetailsForConfirmation.onlineReceived} />
+                    <ConfirmationDialogItem label="Actual Received" value={pendingReportDetailsForConfirmation.actualReceived} highlight />
+                    <Separator className="my-2"/>
+                    <ConfirmationDialogItem label="Due Collected (Past)" value={pendingReportDetailsForConfirmation.dueCollected} />
+                    <ConfirmationDialogItem label="New Due (Today)" value={pendingReportDetailsForConfirmation.newDueAmount} />
+                    <ConfirmationDialogItem label="Token Money" value={pendingReportDetailsForConfirmation.tokenMoney} />
+                    <ConfirmationDialogItem label="Staff Expense" value={pendingReportDetailsForConfirmation.staffExpense} />
+                    <ConfirmationDialogItem label="Extra Amount" value={pendingReportDetailsForConfirmation.extraAmount} />
+                </CardContent>
+              </Card>
+              
+              <Card className="shadow-none border-dashed">
+                <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Reconciliation</CardTitle></CardHeader>
+                <CardContent className="p-4 space-y-2">
+                    <ConfirmationDialogItem label="Initial Adjusted Expected" value={pendingReportDetailsForConfirmation.initialAdjustedExpected} />
+                    <ConfirmationDialogItem label="Discrepancy" value={pendingReportDetailsForConfirmation.discrepancy} highlight />
+                    <div className="flex justify-between py-1">
+                        <span className="text-sm text-muted-foreground">Status:</span>
+                        {pendingReportDetailsForConfirmation.status === 'Match' ? 
+                            <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white"><CheckCircle className="mr-1 h-4 w-4" />Match</Badge> :
+                         pendingReportDetailsForConfirmation.status === 'Shortage' ?
+                            <Badge variant="destructive"><AlertTriangle className="mr-1 h-4 w-4" />Shortage</Badge> :
+                            <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-black"><Info className="mr-1 h-4 w-4" />Overage</Badge>
+                        }
+                    </div>
+                </CardContent>
+              </Card>
+              
+              <Card className="shadow-none border-dashed">
+                <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Rider Earnings (This Entry)</CardTitle></CardHeader>
+                <CardContent className="p-4 space-y-2">
+                  <ConfirmationDialogItem label="Calculated Daily Salary" value={pendingReportDetailsForConfirmation.dailySalaryCalculated ?? 0} />
+                  <ConfirmationDialogItem label="Commission Earned" value={pendingReportDetailsForConfirmation.commissionEarned ?? 0} />
+                </CardContent>
+              </Card>
+
+              {pendingReportDetailsForConfirmation.comment && (
+                 <Card className="shadow-none border-dashed">
+                    <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Comment</CardTitle></CardHeader>
+                    <CardContent className="p-4">
+                        <p className="text-sm whitespace-pre-wrap">{pendingReportDetailsForConfirmation.comment}</p>
+                    </CardContent>
+                 </Card>
+              )}
+            </div>
+          )}
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => { setPendingReportDetailsForConfirmation(null); setIsConfirmationDialogOpen(false); }}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmAndSaveReport} disabled={isProcessing}>
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                Confirm & Save Report
+            </AlertDialogAction>
+          </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
@@ -643,18 +762,14 @@ export default function AquaTrackPage() {
         <CardContent className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
             {(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader') && (
                 <>
-                    {/* Links accessible by both Admin and TeamLeader */}
                     <Link href="/salary-payment" passHref><Button variant="outline" className="w-full sm:w-auto"><Landmark className="mr-2 h-4 w-4" /> Salary Payment Entry</Button></Link>
                     <Link href="/salary-history" passHref><Button variant="outline" className="w-full sm:w-auto"><History className="mr-2 h-4 w-4" /> Salary Payment History</Button></Link>
-                    
-                    {/* Reports now accessible by both Admin and TeamLeader, protected by AdminLayout */}
                     <Link href="/admin/rider-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report</Button></Link>
                     <Link href="/admin/user-monthly-cash-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report</Button></Link>
                 </>
             )}
             {currentUserRole === 'Admin' && (
                 <>
-                    {/* Links strictly for Admin */}
                     <Link href="/admin/view-data" passHref><Button variant="outline" className="w-full sm:w-auto"><Eye className="mr-2 h-4 w-4" /> View All Sales Data</Button></Link>
                     <Link href="/admin/monthly-summary" passHref><Button variant="outline" className="w-full sm:w-auto"><BarChartHorizontal className="mr-2 h-4 w-4" /> Monthly Sales Summary</Button></Link>
                 </>
@@ -778,7 +893,8 @@ export default function AquaTrackPage() {
         <div className="lg:col-span-2">
           {isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl"><CardContent className="text-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="text-lg text-muted-foreground">Generating report...</p></CardContent></Card>)}
           {reportData && (<AquaTrackReport reportData={reportData} />)}
-          {!isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved to database.</p></CardContent></Card>)}
+          {!isProcessing && !reportData && !isConfirmationDialogOpen && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved to database.</p></CardContent></Card>)}
+          {!isProcessing && !reportData && isConfirmationDialogOpen && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><ListChecks className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Awaiting Confirmation</h3><p className="text-muted-foreground">Please review the details in the confirmation dialog.</p></CardContent></Card>)}
         </div>
       </div>
       <footer className="mt-12 text-center text-sm text-muted-foreground">
