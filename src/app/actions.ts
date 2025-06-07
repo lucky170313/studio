@@ -7,7 +7,7 @@ import UserModel from '@/models/User';
 import SalaryPaymentModel from '@/models/SalaryPayment';
 import RiderModel from '@/models/Rider'; // New Rider Model
 import type { SalesReportData, UserCredentials, SalaryPaymentServerData, SalaryPaymentData, RiderMonthlyAggregates, CollectorCashReportEntry, Rider } from '@/lib/types';
-import { startOfMonth, endOfMonth } from 'date-fns';
+import { format as formatDateFns, startOfMonth, endOfMonth } from 'date-fns';
 import bcrypt from 'bcryptjs';
 
 
@@ -90,41 +90,82 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
   }
 }
 
-export async function getLastMeterReadingForVehicleAction(vehicleName: string, forDateISO?: string): Promise<{ success: boolean; reading: number; message?: string }> {
+export async function getLastMeterReadingForVehicleAction(
+  vehicleName: string,
+  forDateISO?: string // This is the date chosen in the form for the NEW entry, as ISO string (UTC)
+): Promise<{ success: boolean; reading: number; message?: string }> {
   if (!vehicleName) {
     return { success: false, reading: 0, message: "Vehicle name is required." };
   }
   try {
     await dbConnect();
-    const query: any = { vehicleName: vehicleName };
 
     if (forDateISO) {
-      const boundaryDate = new Date(forDateISO);
-      if (!isNaN(boundaryDate.getTime())) {
-        query.firestoreDate = { $lt: boundaryDate };
-        console.log(`[getLastMeterReadingForVehicleAction] Fetching reading for vehicle '${vehicleName}' strictly before ${boundaryDate.toISOString()}`);
+      const selectedDateForNewEntry_UTC = new Date(forDateISO);
+      if (isNaN(selectedDateForNewEntry_UTC.getTime())) {
+        console.warn(`[getLastMeterReadingForVehicleAction] Invalid forDateISO: ${forDateISO}. Fetching latest overall.`);
+        // Fall through to fetching latest overall if date is invalid
       } else {
-        console.warn(`[getLastMeterReadingForVehicleAction] Invalid forDateISO provided: ${forDateISO}. Fetching latest overall reading.`);
+        // selectedDateForNewEntry_UTC represents the start of the day in the user's local timezone, converted to UTC.
+        const startOfSelectedDay_UTC = selectedDateForNewEntry_UTC;
+        
+        const startOfNextDay_UTC = new Date(startOfSelectedDay_UTC);
+        startOfNextDay_UTC.setUTCDate(startOfSelectedDay_UTC.getUTCDate() + 1); // Correctly gets start of the next UTC day
+
+        console.log(`[getLastMeterReadingForVehicleAction] Vehicle: ${vehicleName}. New entry date (UTC start of user's local day): ${startOfSelectedDay_UTC.toISOString()}`);
+        console.log(`[getLastMeterReadingForVehicleAction] Checking for entries ON selected day: >= ${startOfSelectedDay_UTC.toISOString()} and < ${startOfNextDay_UTC.toISOString()}`);
+
+        // Try to find the latest report ON the selected day
+        const latestReportOnSelectedDay = await SalesReportModel.findOne({
+          vehicleName: vehicleName,
+          firestoreDate: {
+            $gte: startOfSelectedDay_UTC, 
+            $lt: startOfNextDay_UTC,    
+          },
+        })
+        .sort({ firestoreDate: -1 }) 
+        .select('currentMeterReading firestoreDate')
+        .lean();
+
+        if (latestReportOnSelectedDay) {
+          console.log(`[getLastMeterReadingForVehicleAction] Found latest report ON selected day (${formatDateFns(new Date(latestReportOnSelectedDay.firestoreDate), 'PPP p')}) with currentMeterReading: ${latestReportOnSelectedDay.currentMeterReading}`);
+          return { success: true, reading: latestReportOnSelectedDay.currentMeterReading || 0 };
+        } else {
+          console.log(`[getLastMeterReadingForVehicleAction] No reports found ON selected day. Checking for reports BEFORE selected day (strictly less than ${startOfSelectedDay_UTC.toISOString()}).`);
+          // If no report on selected day, find the latest report BEFORE the selected day
+          const latestReportBeforeSelectedDay = await SalesReportModel.findOne({
+            vehicleName: vehicleName,
+            firestoreDate: { $lt: startOfSelectedDay_UTC }, 
+          })
+          .sort({ firestoreDate: -1 })
+          .select('currentMeterReading firestoreDate')
+          .lean();
+
+          if (latestReportBeforeSelectedDay) {
+            console.log(`[getLastMeterReadingForVehicleAction] Found latest report BEFORE selected day (${formatDateFns(new Date(latestReportBeforeSelectedDay.firestoreDate), 'PPP p')}) with currentMeterReading: ${latestReportBeforeSelectedDay.currentMeterReading}`);
+            return { success: true, reading: latestReportBeforeSelectedDay.currentMeterReading || 0 };
+          } else {
+            console.log(`[getLastMeterReadingForVehicleAction] No prior reports found for vehicle ${vehicleName} before ${startOfSelectedDay_UTC.toISOString()}`);
+            return { success: true, reading: 0, message: "No prior reading found for this vehicle before the selected date." };
+          }
+        }
       }
-    } else {
-      console.log(`[getLastMeterReadingForVehicleAction] Fetching latest overall reading for vehicle '${vehicleName}' (no date constraint).`);
     }
 
-    const lastReport = await SalesReportModel.findOne(query)
+    // Fallback: If no forDateISO is provided, or if it was invalid. Get the absolute latest reading.
+    console.log(`[getLastMeterReadingForVehicleAction] Fallback: Fetching latest overall reading for vehicle '${vehicleName}'.`);
+    const lastReportOverall = await SalesReportModel.findOne({ vehicleName: vehicleName })
       .sort({ firestoreDate: -1 })
-      .select('currentMeterReading')
+      .select('currentMeterReading firestoreDate')
       .lean();
 
-    if (lastReport) {
-      console.log(`[getLastMeterReadingForVehicleAction] Found last report with currentMeterReading: ${lastReport.currentMeterReading} (Date: ${lastReport.firestoreDate})`);
-      return { success: true, reading: lastReport.currentMeterReading || 0 };
+    if (lastReportOverall) {
+      console.log(`[getLastMeterReadingForVehicleAction] Fallback: Found last overall report with currentMeterReading: ${lastReportOverall.currentMeterReading} (Date: ${formatDateFns(new Date(lastReportOverall.firestoreDate), 'PPP p')})`);
+      return { success: true, reading: lastReportOverall.currentMeterReading || 0 };
     }
-    
-    const message = forDateISO 
-      ? "No prior reading found for this vehicle before the selected date." 
-      : "No prior reading found for this vehicle.";
-    console.log(`[getLastMeterReadingForVehicleAction] ${message}`);
-    return { success: true, reading: 0, message };
+    console.log(`[getLastMeterReadingForVehicleAction] Fallback: No reports found at all for vehicle ${vehicleName}.`);
+    return { success: true, reading: 0, message: "No prior reading found for this vehicle." };
+
   } catch (error: any) {
     console.error("[getLastMeterReadingForVehicleAction] Error fetching last meter reading:", error);
     return { success: false, reading: 0, message: `Error fetching last meter reading: ${error.message}` };
