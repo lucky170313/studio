@@ -99,32 +99,31 @@ export async function getLastMeterReadingForVehicleAction(vehicleName: string, f
     const query: any = { vehicleName: vehicleName };
 
     if (forDateISO) {
-      const forDate = new Date(forDateISO);
-      if (!isNaN(forDate.getTime())) {
-        // Get the start of the 'forDate' (e.g., if forDate is July 10th 10:00 AM, startOfForDate is July 10th 00:00:00 AM)
-        const startOfForDate = new Date(forDate.getFullYear(), forDate.getMonth(), forDate.getDate());
-        query.firestoreDate = { $lt: startOfForDate }; // Find entries strictly before the start of the selected day
-        console.log(`[getLastMeterReadingForVehicleAction] Fetching reading for vehicle '${vehicleName}' strictly before ${startOfForDate.toISOString()}`);
+      const boundaryDate = new Date(forDateISO);
+      if (!isNaN(boundaryDate.getTime())) {
+        query.firestoreDate = { $lt: boundaryDate };
+        console.log(`[getLastMeterReadingForVehicleAction] Fetching reading for vehicle '${vehicleName}' strictly before ${boundaryDate.toISOString()}`);
       } else {
         console.warn(`[getLastMeterReadingForVehicleAction] Invalid forDateISO provided: ${forDateISO}. Fetching latest overall reading.`);
-        // If forDateISO is invalid, proceed without date constraint (fetches absolute latest)
       }
     } else {
       console.log(`[getLastMeterReadingForVehicleAction] Fetching latest overall reading for vehicle '${vehicleName}' (no date constraint).`);
     }
 
     const lastReport = await SalesReportModel.findOne(query)
-      .sort({ firestoreDate: -1 }) // Get the latest one matching the criteria
+      .sort({ firestoreDate: -1 })
       .select('currentMeterReading')
       .lean();
 
     if (lastReport) {
+      console.log(`[getLastMeterReadingForVehicleAction] Found last report with currentMeterReading: ${lastReport.currentMeterReading} (Date: ${lastReport.firestoreDate})`);
       return { success: true, reading: lastReport.currentMeterReading || 0 };
     }
-    // If no report found based on criteria
+    
     const message = forDateISO 
       ? "No prior reading found for this vehicle before the selected date." 
       : "No prior reading found for this vehicle.";
+    console.log(`[getLastMeterReadingForVehicleAction] ${message}`);
     return { success: true, reading: 0, message };
   } catch (error: any) {
     console.error("[getLastMeterReadingForVehicleAction] Error fetching last meter reading:", error);
