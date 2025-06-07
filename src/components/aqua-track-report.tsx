@@ -63,7 +63,7 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
           {reportData.adminOverrideLitersSold && reportData.adminOverrideLitersSold > 0 && (
             <ReportItem icon={Droplets} label="Liters Sold (Calculated from Meters)" value={(reportData.currentMeterReading - reportData.previousMeterReading).toFixed(2)} unit="L" className="text-xs text-muted-foreground" />
           )}
-          <ReportItem icon={Droplets} label={litersSoldLabel} value={reportData.litersSold} unit="L" />
+          <ReportItem icon={Droplets} label={litersSoldLabel} value={reportData.litersSold.toFixed(2)} unit="L" />
           <ReportItem icon={DollarSign} label="Rate Per Liter" value={reportData.ratePerLiter} unit="/L" />
           <ReportItem icon={DollarSign} label="Total Sale" value={reportData.totalSale} className="font-semibold text-primary" />
         </div>
@@ -140,3 +140,4 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
     </Card>
   );
 }
+
