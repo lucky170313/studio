@@ -176,49 +176,55 @@ export async function getLastMeterReadingForVehicleAction(
 // --- User Management Actions ---
 
 export async function initializeDefaultAdminAction(): Promise<{ success: boolean; message: string }> {
-  console.log('[initializeDefaultAdminAction] Starting simplified delete and recreate process...');
+  console.log('[initializeDefaultAdminAction] Starting admin check/initialization...');
   try {
     await dbConnect();
     const adminUserId = process.env.DEFAULT_ADMIN_USER_ID || "lucky170313";
     const adminPassword = process.env.DEFAULT_ADMIN_PASSWORD || "northpole";
-    console.log(`[initializeDefaultAdminAction] Default Admin User ID: ${adminUserId}`);
-    console.log(`[initializeDefaultAdminAction] Default Admin Password (for hashing): ${adminPassword.substring(0,3)}... (length: ${adminPassword.length})`);
 
-    // Attempt to delete the existing admin user
-    const deleteResult = await UserModel.deleteOne({ userId: adminUserId, role: 'Admin' });
-    if (deleteResult.deletedCount > 0) {
-      console.log(`[initializeDefaultAdminAction] Existing admin user '${adminUserId}' deleted.`);
-    } else {
-      console.log(`[initializeDefaultAdminAction] No existing admin user '${adminUserId}' found to delete, or deletion failed (count: ${deleteResult.deletedCount}). Proceeding to create.`);
-    }
+    let admin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' });
 
-    console.log('[initializeDefaultAdminAction] Creating new default admin...');
-    const newAdminUser = new UserModel({
-      userId: adminUserId,
-      password: adminPassword, // This will be hashed by pre-save on new user
-      role: 'Admin',
-    });
-    await newAdminUser.save();
-    console.log(`[initializeDefaultAdminAction] New admin '${adminUserId}' created.`);
-
-    // Re-fetch the freshly created admin to verify its password hash
-    const freshlyCreatedAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
-    if (freshlyCreatedAdmin && freshlyCreatedAdmin.password) {
-      console.log(`[initializeDefaultAdminAction] Freshly created admin's stored password hash (start): ${freshlyCreatedAdmin.password.substring(0,10)}...`);
-      const testCompareNew = await bcrypt.compare(adminPassword, freshlyCreatedAdmin.password);
-      console.log(`[initializeDefaultAdminAction] Test comparison for newly created admin with '${adminPassword.substring(0,3)}...': ${testCompareNew}`);
-      if (testCompareNew) {
-        return { success: true, message: `Default admin '${adminUserId}' successfully created/recreated with hashed password. Internal test comparison PASSED.` };
+    if (admin) {
+      // Admin exists, check if password needs reset.
+      // This allows resetting the password by simply restarting the server if it's forgotten.
+      const isMatch = await bcrypt.compare(adminPassword, admin.password);
+      if (isMatch) {
+        console.log(`[initializeDefaultAdminAction] Default admin '${adminUserId}' found and password is correct.`);
+        return { success: true, message: `Default admin '${adminUserId}' is configured correctly.` };
       } else {
-        return { success: false, message: `Default admin '${adminUserId}' created/recreated, but internal password test comparison FAILED.` };
+        // Password is incorrect, reset it
+        console.log(`[initializeDefaultAdminAction] Admin '${adminUserId}' found with incorrect password. Resetting to default...`);
+        admin.password = adminPassword; // This will trigger pre-save hook to hash
+        await admin.save();
+        console.log(`[initializeDefaultAdminAction] Admin password for '${adminUserId}' has been reset to default.`);
       }
     } else {
-      console.log('[initializeDefaultAdminAction] Could not re-fetch freshly created admin or password after creation.');
-      return { success: false, message: 'Failed to re-fetch admin after creation for verification.' };
+      // Admin does not exist, create it
+      console.log(`[initializeDefaultAdminAction] Default admin not found. Creating new admin '${adminUserId}'...`);
+      admin = new UserModel({
+        userId: adminUserId,
+        password: adminPassword, // Will be hashed by pre-save hook
+        role: 'Admin',
+      });
+      await admin.save();
+      console.log(`[initializeDefaultAdminAction] New admin '${adminUserId}' created.`);
+    }
+
+    // Final verification step to be sure
+    const finalAdmin = await UserModel.findOne({ userId: adminUserId, role: 'Admin' }).select('+password');
+    if (finalAdmin && finalAdmin.password) {
+        const testCompare = await bcrypt.compare(adminPassword, finalAdmin.password);
+        if (testCompare) {
+            return { success: true, message: `Default admin '${adminUserId}' successfully configured/reset. Internal test comparison PASSED.` };
+        } else {
+            return { success: false, message: `Default admin '${adminUserId}' configured, but internal password test comparison FAILED.` };
+        }
+    } else {
+        return { success: false, message: 'Failed to verify admin after configuration.' };
     }
 
   } catch (error: any) {
-    console.error("[initializeDefaultAdminAction] Error during simplified delete and recreate admin:", error);
+    console.error("[initializeDefaultAdminAction] Error initializing default admin:", error);
     if (error.errors) {
         console.error("[initializeDefaultAdminAction] Mongoose validation errors:", JSON.stringify(error.errors, null, 2));
     }
