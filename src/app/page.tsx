@@ -42,8 +42,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { Separator } from '@/components/ui/separator';
-import type { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Progress } from '@/components/ui/progress';
 
@@ -408,7 +408,8 @@ export default function AquaTrackPage() {
       if (formValues.meterReadingImageFile) {
         const meterFormData = new FormData();
         meterFormData.append('file', formValues.meterReadingImageFile);
-        meterFormData.append('fileName', `meter-${Date.now()}`);
+        meterFormData.append('fileName', `meter-${formValues.vehicleName}-${Date.now()}`);
+        meterFormData.append('folderPath', `/drop-aqua-track-uploads/vehicles/${formValues.vehicleName}`);
         const meterUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: meterFormData });
         const meterUploadResult = await meterUploadResponse.json();
         if (!meterUploadResult.success) throw new Error(`Meter image upload failed: ${meterUploadResult.message}`);
@@ -422,7 +423,8 @@ export default function AquaTrackPage() {
       if (formValues.riderCollectionTokenImageFile) {
         const tokenFormData = new FormData();
         tokenFormData.append('file', formValues.riderCollectionTokenImageFile);
-        tokenFormData.append('fileName', `token-${Date.now()}`);
+        tokenFormData.append('fileName', `token-${formValues.riderName}-${Date.now()}`);
+        tokenFormData.append('folderPath', `/drop-aqua-track-uploads/riders/${formValues.riderName}`);
         const tokenUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: tokenFormData });
         const tokenUploadResult = await tokenUploadResponse.json();
         if (!tokenUploadResult.success) throw new Error(`Rider token image upload failed: ${tokenUploadResult.message}`);

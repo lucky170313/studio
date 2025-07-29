@@ -13,6 +13,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file') as File;
     const fileName = formData.get('fileName') as string;
+    const folderPath = formData.get('folderPath') as string; // Read folderPath from formData
 
     if (!file) {
       return NextResponse.json({ success: false, message: 'No file found in the request' }, { status: 400 });
@@ -24,7 +25,7 @@ export async function POST(request: NextRequest) {
     const uploadResponse = await imagekit.upload({
       file: buffer,
       fileName: fileName || file.name,
-      folder: '/drop-aqua-track-uploads',
+      folder: folderPath || '/drop-aqua-track-uploads', // Use dynamic folder path, fallback to default
       useUniqueFileName: true,
     });
 
