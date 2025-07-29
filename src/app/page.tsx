@@ -767,7 +767,7 @@ export default function AquaTrackPage() {
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
             {installPromptEvent && (
-               <Button onClick={handleInstallClick} className="w-full sm:w-auto"><Download className="mr-2 h-4 w-4"/> Install App</Button>
+               <Button onClick={handleInstallClick} size="lg" className="w-full sm:w-auto shadow-lg bg-green-500 hover:bg-green-600 text-white font-bold py-3"><Download className="mr-2 h-5 w-5"/> Install App</Button>
             )}
             {(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader') && (
                 <>
