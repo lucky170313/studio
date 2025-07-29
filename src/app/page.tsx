@@ -761,17 +761,25 @@ export default function AquaTrackPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {installPromptEvent && (
-        <Card className="mb-8 shadow-md bg-green-50 border border-green-200">
-            <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-center text-center gap-4">
-                <CardTitle className="text-lg text-green-800">Get the App!</CardTitle>
-                <CardDescription className="text-green-700">For a better experience, install the app on your device.</CardDescription>
-                <Button onClick={handleInstallClick} size="lg" className="shadow-lg bg-green-600 hover:bg-green-700 text-white font-bold py-3">
-                    <Download className="mr-2 h-5 w-5"/> Install App
-                </Button>
-            </CardContent>
-        </Card>
-      )}
+      <Card className="mb-8 shadow-md bg-green-50 border border-green-200">
+          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between text-center gap-4">
+              <div>
+                  <CardTitle className="text-lg text-green-800">Get the App!</CardTitle>
+                  <CardDescription className="text-green-700 mt-1">
+                      For a better experience, install the app on your device.
+                  </CardDescription>
+              </div>
+              <Button 
+                  onClick={handleInstallClick} 
+                  size="lg" 
+                  className="shadow-lg bg-green-600 hover:bg-green-700 text-white font-bold py-3 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  disabled={!installPromptEvent}
+                  aria-disabled={!installPromptEvent}
+              >
+                  <Download className="mr-2 h-5 w-5"/> Install App
+              </Button>
+          </CardContent>
+      </Card>
 
       <Card className="mb-8 shadow-md">
         <CardHeader>
@@ -923,3 +931,5 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
+    
