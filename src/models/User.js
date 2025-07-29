@@ -19,6 +19,7 @@ const UserSchema = new mongoose.Schema({
     type: String,
     required: [true, 'User role is required.'],
     enum: ['Admin', 'TeamLeader'],
+    index: true // Added index for faster role-based queries
   },
 }, { timestamps: true });
 

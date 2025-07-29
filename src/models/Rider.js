@@ -7,6 +7,7 @@ const RiderSchema = new mongoose.Schema({
     required: [true, 'Rider name is required.'],
     unique: true,
     trim: true,
+    index: true // Added index for faster lookups
   },
   perDaySalary: { // Salary for a full 9-hour day
     type: Number,

@@ -3,7 +3,7 @@ import mongoose from 'mongoose';
 
 const SalesReportSchema = new mongoose.Schema({
   date: { type: String, required: true },
-  firestoreDate: { type: Date, required: true, default: Date.now },
+  firestoreDate: { type: Date, required: true, default: Date.now, index: true },
   riderName: { type: String, required: true },
   vehicleName: { type: String, required: true },
   previousMeterReading: { type: Number, required: true },
@@ -36,5 +36,10 @@ const SalesReportSchema = new mongoose.Schema({
   },
   // meterReadingImageDriveLink field removed
 }, { timestamps: true }); 
+
+// Compound indexes for common queries
+SalesReportSchema.index({ vehicleName: 1, firestoreDate: -1 });
+SalesReportSchema.index({ riderName: 1, firestoreDate: -1 });
+
 
 export default mongoose.models.SalesReport || mongoose.model('SalesReport', SalesReportSchema);
