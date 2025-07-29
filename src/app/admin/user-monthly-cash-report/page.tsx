@@ -5,11 +5,11 @@ import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { CollectorCashReportEntry } from '@/lib/types'; // Updated type
-import type { Button } from '@/components/ui/button';
-import type { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, AlertCircle, Users, CalendarDays, IndianRupee, FileSpreadsheet } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth, parse } from 'date-fns';
 import * as XLSX from 'xlsx';

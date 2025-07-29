@@ -5,16 +5,16 @@ import * as React from 'react';
 import { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import type { SalesReportData } from '@/lib/types';
-import type { Button } from '@/components/ui/button';
-import type { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import type { Label } from '@/components/ui/label';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from '@/components/ui/label';
 import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, BarChart3, Truck, Gauge, Edit, Link as LinkIcon } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
-import type { Badge } from '@/components/ui/badge';
-import type {
+import { Badge } from '@/components/ui/badge';
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
