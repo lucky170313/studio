@@ -226,22 +226,24 @@ export default function CollectorMonthlyCashReportPage() {
                 <CardDescription>Monthly cash collection report for {userName} (Admin/Team Leader who recorded entries).</CardDescription>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead><CalendarDays className="inline-block mr-1 h-4 w-4"/>Month-Year</TableHead>
-                      <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Total Cash Received</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {userMonths.map(([monthYear, stats]) => (
-                      <TableRow key={monthYear}>
-                        <TableCell className="font-medium">{monthYear}</TableCell>
-                        <TableCell className="text-right font-semibold">₹{stats.totalCashReceived.toFixed(2)}</TableCell>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead><CalendarDays className="inline-block mr-1 h-4 w-4"/>Month-Year</TableHead>
+                        <TableHead className="text-right"><IndianRupee className="inline-block mr-1 h-4 w-4"/>Total Cash Received</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {userMonths.map(([monthYear, stats]) => (
+                        <TableRow key={monthYear}>
+                          <TableCell className="font-medium">{monthYear}</TableCell>
+                          <TableCell className="text-right font-semibold">₹{stats.totalCashReceived.toFixed(2)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </CardContent>
             </Card>
           );
@@ -252,17 +254,17 @@ export default function CollectorMonthlyCashReportPage() {
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-primary flex items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center">
           <Users className="mr-3 h-8 w-8" />
           Collector's Monthly Cash Report
         </h1>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={exportCurrentReportData}>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={exportCurrentReportData} className="w-full sm:w-auto">
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>
-            <Button variant="outline">
+            <Button variant="outline" className="w-full sm:w-auto">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Home
             </Button>
           </Link>

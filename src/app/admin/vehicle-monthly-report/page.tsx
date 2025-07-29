@@ -338,17 +338,17 @@ export default function VehicleMonthlyReportPage() {
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold text-primary flex items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-4">
+        <h1 className="text-2xl sm:text-3xl font-bold text-primary flex items-center">
           <Truck className="mr-3 h-8 w-8" />
           Vehicle Monthly Report
         </h1>
-        <div className="flex space-x-2">
-          <Button variant="outline" onClick={exportCurrentReportData}>
+        <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={exportCurrentReportData} className="w-full sm:w-auto">
             <FileSpreadsheet className="mr-2 h-4 w-4" /> Download as Excel
           </Button>
           <Link href="/" passHref>
-            <Button variant="outline"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Button>
+            <Button variant="outline" className="w-full sm:w-auto"><ArrowLeft className="mr-2 h-4 w-4" /> Back to Dashboard</Button>
           </Link>
         </div>
       </div>
@@ -397,5 +397,3 @@ export default function VehicleMonthlyReportPage() {
     </main>
   );
 }
-
-    

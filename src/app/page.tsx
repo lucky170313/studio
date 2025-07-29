@@ -650,11 +650,11 @@ export default function AquaTrackPage() {
 
   return (
     <main className="min-h-screen container mx-auto px-4 py-8">
-      <header className="mb-6 text-center">
+      <header className="mb-6">
         <div className="flex justify-between items-center mb-2">
-            <div className="flex-1"></div> {}
-            <h1 className="text-5xl font-extrabold tracking-tight text-primary flex items-center justify-center flex-1">
-              <Droplets className="mr-3 h-12 w-12" />
+            <div className="flex-1"></div>
+            <h1 className="text-3xl md:text-5xl font-extrabold tracking-tight text-primary flex items-center justify-center flex-1">
+              <Droplets className="mr-3 h-10 md:h-12 w-10 md:w-12" />
               Drop Aqua Track
             </h1>
             <div className="flex-1 flex justify-end">
@@ -665,10 +665,10 @@ export default function AquaTrackPage() {
                 )}
             </div>
         </div>
-        <p className="mt-1 text-xl text-muted-foreground">
+        <p className="mt-1 text-lg md:text-xl text-muted-foreground text-center">
           Daily Sales & Reconciliation Reporter
         </p>
-         {isLoggedIn && <p className="mt-1 text-sm text-green-600">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>}
+         {isLoggedIn && <p className="mt-1 text-sm text-green-600 text-center">Logged in as: {loggedInUsername} (Role: {currentUserRole})</p>}
       </header>
 
       <AlertDialog open={isConfirmationDialogOpen} onOpenChange={setIsConfirmationDialogOpen}>
@@ -867,4 +867,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-    
