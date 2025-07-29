@@ -2,11 +2,11 @@
 "use client";
 
 import * as React from 'react';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet, Camera, Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet, Camera, Upload, CheckCircle, AlertCircle, Video, CircleUserRound, CameraOff, X } from 'lucide-react';
 import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
@@ -37,6 +37,7 @@ import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/
 import { getLastMeterReadingForVehicleAction } from '@/app/actions';
 import { useToast } from '@/hooks/use-toast';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
 
 
 interface AquaTrackFormProps {
@@ -79,17 +80,67 @@ const ImageUploader: React.FC<{
   const [uploadProgress, setUploadProgress] = useState(0);
   const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  
+  const [showCamera, setShowCamera] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  const startCamera = async () => {
+    setShowCamera(true);
+    setCapturedImage(null);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          setHasCameraPermission(true);
+        }
+      } catch (error) {
+        console.error("Error accessing camera:", error);
+        toast({ title: "Camera Error", description: "Could not access camera. Please check permissions.", variant: "destructive" });
+        setHasCameraPermission(false);
+        setShowCamera(false);
+      }
+    } else {
+      toast({ title: "Camera Error", description: "Camera not supported on this device/browser.", variant: "destructive" });
+      setHasCameraPermission(false);
+      setShowCamera(false);
+    }
+  };
 
+  const stopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      videoRef.current.srcObject = null;
+    }
+    setShowCamera(false);
+  };
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const context = canvas.getContext('2d');
+      if (context) {
+        context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+        const dataUrl = canvas.toDataURL('image/jpeg');
+        setCapturedImage(dataUrl);
+        stopCamera();
+      }
+    }
+  };
+
+  const uploadFile = async (file: File) => {
     if (file.size > 5 * 1024 * 1024) { // 5MB limit
       toast({ title: "Error", description: "File size must be less than 5MB.", variant: "destructive" });
       return;
     }
     
-    setPreview(URL.createObjectURL(file));
     setIsUploading(true);
     setUploadProgress(0);
 
@@ -98,13 +149,7 @@ const ImageUploader: React.FC<{
     formData.append('fileName', `${fieldName}-${Date.now()}`);
 
     try {
-      const response = await fetch('/api/upload-image', {
-        method: 'POST',
-        body: formData,
-      });
-
-      // This part is tricky without native XHR progress. We will simulate progress.
-      // For a real app, you'd use a library like Axios that supports upload progress events.
+      const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
       let progress = 0;
       const interval = setInterval(() => {
         progress += 10;
@@ -127,15 +172,69 @@ const ImageUploader: React.FC<{
       setPreview(null);
     } finally {
       setIsUploading(false);
+      setCapturedImage(null);
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPreview(URL.createObjectURL(file));
+    await uploadFile(file);
+  };
+  
+  const handleUseCapturedImage = async () => {
+    if (capturedImage) {
+      setPreview(capturedImage);
+      const response = await fetch(capturedImage);
+      const blob = await response.blob();
+      const file = new File([blob], `${fieldName}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+      await uploadFile(file);
     }
   };
 
   const urlValue = form.watch(fieldName);
 
+  if (showCamera) {
+    return (
+      <FormItem>
+         <FormLabel className="flex items-center">
+            <Camera className="mr-2 h-4 w-4 text-primary" />{label}
+        </FormLabel>
+        <div className="p-4 border rounded-md">
+            <video ref={videoRef} className="w-full rounded-md" autoPlay playsInline />
+            <div className="flex gap-2 mt-2">
+                <Button type="button" onClick={handleCapture} className="flex-1">Take Picture</Button>
+                <Button type="button" variant="outline" onClick={stopCamera}>Cancel</Button>
+            </div>
+        </div>
+      </FormItem>
+    );
+  }
+
+  if(capturedImage) {
+    return (
+       <FormItem>
+         <FormLabel className="flex items-center">
+            <Camera className="mr-2 h-4 w-4 text-primary" />{label}
+        </FormLabel>
+        <div className="p-2 border rounded-md w-fit">
+            <Image src={capturedImage} alt="Captured preview" width={192} height={144} className="rounded-md" />
+            <div className="flex gap-2 mt-2">
+                <Button type="button" onClick={handleUseCapturedImage} disabled={isUploading} className="flex-1">
+                    {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Uploading...</> : <>Use Picture</>}
+                </Button>
+                <Button type="button" variant="outline" onClick={() => { setCapturedImage(null); startCamera(); }}>Retake</Button>
+            </div>
+        </div>
+      </FormItem>
+    );
+  }
+
   return (
     <FormItem>
       <FormLabel className="flex items-center">
-        <Camera className="mr-2 h-4 w-4 text-primary" />{label} (Compulsory, {aspectRatio} ratio)
+        <CircleUserRound className="mr-2 h-4 w-4 text-primary" />{label} (Compulsory, {aspectRatio} ratio)
       </FormLabel>
       <FormControl>
         <div>
@@ -147,15 +246,27 @@ const ImageUploader: React.FC<{
             className="hidden"
             disabled={isUploading}
           />
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-          >
-            <Upload className="mr-2 h-4 w-4" />
-            {isUploading ? "Uploading..." : "Choose Image"}
-          </Button>
+          <canvas ref={canvasRef} className="hidden"></canvas>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              {isUploading ? "Uploading..." : "Upload Image"}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={startCamera}
+              disabled={isUploading}
+            >
+              <Video className="mr-2 h-4 w-4" />
+              Take Photo
+            </Button>
+          </div>
           
            {isUploading && <Progress value={uploadProgress} className="w-full mt-2" />}
 
