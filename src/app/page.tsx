@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift, Upload } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift, Upload, Download } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -51,6 +51,15 @@ const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // For TeamLeaders
 const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp'; // For Admins (sessionStorage)
+
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: Array<string>;
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed',
+    platform: string,
+  }>;
+  prompt(): Promise<void>;
+}
 
 const ConfirmationDialogItem: React.FC<{ label: string; value: string | number | React.ReactNode; unit?: string; highlight?: boolean }> = ({ label, value, unit, highlight }) => (
   <div className="flex justify-between py-1">
@@ -140,6 +149,39 @@ export default function AquaTrackPage() {
   const [tlPasswordInput, setTlPasswordInput] = useState('');
   const [editingTlOriginalUserId, setEditingTlOriginalUserId] = useState<string | null>(null);
   const [formRefreshTrigger, setFormRefreshTrigger] = useState(0);
+  
+  const [installPromptEvent, setInstallPromptEvent] = useState<BeforeInstallPromptEvent | null>(null);
+
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPromptEvent(event as BeforeInstallPromptEvent);
+      console.log("`beforeinstallprompt` event has been fired.");
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async () => {
+    if (!installPromptEvent) {
+      toast({ title: "Cannot Install", description: "The app cannot be installed at this moment.", variant: "destructive"});
+      return;
+    }
+    installPromptEvent.prompt();
+    const { outcome } = await installPromptEvent.userChoice;
+    console.log(`User response to the install prompt: ${outcome}`);
+    if (outcome === 'accepted') {
+      toast({ title: "Success", description: "App installation started successfully."});
+    } else {
+      toast({ title: "Info", description: "App installation dismissed."});
+    }
+    setInstallPromptEvent(null);
+  };
 
 
   const fetchTeamLeaders = async () => {
@@ -722,6 +764,9 @@ export default function AquaTrackPage() {
           <CardTitle className="text-xl text-primary flex items-center"><Shield className="mr-2 h-5 w-5"/>Dashboard Links</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4 sm:mt-0">
+            {installPromptEvent && (
+               <Button onClick={handleInstallClick} className="w-full sm:w-auto"><Download className="mr-2 h-4 w-4"/> Install App</Button>
+            )}
             {(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader') && (
                 <>
                     <Link href="/salary-payment" passHref><Button variant="outline" className="w-full sm:w-auto"><Landmark className="mr-2 h-4 w-4" /> Salary Payment Entry</Button></Link>
