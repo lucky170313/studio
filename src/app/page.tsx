@@ -768,6 +768,7 @@ export default function AquaTrackPage() {
                     <Link href="/salary-payment" passHref><Button variant="outline" className="w-full sm:w-auto"><Landmark className="mr-2 h-4 w-4" /> Salary Payment Entry</Button></Link>
                     <Link href="/salary-history" passHref><Button variant="outline" className="w-full sm:w-auto"><History className="mr-2 h-4 w-4" /> Salary Payment History</Button></Link>
                     <Link href="/admin/rider-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><PieChart className="mr-2 h-4 w-4" /> Rider Monthly Report</Button></Link>
+                    <Link href="/admin/vehicle-monthly-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Truck className="mr-2 h-4 w-4" /> Vehicle Monthly Report</Button></Link>
                     <Link href="/admin/user-monthly-cash-report" passHref><Button variant="outline" className="w-full sm:w-auto"><Users className="mr-2 h-4 w-4" /> Collector's Monthly Cash Report</Button></Link>
                 </>
             )}
@@ -907,4 +908,6 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+    
+
     
