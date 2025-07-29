@@ -18,6 +18,7 @@ export interface Rider {
   updatedAt?: string; // Changed from Date
 }
 
+const isFile = (v: any): v is File => v instanceof File;
 
 export const salesDataSchema = z.object({
   date: z.date({ required_error: 'Date is required.' }),
@@ -36,15 +37,15 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  meterReadingImageDriveLink: z.string().url({ message: "Please upload a meter image." }).min(1, 'Meter reading image is required.'),
-  riderCollectionTokenImageDriveLink: z.string().url({ message: "Please upload a rider token image." }).min(1, 'Rider collection token image is required.'),
+  meterReadingImageFile: z.any().refine(isFile, "Meter image is required.").optional(),
+  riderCollectionTokenImageFile: z.any().refine(isFile, "Rider token image is required.").optional(),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true;
   }
   return data.currentMeterReading >= data.previousMeterReading;
 }, {
-  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin). Check values or use override. This check also applies if Override Liters Sold is not a valid non-negative number.",
+  message: "Current meter reading cannot be less than previous (unless Liters Sold are overridden by Admin).",
   path: ["currentMeterReading"],
 });
 

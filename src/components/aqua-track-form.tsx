@@ -70,26 +70,35 @@ const noteDenominations = [
 type DenominationQuantities = { [key: string]: string };
 
 const ImageUploader: React.FC<{
-  fieldName: 'meterReadingImageDriveLink' | 'riderCollectionTokenImageDriveLink';
+  fieldName: 'meterReadingImageFile' | 'riderCollectionTokenImageFile';
   label: string;
-  form: any;
+  form: any; // react-hook-form's form object
   aspectRatio: string;
-}> = ({ fieldName, label, form, aspectRatio }) => {
+  isSubmitting: boolean;
+}> = ({ fieldName, label, form, aspectRatio, isSubmitting }) => {
   const { toast } = useToast();
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [preview, setPreview] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-  
-  const [showCamera, setShowCamera] = useState(false);
-  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [capturedImage, setCapturedImage] = useState<string | null>(null);
+
+  const [preview, setPreview] = useState<string | null>(null);
+  const [showCamera, setShowCamera] = useState(false);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit
+        toast({ title: "Error", description: "File size must be less than 5MB.", variant: "destructive" });
+        return;
+      }
+      form.setValue(fieldName, file, { shouldValidate: true });
+      setPreview(URL.createObjectURL(file));
+    }
+  };
 
   const startCamera = async () => {
     setShowCamera(true);
-    setCapturedImage(null);
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
@@ -118,7 +127,7 @@ const ImageUploader: React.FC<{
     }
     setShowCamera(false);
   };
-
+  
   const handleCapture = () => {
     if (videoRef.current && canvasRef.current) {
       const video = videoRef.current;
@@ -128,173 +137,104 @@ const ImageUploader: React.FC<{
       const context = canvas.getContext('2d');
       if (context) {
         context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-        const dataUrl = canvas.toDataURL('image/jpeg');
-        setCapturedImage(dataUrl);
-        stopCamera();
+        canvas.toBlob((blob) => {
+          if (blob) {
+            const capturedFile = new File([blob], `${fieldName}-${Date.now()}.jpg`, { type: 'image/jpeg' });
+            form.setValue(fieldName, capturedFile, { shouldValidate: true });
+            setPreview(URL.createObjectURL(capturedFile));
+          }
+        }, 'image/jpeg');
       }
+      stopCamera();
     }
   };
 
-  const uploadFile = async (file: File) => {
-    if (file.size > 5 * 1024 * 1024) { // 5MB limit
-      toast({ title: "Error", description: "File size must be less than 5MB.", variant: "destructive" });
-      return;
-    }
-    
-    setIsUploading(true);
-    setUploadProgress(0);
-
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('fileName', `${fieldName}-${Date.now()}`);
-
-    try {
-      const response = await fetch('/api/upload-image', { method: 'POST', body: formData });
-      let progress = 0;
-      const interval = setInterval(() => {
-        progress += 10;
-        setUploadProgress(progress);
-        if (progress >= 90) clearInterval(interval);
-      }, 200);
-
-      const result = await response.json();
-      clearInterval(interval);
-      setUploadProgress(100);
-
-      if (response.ok && result.success) {
-        form.setValue(fieldName, result.url, { shouldValidate: true });
-        toast({ title: "Success", description: `${label} uploaded successfully.` });
-      } else {
-        throw new Error(result.message || "Upload failed");
-      }
-    } catch (error: any) {
-      toast({ title: "Upload Error", description: error.message, variant: "destructive" });
+  const clearImage = () => {
+      form.setValue(fieldName, null, { shouldValidate: true });
       setPreview(null);
-    } finally {
-      setIsUploading(false);
-      setCapturedImage(null);
-    }
+      if(fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
   };
 
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setPreview(URL.createObjectURL(file));
-    await uploadFile(file);
-  };
-  
-  const handleUseCapturedImage = async () => {
-    if (capturedImage) {
-      setPreview(capturedImage);
-      const response = await fetch(capturedImage);
-      const blob = await response.blob();
-      const file = new File([blob], `${fieldName}-${Date.now()}.jpg`, { type: 'image/jpeg' });
-      await uploadFile(file);
-    }
-  };
+  useEffect(() => {
+     return () => {
+        if(preview) {
+            URL.revokeObjectURL(preview);
+        }
+     }
+  }, [preview]);
 
-  const urlValue = form.watch(fieldName);
-
-  if (showCamera) {
-    return (
-      <FormItem>
-         <FormLabel className="flex items-center">
-            <Camera className="mr-2 h-4 w-4 text-primary" />{label}
-        </FormLabel>
-        <div className="p-4 border rounded-md">
-            <video ref={videoRef} className="w-full rounded-md" autoPlay playsInline />
-            <div className="flex gap-2 mt-2">
-                <Button type="button" onClick={handleCapture} className="flex-1">Take Picture</Button>
-                <Button type="button" variant="outline" onClick={stopCamera}>Cancel</Button>
-            </div>
-        </div>
-      </FormItem>
-    );
-  }
-
-  if(capturedImage) {
-    return (
-       <FormItem>
-         <FormLabel className="flex items-center">
-            <Camera className="mr-2 h-4 w-4 text-primary" />{label}
-        </FormLabel>
-        <div className="p-2 border rounded-md w-fit">
-            <Image src={capturedImage} alt="Captured preview" width={192} height={144} className="rounded-md" />
-            <div className="flex gap-2 mt-2">
-                <Button type="button" onClick={handleUseCapturedImage} disabled={isUploading} className="flex-1">
-                    {isUploading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Uploading...</> : <>Use Picture</>}
-                </Button>
-                <Button type="button" variant="outline" onClick={() => { setCapturedImage(null); startCamera(); }}>Retake</Button>
-            </div>
-        </div>
-      </FormItem>
-    );
-  }
 
   return (
     <FormItem>
-      <FormLabel className="flex items-center">
-        <CircleUserRound className="mr-2 h-4 w-4 text-primary" />{label} (Compulsory, {aspectRatio} ratio)
+       <FormLabel className="flex items-center">
+        {label === "Meter Image" ? <Gauge className="mr-2 h-4 w-4 text-primary" /> : <CircleUserRound className="mr-2 h-4 w-4 text-primary" />}
+        {label} (Compulsory, {aspectRatio} ratio)
       </FormLabel>
       <FormControl>
-        <div>
+        <div className='space-y-2'>
           <Input
             type="file"
             accept="image/jpeg, image/png, image/webp"
             ref={fileInputRef}
             onChange={handleFileChange}
             className="hidden"
-            disabled={isUploading}
+            disabled={isSubmitting}
           />
           <canvas ref={canvasRef} className="hidden"></canvas>
-          <div className="flex gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-            >
-              <Upload className="mr-2 h-4 w-4" />
-              {isUploading ? "Uploading..." : "Upload Image"}
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={startCamera}
-              disabled={isUploading}
-            >
-              <Video className="mr-2 h-4 w-4" />
-              Take Photo
-            </Button>
-          </div>
-          
-           {isUploading && <Progress value={uploadProgress} className="w-full mt-2" />}
 
-           {(preview || urlValue) && (
-            <div className="mt-4 p-2 border rounded-md relative w-48 h-auto">
+           {showCamera ? (
+             <div className="p-4 border rounded-md">
+                <video ref={videoRef} className="w-full rounded-md" autoPlay playsInline muted />
+                <div className="flex gap-2 mt-2">
+                    <Button type="button" onClick={handleCapture} className="flex-1">Take Picture</Button>
+                    <Button type="button" variant="outline" onClick={stopCamera}>Cancel</Button>
+                </div>
+            </div>
+           ) : preview ? (
+             <div className="mt-2 p-2 border rounded-md relative w-48 h-auto">
                <Image 
-                src={preview || urlValue} 
+                src={preview} 
                 alt={`${label} preview`} 
                 width={192} 
                 height={aspectRatio === '1:1' ? 192 : 144}
                 className="rounded-md object-cover"
                />
-               {urlValue && !isUploading && (
-                   <div className="absolute top-1 right-1 bg-green-500 rounded-full p-1">
-                      <CheckCircle className="h-4 w-4 text-white" />
-                   </div>
-               )}
+               <Button type="button" variant="destructive" size="icon" className="absolute -top-2 -right-2 h-6 w-6 rounded-full" onClick={clearImage} disabled={isSubmitting}>
+                  <X className="h-4 w-4" />
+               </Button>
+            </div>
+           ) : (
+             <div className="flex gap-2">
+                <Button
+                type="button"
+                variant="outline"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isSubmitting}
+                >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload Image
+                </Button>
+                <Button
+                type="button"
+                variant="outline"
+                onClick={startCamera}
+                disabled={isSubmitting}
+                >
+                <Camera className="mr-2 h-4 w-4" />
+                Take Photo
+                </Button>
             </div>
            )}
-
-            <FormField
-                control={form.control}
-                name={fieldName}
-                render={({ field }) => (
-                     <Input {...field} type="hidden" />
-                )}
+           
+          <FormField
+            control={form.control}
+            name={fieldName}
+            render={({ field }) => (
+                <Input {...field} value={field.value?.name || ''} type="hidden" />
+            )}
             />
-
         </div>
       </FormControl>
       <FormMessage />
@@ -323,8 +263,8 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
       extraAmount: 0,
       hoursWorked: 9,
       comment: '',
-      meterReadingImageDriveLink: '',
-      riderCollectionTokenImageDriveLink: '',
+      meterReadingImageFile: undefined,
+      riderCollectionTokenImageFile: undefined,
     },
   });
 
@@ -340,7 +280,27 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
 
   useEffect(() => {
     setIsClient(true);
-  }, []);
+    form.reset({ // Reset form on refresh trigger
+        date: new Date(),
+        riderName: '',
+        vehicleName: '',
+        previousMeterReading: 0,
+        currentMeterReading: 0,
+        overrideLitersSold: undefined,
+        ratePerLiter: persistentRatePerLiter,
+        cashReceived: 0,
+        onlineReceived: 0,
+        dueCollected: 0,
+        newDueAmount: 0,
+        tokenMoney: 0,
+        staffExpense: 0,
+        extraAmount: 0,
+        hoursWorked: 9,
+        comment: '',
+        meterReadingImageFile: undefined,
+        riderCollectionTokenImageFile: undefined,
+    })
+  }, [formRefreshTrigger, persistentRatePerLiter, form]);
 
   useEffect(() => {
     if (isClient) {
@@ -556,152 +516,81 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
             }
 
 
-            const renderFormField = (
-                <FormField
-                    key={inputField.name}
-                    control={form.control}
-                    name={inputField.name as keyof SalesDataFormValues}
-                    render={({ field }) => (
-                    <FormItem>
-                        <FormLabel className="flex items-center">
-                        {inputField.icon && <inputField.icon className="mr-2 h-4 w-4 text-primary" />}
-                        {inputField.label}
-                        {isPrevMeterReadingField && isLoadingPrevReading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
-                        </FormLabel>
-                        <FormControl>
-                        {inputField.componentType === 'select' ? (
-                            <Select
-                            onValueChange={(value) => {
-                                const valToSet = inputField.name === 'hoursWorked' ? parseInt(value, 10) : value;
-                                field.onChange(valToSet);
-                            }}
-                            value={String(field.value === undefined || field.value === null ? (inputField.name === 'hoursWorked' ? '9' : '') : field.value)}
-                            disabled={fieldIsDisabled || (inputField.name === 'riderName' && ridersFromDB.length === 0)}
-                            >
-                            <SelectTrigger className={cn("text-base", (fieldIsDisabled || (inputField.name === 'riderName' && ridersFromDB.length === 0)) && "cursor-not-allowed opacity-70")}>
-                                <SelectValue placeholder={inputField.placeholder} />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {currentOptions && currentOptions.length > 0 ? (
-                                currentOptions.map((option) => (
-                                    <SelectItem key={option} value={option}>
-                                    {option} {inputField.name === 'hoursWorked' ? 'hr' : ''}
-                                    </SelectItem>
-                                ))
-                                ) : (
-                                <SelectItem value="placeholder-no-options" disabled>
-                                    {inputField.name === 'riderName' ? 'No riders (manage in Admin Panel)' : 'No options'}
-                                </SelectItem>
-                                )}
-                            </SelectContent>
-                            </Select>
-                        ) : (
-                            <Input
-                            type={inputField.type || 'text'}
-                            placeholder={inputField.placeholder}
-                            {...field}
-                            disabled={fieldIsDisabled}
-                            value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' && inputField.name !== 'newDueAmount' ? "" : (field.value ?? "") }
-                            onChange={event => {
-                                if (inputField.type === 'number') {
-                                const numValue = parseFloat(event.target.value);
-                                field.onChange(isNaN(numValue) ? (inputField.name === 'overrideLitersSold' ? undefined : '') : numValue);
-                                } else {
-                                field.onChange(event.target.value);
-                                }
-                            }}
-                            className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}
-                            />
-                        )}
-                        </FormControl>
-                        {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
-                        {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No prior reading for this vehicle before selected date.</FormDescription>}
-                        <FormMessage />
-                    </FormItem>
-                    )}
-                />
-            );
-
             return (
-                <React.Fragment key={`fragment_${inputField.name}`}>
-                    {renderFormField}
-                    {inputField.name === 'currentMeterReading' && (
-                        <div className="md:col-span-2">
-                           <ImageUploader
-                                fieldName="meterReadingImageDriveLink"
-                                label="Meter Image"
-                                form={form}
-                                aspectRatio="1:1"
-                            />
-                        </div>
-                    )}
-                    {inputField.name === 'ratePerLiter' && (
-                      <div className="md:col-span-2 my-4">
-                        <Accordion type="single" collapsible className="w-full border rounded-md shadow-sm">
-                          <AccordionItem value="cash-calculator">
-                            <AccordionTrigger className="px-4 py-3 text-base font-semibold hover:no-underline bg-muted/30 hover:bg-muted/50 rounded-t-md">
-                              <div className="flex items-center">
-                                <Coins className="mr-2 h-5 w-5 text-primary" /> Cash Denomination Calculator
-                              </div>
-                            </AccordionTrigger>
-                            <AccordionContent className="p-4 space-y-6 border-t">
-                              <div>
-                                <h4 className="text-md font-medium mb-3 text-muted-foreground">Coins</h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
-                                  {coinDenominations.map(den => (
-                                    <div key={`coin_${den.value}`}>
-                                      <Label htmlFor={`coin_qty_${den.value}`} className="text-sm font-normal">{den.label}</Label>
-                                      <Input
-                                        id={`coin_qty_${den.value}`}
-                                        type="number"
-                                        min="0"
-                                        value={denominationQuantities[`coin_${den.value}`] || ""}
-                                        onChange={(e) => handleDenominationQuantityChange('coin', den.value, e.target.value)}
-                                        placeholder="Qty"
-                                        className="text-sm mt-1 h-9"
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              <div>
-                                <h4 className="text-md font-medium mb-3 text-muted-foreground">Notes</h4>
-                                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
-                                  {noteDenominations.map(den => (
-                                    <div key={`note_${den.value}`}>
-                                      <Label htmlFor={`note_qty_${den.value}`} className="text-sm font-normal">{den.label}</Label>
-                                      <Input
-                                        id={`note_qty_${den.value}`}
-                                        type="number"
-                                        min="0"
-                                        value={denominationQuantities[`note_${den.value}`] || ""}
-                                        onChange={(e) => handleDenominationQuantityChange('note', den.value, e.target.value)}
-                                        placeholder="Qty"
-                                        className="text-sm mt-1 h-9"
-                                      />
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-                              <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
-                                <div className="text-lg font-semibold">
-                                  Calculated Total: <span className="text-primary">₹{calculatedCashTotal.toFixed(2)}</span>
-                                </div>
-                                <Button type="button" onClick={applyCalculatedTotalToCashReceived} size="sm">
-                                  <Wallet className="mr-2 h-4 w-4" /> Apply to Cash Received
-                                </Button>
-                              </div>
-                            </AccordionContent>
-                          </AccordionItem>
-                        </Accordion>
-                      </div>
-                    )}
-                </React.Fragment>
-            );
-
-
+              <FormField
+                  key={inputField.name}
+                  control={form.control}
+                  name={inputField.name as keyof SalesDataFormValues}
+                  render={({ field }) => (
+                  <FormItem>
+                      <FormLabel className="flex items-center">
+                      {inputField.icon && <inputField.icon className="mr-2 h-4 w-4 text-primary" />}
+                      {inputField.label}
+                      {isPrevMeterReadingField && isLoadingPrevReading && <Loader2 className="ml-2 h-4 w-4 animate-spin" />}
+                      </FormLabel>
+                      <FormControl>
+                      {inputField.componentType === 'select' ? (
+                          <Select
+                          onValueChange={(value) => {
+                              const valToSet = inputField.name === 'hoursWorked' ? parseInt(value, 10) : value;
+                              field.onChange(valToSet);
+                          }}
+                          value={String(field.value === undefined || field.value === null ? (inputField.name === 'hoursWorked' ? '9' : '') : field.value)}
+                          disabled={fieldIsDisabled || (inputField.name === 'riderName' && ridersFromDB.length === 0)}
+                          >
+                          <SelectTrigger className={cn("text-base", (fieldIsDisabled || (inputField.name === 'riderName' && ridersFromDB.length === 0)) && "cursor-not-allowed opacity-70")}>
+                              <SelectValue placeholder={inputField.placeholder} />
+                          </SelectTrigger>
+                          <SelectContent>
+                              {currentOptions && currentOptions.length > 0 ? (
+                              currentOptions.map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                  {option} {inputField.name === 'hoursWorked' ? 'hr' : ''}
+                                  </SelectItem>
+                              ))
+                              ) : (
+                              <SelectItem value="placeholder-no-options" disabled>
+                                  {inputField.name === 'riderName' ? 'No riders (manage in Admin Panel)' : 'No options'}
+                              </SelectItem>
+                              )}
+                          </SelectContent>
+                          </Select>
+                      ) : (
+                          <Input
+                          type={inputField.type || 'text'}
+                          placeholder={inputField.placeholder}
+                          {...field}
+                          disabled={fieldIsDisabled}
+                          value={ typeof field.value === 'number' && field.value === 0 && inputField.name !== 'previousMeterReading' && inputField.name !== 'currentMeterReading' && inputField.name !== 'overrideLitersSold' && inputField.name !== 'newDueAmount' ? "" : (field.value ?? "") }
+                          onChange={event => {
+                              if (inputField.type === 'number') {
+                              const numValue = parseFloat(event.target.value);
+                              field.onChange(isNaN(numValue) ? (inputField.name === 'overrideLitersSold' ? undefined : '') : numValue);
+                              } else {
+                              field.onChange(event.target.value);
+                              }
+                          }}
+                          className={cn("text-base", fieldIsDisabled && "cursor-not-allowed opacity-70")}
+                          />
+                      )}
+                      </FormControl>
+                      {inputField.description && <FormDescription>{inputField.description}</FormDescription>}
+                      {isPrevMeterReadingField && currentUserRole === 'TeamLeader' && isClient && selectedVehicleName && !isLoadingPrevReading && form.getValues('previousMeterReading') === 0 && <FormDescription>No prior reading for this vehicle before selected date.</FormDescription>}
+                      <FormMessage />
+                  </FormItem>
+                  )}
+              />
+          );
           })}
         </div>
+        
+        <ImageUploader
+            fieldName="meterReadingImageFile"
+            label="Meter Image"
+            form={form}
+            aspectRatio="1:1"
+            isSubmitting={isProcessing}
+        />
 
         {currentUserRole === 'Admin' && (
           <FormField
@@ -732,6 +621,64 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
             )}
           />
         )}
+        
+        <Accordion type="single" collapsible className="w-full border rounded-md shadow-sm">
+            <AccordionItem value="cash-calculator">
+            <AccordionTrigger className="px-4 py-3 text-base font-semibold hover:no-underline bg-muted/30 hover:bg-muted/50 rounded-t-md">
+                <div className="flex items-center">
+                <Coins className="mr-2 h-5 w-5 text-primary" /> Cash Denomination Calculator
+                </div>
+            </AccordionTrigger>
+            <AccordionContent className="p-4 space-y-6 border-t">
+                <div>
+                <h4 className="text-md font-medium mb-3 text-muted-foreground">Coins</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
+                    {coinDenominations.map(den => (
+                    <div key={`coin_${den.value}`}>
+                        <Label htmlFor={`coin_qty_${den.value}`} className="text-sm font-normal">{den.label}</Label>
+                        <Input
+                        id={`coin_qty_${den.value}`}
+                        type="number"
+                        min="0"
+                        value={denominationQuantities[`coin_${den.value}`] || ""}
+                        onChange={(e) => handleDenominationQuantityChange('coin', den.value, e.target.value)}
+                        placeholder="Qty"
+                        className="text-sm mt-1 h-9"
+                        />
+                    </div>
+                    ))}
+                </div>
+                </div>
+                <div>
+                <h4 className="text-md font-medium mb-3 text-muted-foreground">Notes</h4>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-x-4 gap-y-3">
+                    {noteDenominations.map(den => (
+                    <div key={`note_${den.value}`}>
+                        <Label htmlFor={`note_qty_${den.value}`} className="text-sm font-normal">{den.label}</Label>
+                        <Input
+                        id={`note_qty_${den.value}`}
+                        type="number"
+                        min="0"
+                        value={denominationQuantities[`note_${den.value}`] || ""}
+                        onChange={(e) => handleDenominationQuantityChange('note', den.value, e.target.value)}
+                        placeholder="Qty"
+                        className="text-sm mt-1 h-9"
+                        />
+                    </div>
+                    ))}
+                </div>
+                </div>
+                <div className="mt-6 pt-4 border-t flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-lg font-semibold">
+                    Calculated Total: <span className="text-primary">₹{calculatedCashTotal.toFixed(2)}</span>
+                </div>
+                <Button type="button" onClick={applyCalculatedTotalToCashReceived} size="sm">
+                    <Wallet className="mr-2 h-4 w-4" /> Apply to Cash Received
+                </Button>
+                </div>
+            </AccordionContent>
+            </AccordionItem>
+        </Accordion>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           <div className="p-4 bg-muted/50 rounded-md">
@@ -758,10 +705,11 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
         </div>
 
         <ImageUploader
-            fieldName="riderCollectionTokenImageDriveLink"
+            fieldName="riderCollectionTokenImageFile"
             label="Rider Collection Token Image"
             form={form}
             aspectRatio="4:3"
+            isSubmitting={isProcessing}
         />
 
 

@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift, Upload } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -45,13 +45,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
+import { Progress } from '@/components/ui/progress';
 
 const GLOBAL_RATE_PER_LITER_KEY = 'globalRatePerLiterDropAquaTrackApp';
 const DEFAULT_GLOBAL_RATE = 0.0;
 const LOGIN_SESSION_KEY = 'loginSessionDropAquaTrackApp'; // For TeamLeaders
 const ADMIN_LOGIN_SESSION_KEY = 'adminLoginSessionDropAquaTrackApp'; // For Admins (sessionStorage)
 
-const ConfirmationDialogItem: React.FC<{ label: string; value: string | number; unit?: string; highlight?: boolean }> = ({ label, value, unit, highlight }) => (
+const ConfirmationDialogItem: React.FC<{ label: string; value: string | number | React.ReactNode; unit?: string; highlight?: boolean }> = ({ label, value, unit, highlight }) => (
   <div className="flex justify-between py-1">
     <span className={cn("text-sm text-muted-foreground", highlight && "font-semibold text-foreground")}>{label}:</span>
     <span className={cn("text-sm font-medium text-right", highlight && "font-semibold text-primary")}>
@@ -109,6 +110,7 @@ export default function AquaTrackPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const { toast } = useToast();
   const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
 
   const [riders, setRiders] = useState<Rider[]>([]);
   const [isLoadingRiders, setIsLoadingRiders] = useState(false);
@@ -121,7 +123,7 @@ export default function AquaTrackPage() {
   const [globalRatePerLiter, setGlobalRatePerLiter] = useState<number>(DEFAULT_GLOBAL_RATE);
   const [rateInput, setRateInput] = useState<string>(String(DEFAULT_GLOBAL_RATE));
 
-  const [pendingReportDetailsForConfirmation, setPendingReportDetailsForConfirmation] = useState<SalesReportData | null>(null);
+  const [pendingReportDetailsForConfirmation, setPendingReportDetailsForConfirmation] = useState<SalesDataFormValues | null>(null);
   const [isConfirmationDialogOpen, setIsConfirmationDialogOpen] = useState(false);
 
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -335,74 +337,12 @@ export default function AquaTrackPage() {
         toast({ title: "Error", description: "Cannot proceed. Logged in user not found.", variant: "destructive"});
         return;
     }
-    setReportData(null); // Clear previous report
-
-    let finalLitersSold: number;
-    const calculatedLitersFromMeter = formValues.currentMeterReading - formValues.previousMeterReading;
-
-    if (currentUserRole === 'Admin' && typeof formValues.overrideLitersSold === 'number' && formValues.overrideLitersSold >= 0) {
-      finalLitersSold = formValues.overrideLitersSold;
-    } else {
-      finalLitersSold = calculatedLitersFromMeter;
-    }
-
-    if (finalLitersSold < 0) {
-      toast({ title: 'Validation Error', description: 'Liters sold cannot be negative. Check meter readings or override value.', variant: 'destructive'});
+     if (!formValues.meterReadingImageFile || !formValues.riderCollectionTokenImageFile) {
+      toast({ title: "Validation Error", description: "Meter Image and Rider Token Image are compulsory.", variant: "destructive" });
       return;
     }
-
-    const totalSale = finalLitersSold * formValues.ratePerLiter;
-    const actualReceived = formValues.cashReceived + formValues.onlineReceived;
-    const submissionDateObject = formValues.date instanceof Date ? formValues.date : new Date(formValues.date);
-
-    const initialAdjustedExpected = totalSale + formValues.dueCollected - formValues.newDueAmount - formValues.tokenMoney - formValues.staffExpense - formValues.extraAmount;
-    const discrepancy = initialAdjustedExpected - actualReceived;
-
-    const aiAdjustedExpectedAmount = initialAdjustedExpected; // Placeholder for AI logic
-    const aiReasoning = "AI analysis currently bypassed. Using initial system calculation."; // Placeholder
-
-    let status: SalesReportData['status'];
-    if (Math.abs(discrepancy) < 0.01) status = 'Match';
-    else if (discrepancy > 0) status = 'Shortage';
-    else status = 'Overage';
-
-    const selectedRiderForSalaryCalc = riders.find(r => r.name === formValues.riderName);
-    const riderPerDaySalary = selectedRiderForSalaryCalc ? selectedRiderForSalaryCalc.perDaySalary : 0;
-
-    const hoursWorked = formValues.hoursWorked || 9;
-    const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
-    let commissionEarned = 0;
-    if (finalLitersSold > 2000) commissionEarned = (finalLitersSold - 2000) * 0.10;
-
-    const reportToConfirm: SalesReportData = {
-      date: formatDateFns(submissionDateObject, 'PPP'),
-      firestoreDate: submissionDateObject,
-      riderName: formValues.riderName,
-      vehicleName: formValues.vehicleName,
-      previousMeterReading: formValues.previousMeterReading,
-      currentMeterReading: formValues.currentMeterReading,
-      litersSold: finalLitersSold,
-      adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof formValues.overrideLitersSold === 'number' && formValues.overrideLitersSold >= 0) ? formValues.overrideLitersSold : undefined,
-      ratePerLiter: formValues.ratePerLiter,
-      cashReceived: formValues.cashReceived,
-      onlineReceived: formValues.onlineReceived,
-      dueCollected: formValues.dueCollected,
-      newDueAmount: formValues.newDueAmount,
-      tokenMoney: formValues.tokenMoney,
-      staffExpense: formValues.staffExpense,
-      extraAmount: formValues.extraAmount,
-      hoursWorked: hoursWorked,
-      dailySalaryCalculated: dailySalaryCalculated,
-      commissionEarned: commissionEarned,
-      comment: formValues.comment || "",
-      recordedBy: loggedInUsername,
-      totalSale, actualReceived, initialAdjustedExpected,
-      aiAdjustedExpectedAmount, aiReasoning, discrepancy, status,
-      meterReadingImageDriveLink: formValues.meterReadingImageDriveLink,
-      riderCollectionTokenImageDriveLink: formValues.riderCollectionTokenImageDriveLink,
-    };
-
-    setPendingReportDetailsForConfirmation(reportToConfirm);
+    setReportData(null); 
+    setPendingReportDetailsForConfirmation(formValues);
     setIsConfirmationDialogOpen(true);
   };
 
@@ -410,46 +350,119 @@ export default function AquaTrackPage() {
     if (!pendingReportDetailsForConfirmation || !loggedInUsername) {
       toast({ title: "Error", description: "No report data to save or user not logged in.", variant: "destructive"});
       setIsConfirmationDialogOpen(false);
-      setPendingReportDetailsForConfirmation(null);
       return;
     }
 
     setIsProcessing(true);
-    const reportToSave = pendingReportDetailsForConfirmation;
+    setUploadProgress(0);
 
-    // Remove id and _id if they exist, as saveSalesReportAction expects Omit<...>
-    const { id, _id, ...dataToSaveOnServer } = reportToSave;
+    const formValues = pendingReportDetailsForConfirmation;
+    let meterImageUrl = '';
+    let riderTokenImageUrl = '';
 
     try {
-      const dbResult = await saveSalesReportAction(dataToSaveOnServer);
+      // Step 1: Upload Meter Image
+      setUploadProgress(10);
+      if (formValues.meterReadingImageFile) {
+        const meterFormData = new FormData();
+        meterFormData.append('file', formValues.meterReadingImageFile);
+        meterFormData.append('fileName', `meter-${Date.now()}`);
+        const meterUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: meterFormData });
+        const meterUploadResult = await meterUploadResponse.json();
+        if (!meterUploadResult.success) throw new Error(`Meter image upload failed: ${meterUploadResult.message}`);
+        meterImageUrl = meterUploadResult.url;
+        setUploadProgress(50);
+      } else {
+        throw new Error("Meter image file is missing.");
+      }
+
+      // Step 2: Upload Rider Token Image
+      if (formValues.riderCollectionTokenImageFile) {
+        const tokenFormData = new FormData();
+        tokenFormData.append('file', formValues.riderCollectionTokenImageFile);
+        tokenFormData.append('fileName', `token-${Date.now()}`);
+        const tokenUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: tokenFormData });
+        const tokenUploadResult = await tokenUploadResponse.json();
+        if (!tokenUploadResult.success) throw new Error(`Rider token image upload failed: ${tokenUploadResult.message}`);
+        riderTokenImageUrl = tokenUploadResult.url;
+        setUploadProgress(90);
+      } else {
+        throw new Error("Rider token image file is missing.");
+      }
+      
+      // Step 3: Construct final report data
+      let finalLitersSold: number;
+      const calculatedLitersFromMeter = formValues.currentMeterReading - formValues.previousMeterReading;
+      if (currentUserRole === 'Admin' && typeof formValues.overrideLitersSold === 'number' && formValues.overrideLitersSold >= 0) {
+        finalLitersSold = formValues.overrideLitersSold;
+      } else {
+        finalLitersSold = calculatedLitersFromMeter;
+      }
+      if (finalLitersSold < 0) throw new Error('Liters sold cannot be negative.');
+
+      const totalSale = finalLitersSold * formValues.ratePerLiter;
+      const actualReceived = formValues.cashReceived + formValues.onlineReceived;
+      const submissionDateObject = formValues.date instanceof Date ? formValues.date : new Date(formValues.date);
+      const initialAdjustedExpected = totalSale + formValues.dueCollected - formValues.newDueAmount - formValues.tokenMoney - formValues.staffExpense - formValues.extraAmount;
+      const discrepancy = initialAdjustedExpected - actualReceived;
+      let status: SalesReportData['status'] = Math.abs(discrepancy) < 0.01 ? 'Match' : (discrepancy > 0 ? 'Shortage' : 'Overage');
+      const selectedRiderForSalaryCalc = riders.find(r => r.name === formValues.riderName);
+      const riderPerDaySalary = selectedRiderForSalaryCalc ? selectedRiderForSalaryCalc.perDaySalary : 0;
+      const hoursWorked = formValues.hoursWorked || 9;
+      const dailySalaryCalculated = (riderPerDaySalary / 9) * hoursWorked;
+      let commissionEarned = finalLitersSold > 2000 ? (finalLitersSold - 2000) * 0.10 : 0;
+
+      const reportToSave: Omit<SalesReportData, 'id' | '_id'> = {
+        date: formatDateFns(submissionDateObject, 'PPP'),
+        firestoreDate: submissionDateObject,
+        riderName: formValues.riderName,
+        vehicleName: formValues.vehicleName,
+        previousMeterReading: formValues.previousMeterReading,
+        currentMeterReading: formValues.currentMeterReading,
+        litersSold: finalLitersSold,
+        adminOverrideLitersSold: (currentUserRole === 'Admin' && typeof formValues.overrideLitersSold === 'number' && formValues.overrideLitersSold >= 0) ? formValues.overrideLitersSold : undefined,
+        ratePerLiter: formValues.ratePerLiter,
+        cashReceived: formValues.cashReceived,
+        onlineReceived: formValues.onlineReceived,
+        dueCollected: formValues.dueCollected,
+        newDueAmount: formValues.newDueAmount,
+        tokenMoney: formValues.tokenMoney,
+        staffExpense: formValues.staffExpense,
+        extraAmount: formValues.extraAmount,
+        hoursWorked: hoursWorked,
+        dailySalaryCalculated: dailySalaryCalculated,
+        commissionEarned: commissionEarned,
+        comment: formValues.comment || "",
+        recordedBy: loggedInUsername,
+        totalSale, actualReceived, initialAdjustedExpected,
+        aiAdjustedExpectedAmount: initialAdjustedExpected,
+        aiReasoning: "AI analysis currently bypassed. Using initial system calculation.",
+        discrepancy, status,
+        meterReadingImageDriveLink: meterImageUrl,
+        riderCollectionTokenImageDriveLink: riderTokenImageUrl,
+      };
+
+      // Step 4: Save report to database
+      const dbResult = await saveSalesReportAction(reportToSave);
+      setUploadProgress(100);
 
       if (dbResult.success && dbResult.id) {
-        toast({ title: 'Report Generated & Saved', description: 'Data saved successfully to database.', variant: 'default' });
-        const fullReportDataForDisplay: SalesReportData = {
-          ...reportToSave, // This includes all fields, including those not sent to server action if any were filtered
-          _id: dbResult.id, // Use the ID from the database response
-          id: dbResult.id,
-        };
+        toast({ title: 'Report Generated & Saved', description: 'Data and image links saved successfully to database.', variant: 'default' });
+        const fullReportDataForDisplay: SalesReportData = { ...reportToSave, _id: dbResult.id, id: dbResult.id };
         setReportData(fullReportDataForDisplay);
         setFormRefreshTrigger(prev => prev + 1); // Trigger form refresh
       } else {
-        toast({ title: 'Database Error', description: dbResult.message || "Failed to save sales report.", variant: 'destructive' });
-        // Show local preview even if DB save fails, but with an indicator it's not saved.
-        const localPreviewReportData: SalesReportData = {
-            ...reportToSave,
-            _id: `local-preview-${Date.now()}`, // Mark as local
-            id: `local-preview-${Date.now()}`,
-            status: 'Overage', // Or some other indicator of DB save failure in report if needed
-        };
-        setReportData(localPreviewReportData);
+        throw new Error(dbResult.message || "Failed to save sales report to database after uploading images.");
       }
     } catch (error) {
       console.error('Error processing sales data:', error);
       toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to process sales data.', variant: 'destructive' });
+      setReportData(null); // Clear any potentially stale report data
     } finally {
       setIsProcessing(false);
       setIsConfirmationDialogOpen(false);
       setPendingReportDetailsForConfirmation(null);
+      // Do not reset upload progress here to show 100% on success. It resets on next submit.
     }
   };
 
@@ -666,95 +679,39 @@ export default function AquaTrackPage() {
               Confirm Report Details
             </AlertDialogTitle>
             <AlertDialogDescription>
-              Please review the following sales report details before saving. This action will record the data to the database.
+              Please review the details. Clicking 'Confirm' will first upload the images, then save the report to the database.
             </AlertDialogDescription>
           </AlertDialogHeader>
           
           {pendingReportDetailsForConfirmation && (
-            <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 text-sm my-4">
-              <Card className="shadow-none border-dashed">
-                <CardContent className="p-4 space-y-2">
-                    <ConfirmationDialogItem label="Date" value={pendingReportDetailsForConfirmation.date} />
-                    <ConfirmationDialogItem label="Rider Name" value={pendingReportDetailsForConfirmation.riderName} />
-                    <ConfirmationDialogItem label="Vehicle Name" value={pendingReportDetailsForConfirmation.vehicleName} />
-                    <ConfirmationDialogItem label="Hours Worked" value={pendingReportDetailsForConfirmation.hoursWorked} unit="hrs"/>
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-none border-dashed">
-                <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Meter & Sales</CardTitle></CardHeader>
-                <CardContent className="p-4 space-y-2">
-                    <ConfirmationDialogItem label="Previous Meter" value={pendingReportDetailsForConfirmation.previousMeterReading} />
-                    <ConfirmationDialogItem label="Current Meter" value={pendingReportDetailsForConfirmation.currentMeterReading} />
-                    {pendingReportDetailsForConfirmation.adminOverrideLitersSold !== undefined && (
-                       <ConfirmationDialogItem label="Liters Sold (Calculated from Meters)" value={(pendingReportDetailsForConfirmation.currentMeterReading - pendingReportDetailsForConfirmation.previousMeterReading).toFixed(2)} unit="L" />
-                    )}
-                    <ConfirmationDialogItem 
-                        label={pendingReportDetailsForConfirmation.adminOverrideLitersSold !== undefined ? "Liters Sold (Admin Override)" : "Liters Sold (Calculated)"} 
-                        value={pendingReportDetailsForConfirmation.litersSold} 
-                        unit="L"
-                        highlight
-                    />
-                    <ConfirmationDialogItem label="Rate Per Liter" value={pendingReportDetailsForConfirmation.ratePerLiter} />
-                    <ConfirmationDialogItem label="Total Sale" value={pendingReportDetailsForConfirmation.totalSale} highlight />
-                </CardContent>
-              </Card>
-
-              <Card className="shadow-none border-dashed">
-                 <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Collections & Adjustments</CardTitle></CardHeader>
-                 <CardContent className="p-4 space-y-2">
-                    <ConfirmationDialogItem label="Cash Received" value={pendingReportDetailsForConfirmation.cashReceived} />
-                    <ConfirmationDialogItem label="Online Received" value={pendingReportDetailsForConfirmation.onlineReceived} />
-                    <ConfirmationDialogItem label="Actual Received" value={pendingReportDetailsForConfirmation.actualReceived} highlight />
-                    <Separator className="my-2"/>
-                    <ConfirmationDialogItem label="Due Collected (Past)" value={pendingReportDetailsForConfirmation.dueCollected} />
-                    <ConfirmationDialogItem label="New Due (Today)" value={pendingReportDetailsForConfirmation.newDueAmount} />
-                    <ConfirmationDialogItem label="Token Money" value={pendingReportDetailsForConfirmation.tokenMoney} />
-                    <ConfirmationDialogItem label="Staff Expense" value={pendingReportDetailsForConfirmation.staffExpense} />
-                    <ConfirmationDialogItem label="Extra Amount" value={pendingReportDetailsForConfirmation.extraAmount} />
-                </CardContent>
-              </Card>
-              
-              <Card className="shadow-none border-dashed">
-                <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Reconciliation</CardTitle></CardHeader>
-                <CardContent className="p-4 space-y-2">
-                    <ConfirmationDialogItem label="Initial Adjusted Expected" value={pendingReportDetailsForConfirmation.initialAdjustedExpected} />
-                    <ConfirmationDialogItem label="Discrepancy" value={pendingReportDetailsForConfirmation.discrepancy} highlight />
-                    <div className="flex justify-between py-1">
-                        <span className="text-sm text-muted-foreground">Status:</span>
-                        {pendingReportDetailsForConfirmation.status === 'Match' ? 
-                            <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white"><CheckCircle className="mr-1 h-4 w-4" />Match</Badge> :
-                         pendingReportDetailsForConfirmation.status === 'Shortage' ?
-                            <Badge variant="destructive"><AlertTriangle className="mr-1 h-4 w-4" />Shortage</Badge> :
-                            <Badge variant="default" className="bg-yellow-500 hover:bg-yellow-600 text-black"><Info className="mr-1 h-4 w-4" />Overage</Badge>
-                        }
+             <div className="max-h-[60vh] overflow-y-auto pr-2 space-y-3 text-sm my-4">
+                <ConfirmationDialogItem label="Date" value={formatDateFns(pendingReportDetailsForConfirmation.date, "PPP")} />
+                <ConfirmationDialogItem label="Rider Name" value={pendingReportDetailsForConfirmation.riderName} />
+                <ConfirmationDialogItem label="Vehicle Name" value={pendingReportDetailsForConfirmation.vehicleName} />
+                <ConfirmationDialogItem 
+                    label="Meter Image" 
+                    value={pendingReportDetailsForConfirmation.meterReadingImageFile ? <span className='text-green-600'>Attached</span> : <span className='text-red-600'>Missing</span>} 
+                />
+                <ConfirmationDialogItem 
+                    label="Token Image" 
+                    value={pendingReportDetailsForConfirmation.riderCollectionTokenImageFile ? <span className='text-green-600'>Attached</span> : <span className='text-red-600'>Missing</span>} 
+                />
+                 {isProcessing && (
+                    <div className="pt-2">
+                        <Label>Upload Progress</Label>
+                        <Progress value={uploadProgress} className="w-full mt-1" />
+                        <p className="text-xs text-muted-foreground text-center mt-1">
+                            {uploadProgress < 50 ? 'Uploading meter image...' : uploadProgress < 90 ? 'Uploading token image...' : 'Saving report...'}
+                        </p>
                     </div>
-                </CardContent>
-              </Card>
-              
-              <Card className="shadow-none border-dashed">
-                <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Rider Earnings (This Entry)</CardTitle></CardHeader>
-                <CardContent className="p-4 space-y-2">
-                  <ConfirmationDialogItem label="Calculated Daily Salary" value={pendingReportDetailsForConfirmation.dailySalaryCalculated ?? 0} />
-                  <ConfirmationDialogItem label="Commission Earned" value={pendingReportDetailsForConfirmation.commissionEarned ?? 0} />
-                </CardContent>
-              </Card>
-
-              {pendingReportDetailsForConfirmation.comment && (
-                 <Card className="shadow-none border-dashed">
-                    <CardHeader className="p-0 px-4 py-2 bg-muted/30"><CardTitle className="text-base font-medium">Comment</CardTitle></CardHeader>
-                    <CardContent className="p-4">
-                        <p className="text-sm whitespace-pre-wrap">{pendingReportDetailsForConfirmation.comment}</p>
-                    </CardContent>
-                 </Card>
-              )}
+                 )}
             </div>
           )}
           <AlertDialogFooter>
             <AlertDialogCancel onClick={() => { setPendingReportDetailsForConfirmation(null); setIsConfirmationDialogOpen(false); }}>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleConfirmAndSaveReport} disabled={isProcessing}>
-                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-                Confirm & Save Report
+                {isProcessing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Upload className="mr-2 h-4 w-4"/>}
+                Confirm & Save
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -884,7 +841,7 @@ export default function AquaTrackPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-8 items-start">
         <Card className="lg:col-span-3 shadow-xl">
-          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary flex items-center"><ListChecks className="mr-2 h-6 w-6"/>Enter Sales Data</CardTitle><CardDescription>Fill in the details below to generate a sales report. Previous meter readings are fetched from DB. Rider list sourced from DB. Global rate is persisted in browser. Data is saved to database.</CardDescription></CardHeader>
+          <CardHeader className="bg-primary/10 rounded-t-lg"><CardTitle className="text-2xl text-primary flex items-center"><ListChecks className="mr-2 h-6 w-6"/>Enter Sales Data</CardTitle><CardDescription>Fill in the details below. Images will be uploaded when you click 'Confirm & Save'.</CardDescription></CardHeader>
           <CardContent className="p-6">
             <AquaTrackForm
               onSubmit={handleFormSubmit}
@@ -898,9 +855,9 @@ export default function AquaTrackPage() {
         </Card>
 
         <div className="lg:col-span-2">
-          {isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl"><CardContent className="text-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="text-lg text-muted-foreground">Generating report...</p></CardContent></Card>)}
+          {isProcessing && !reportData && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl"><CardContent className="text-center"><Loader2 className="h-12 w-12 animate-spin text-primary mb-4" /><p className="text-lg text-muted-foreground">Submitting report...</p></CardContent></Card>)}
           {reportData && (<AquaTrackReport reportData={reportData} />)}
-          {!isProcessing && !reportData && !isConfirmationDialogOpen && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report. Data is saved to database.</p></CardContent></Card>)}
+          {!isProcessing && !reportData && !isConfirmationDialogOpen && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><BarChartBig className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Report Appears Here</h3><p className="text-muted-foreground">Submit the form and confirm to view the generated sales report.</p></CardContent></Card>)}
           {!isProcessing && !reportData && isConfirmationDialogOpen && (<Card className="flex flex-col items-center justify-center h-96 shadow-xl border-2 border-dashed"><CardContent className="text-center p-6"><ListChecks className="h-16 w-16 text-muted-foreground/50 mb-4 mx-auto" /><h3 className="text-xl font-semibold text-muted-foreground mb-2">Awaiting Confirmation</h3><p className="text-muted-foreground">Please review the details in the confirmation dialog.</p></CardContent></Card>)}
         </div>
       </div>
