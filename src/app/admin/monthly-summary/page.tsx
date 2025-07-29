@@ -207,7 +207,7 @@ export default function MonthlySummaryPage() {
         sheetsToExport.push({ data: reportData.monthlyChartData, sheetName: "Monthly Sales Chart Data" });
     }
     if (filteredEntries.length > 0 && sheetsToExport.length === 0) { 
-         sheetsToExport.push({data: filteredEntries, sheetName: "Filtered Raw Data"});
+         sheetsToExport.push({data: filteredEntries.map(e => ({...e, firestoreDate: formatDateFns(new Date(e.firestoreDate), 'yyyy-MM-dd HH:mm:ss')})), sheetName: "Filtered Raw Data"});
     }
     
     handleExcelExport(sheetsToExport, "MonthlySummary_DropAquaTrack");
@@ -260,7 +260,7 @@ export default function MonthlySummaryPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="pl-2 pr-6">
-              <div style={{ height: '300px' }}>
+              <div className="h-[300px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <ChartContainer config={monthlyChartConfig} className="min-h-[200px] w-full">
                     <BarChart accessibilityLayer data={reportData.monthlyChartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
@@ -284,7 +284,7 @@ export default function MonthlySummaryPage() {
             </CardContent>
           </Card>
         )}
-        {(selectedYear === "all" && reportData.monthlyChartData.length === 0) && (
+        {(selectedYear === "all" && (!reportData.monthlyChartData || reportData.monthlyChartData.length === 0)) && (
             <Card className="mb-8 shadow-lg bg-muted/30">
                 <CardContent className="p-6 text-center">
                     <p className="text-muted-foreground">Select a specific year to view the monthly sales comparison graph.</p>
@@ -411,3 +411,4 @@ export default function MonthlySummaryPage() {
     </main>
   );
 }
+

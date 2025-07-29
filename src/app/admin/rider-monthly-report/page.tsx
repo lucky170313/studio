@@ -298,7 +298,7 @@ export default function RiderMonthlyReportPage() {
   const exportCurrentReportData = () => {
     const sheetsToExport = [];
     if (filteredEntries.length > 0) {
-         sheetsToExport.push({data: filteredEntries, sheetName: "Filtered Raw Data"});
+         sheetsToExport.push({data: filteredEntries.map(e => ({...e, firestoreDate: formatDateFns(new Date(e.firestoreDate), 'yyyy-MM-dd HH:mm:ss')})), sheetName: "Filtered Raw Data"});
     }
     if (reportData?.riderSalesChartData && reportData.riderSalesChartData.length > 0) {
         sheetsToExport.push({ data: reportData.riderSalesChartData, sheetName: "Rider Sales Chart Data" });
@@ -471,7 +471,7 @@ export default function RiderMonthlyReportPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="pl-2 pr-6">
-            <div style={{ height: '300px' }}>
+            <div className="h-[300px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <ChartContainer config={riderSalesChartConfig} className="min-h-[200px] w-full">
                   <BarChart accessibilityLayer data={reportData.riderSalesChartData} margin={{ top: 5, right: 0, left: -20, bottom: 5 }}>
@@ -659,3 +659,4 @@ export default function RiderMonthlyReportPage() {
     </main>
   );
 }
+
