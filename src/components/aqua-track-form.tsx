@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet, Camera } from 'lucide-react';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet, Camera, Upload, CheckCircle, AlertCircle } from 'lucide-react';
+import Image from 'next/image';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -34,6 +35,9 @@ from '@/components/ui/label';
 import { cn } from '@/lib/utils';
 import { salesDataSchema, type SalesDataFormValues, type UserRole } from '@/lib/types';
 import { getLastMeterReadingForVehicleAction } from '@/app/actions';
+import { useToast } from '@/hooks/use-toast';
+import { Progress } from '@/components/ui/progress';
+
 
 interface AquaTrackFormProps {
   onSubmit: (values: SalesDataFormValues) => void;
@@ -41,7 +45,7 @@ interface AquaTrackFormProps {
   currentUserRole: UserRole;
   ridersFromDB: string[]; 
   persistentRatePerLiter: number;
-  formRefreshTrigger: number; // New prop
+  formRefreshTrigger: number;
 }
 
 const vehicleOptions = ['Alpha', 'Beta', 'Croma', 'Delta', 'Eta'];
@@ -63,6 +67,129 @@ const noteDenominations = [
 ];
 
 type DenominationQuantities = { [key: string]: string };
+
+const ImageUploader: React.FC<{
+  fieldName: 'meterReadingImageDriveLink' | 'riderCollectionTokenImageDriveLink';
+  label: string;
+  form: any;
+  aspectRatio: string;
+}> = ({ fieldName, label, form, aspectRatio }) => {
+  const { toast } = useToast();
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) { // 5MB limit
+      toast({ title: "Error", description: "File size must be less than 5MB.", variant: "destructive" });
+      return;
+    }
+    
+    setPreview(URL.createObjectURL(file));
+    setIsUploading(true);
+    setUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('fileName', `${fieldName}-${Date.now()}`);
+
+    try {
+      const response = await fetch('/api/upload-image', {
+        method: 'POST',
+        body: formData,
+      });
+
+      // This part is tricky without native XHR progress. We will simulate progress.
+      // For a real app, you'd use a library like Axios that supports upload progress events.
+      let progress = 0;
+      const interval = setInterval(() => {
+        progress += 10;
+        setUploadProgress(progress);
+        if (progress >= 90) clearInterval(interval);
+      }, 200);
+
+      const result = await response.json();
+      clearInterval(interval);
+      setUploadProgress(100);
+
+      if (response.ok && result.success) {
+        form.setValue(fieldName, result.url, { shouldValidate: true });
+        toast({ title: "Success", description: `${label} uploaded successfully.` });
+      } else {
+        throw new Error(result.message || "Upload failed");
+      }
+    } catch (error: any) {
+      toast({ title: "Upload Error", description: error.message, variant: "destructive" });
+      setPreview(null);
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const urlValue = form.watch(fieldName);
+
+  return (
+    <FormItem>
+      <FormLabel className="flex items-center">
+        <Camera className="mr-2 h-4 w-4 text-primary" />{label} (Compulsory, {aspectRatio} ratio)
+      </FormLabel>
+      <FormControl>
+        <div>
+          <Input
+            type="file"
+            accept="image/jpeg, image/png, image/webp"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            disabled={isUploading}
+          />
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            <Upload className="mr-2 h-4 w-4" />
+            {isUploading ? "Uploading..." : "Choose Image"}
+          </Button>
+          
+           {isUploading && <Progress value={uploadProgress} className="w-full mt-2" />}
+
+           {(preview || urlValue) && (
+            <div className="mt-4 p-2 border rounded-md relative w-48 h-auto">
+               <Image 
+                src={preview || urlValue} 
+                alt={`${label} preview`} 
+                width={192} 
+                height={aspectRatio === '1:1' ? 192 : 144}
+                className="rounded-md object-cover"
+               />
+               {urlValue && !isUploading && (
+                   <div className="absolute top-1 right-1 bg-green-500 rounded-full p-1">
+                      <CheckCircle className="h-4 w-4 text-white" />
+                   </div>
+               )}
+            </div>
+           )}
+
+            <FormField
+                control={form.control}
+                name={fieldName}
+                render={({ field }) => (
+                     <Input {...field} type="hidden" />
+                )}
+            />
+
+        </div>
+      </FormControl>
+      <FormMessage />
+    </FormItem>
+  );
+};
 
 
 export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersFromDB, persistentRatePerLiter, formRefreshTrigger }: AquaTrackFormProps) {
@@ -109,7 +236,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
       if (currentUserRole === 'TeamLeader') {
         setValue('date', new Date(), { shouldValidate: true, shouldDirty: true });
       }
-      // Set ratePerLiter for all roles initially, can be edited by Admin/TL later
       setValue('ratePerLiter', persistentRatePerLiter, { shouldValidate: true, shouldDirty: true });
 
       if (currentUserRole !== 'Admin' && getValues('overrideLitersSold') !== undefined) {
@@ -143,7 +269,7 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     } else if (isClient && !selectedVehicleName) {
       setValue('previousMeterReading', 0, { shouldValidate: true, shouldDirty: true });
     }
-  }, [selectedVehicleName, selectedDate, setValue, isClient, formRefreshTrigger]); // Added formRefreshTrigger
+  }, [selectedVehicleName, selectedDate, setValue, isClient, formRefreshTrigger]);
 
 
   useEffect(() => {
@@ -308,7 +434,6 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
             if (isPrevMeterReadingField && (currentUserRole === 'TeamLeader' || isLoadingPrevReading)) {
               fieldIsDisabled = true;
             }
-            // This logic ensures Admin and TeamLeader can edit ratePerLiter
             if (isRatePerLiterField && !(currentUserRole === 'Admin' || currentUserRole === 'TeamLeader')) {
               fieldIsDisabled = true;
             }
@@ -391,19 +516,11 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
                     {renderFormField}
                     {inputField.name === 'currentMeterReading' && (
                         <div className="md:col-span-2">
-                            <FormField
-                                control={form.control}
-                                name="meterReadingImageDriveLink"
-                                render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel className="flex items-center"><Camera className="mr-2 h-4 w-4 text-primary" />Meter Image URL (Compulsory)</FormLabel>
-                                    <FormControl>
-                                    <Input placeholder="https://ik.imagekit.io/dropaqua/your-image.jpg" {...field} />
-                                    </FormControl>
-                                    <FormDescription>Upload the meter image (1:1 aspect ratio) to ImageKit and paste the URL here.</FormDescription>
-                                    <FormMessage />
-                                </FormItem>
-                                )}
+                           <ImageUploader
+                                fieldName="meterReadingImageDriveLink"
+                                label="Meter Image"
+                                form={form}
+                                aspectRatio="1:1"
                             />
                         </div>
                     )}
@@ -529,19 +646,11 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
           </div>
         </div>
 
-        <FormField
-            control={form.control}
-            name="riderCollectionTokenImageDriveLink"
-            render={({ field }) => (
-            <FormItem>
-                <FormLabel className="flex items-center"><Camera className="mr-2 h-4 w-4 text-primary" />Rider Collection Token Image URL (Compulsory)</FormLabel>
-                <FormControl>
-                <Input placeholder="https://ik.imagekit.io/dropaqua/your-image.jpg" {...field} />
-                </FormControl>
-                <FormDescription>Upload the rider token image (4:3 aspect ratio) to ImageKit and paste the URL here.</FormDescription>
-                <FormMessage />
-            </FormItem>
-            )}
+        <ImageUploader
+            fieldName="riderCollectionTokenImageDriveLink"
+            label="Rider Collection Token Image"
+            form={form}
+            aspectRatio="4:3"
         />
 
 

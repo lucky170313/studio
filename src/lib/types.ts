@@ -36,8 +36,8 @@ export const salesDataSchema = z.object({
   extraAmount: z.coerce.number().min(0, 'Extra amount must be a positive number.'),
   hoursWorked: z.coerce.number().min(1, 'Hours worked are required.').max(9, 'Hours worked cannot exceed 9.').default(9),
   comment: z.string().optional(),
-  meterReadingImageDriveLink: z.string().url({ message: "Please enter a valid ImageKit URL." }).min(1, 'Meter reading image is required.'),
-  riderCollectionTokenImageDriveLink: z.string().url({ message: "Please enter a valid ImageKit URL." }).min(1, 'Rider collection token image is required.'),
+  meterReadingImageDriveLink: z.string().url({ message: "Please upload a meter image." }).min(1, 'Meter reading image is required.'),
+  riderCollectionTokenImageDriveLink: z.string().url({ message: "Please upload a rider token image." }).min(1, 'Rider collection token image is required.'),
 }).refine(data => {
   if (typeof data.overrideLitersSold === 'number' && data.overrideLitersSold >= 0) {
     return true;
