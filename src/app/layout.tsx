@@ -1,11 +1,8 @@
-
 import type { Metadata } from 'next';
 import { GeistSans } from 'geist/font/sans';
 import './globals.css';
 import { Toaster } from '@/components/ui/toaster';
 import { cn } from '@/lib/utils';
-
-const geistSans = GeistSans;
 
 export const metadata: Metadata = {
   title: 'Drop Aqua Track - Daily Sales Reporter',
@@ -20,18 +17,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-       <head>
+      <head>
         <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
         <link rel="icon" type="image/png" sizes="32x32" href="/favicon/favicon-32x32.png" />
         <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16x16.png" />
         <link rel="shortcut icon" href="/favicon/favicon.ico" />
       </head>
-      <body
-        className={cn(
-          "min-h-screen bg-background font-sans antialiased",
-          geistSans.variable
-        )}
-      >
+      <body className={cn("min-h-screen bg-background font-sans antialiased", GeistSans.variable)}>
         {children}
         <Toaster />
       </body>
