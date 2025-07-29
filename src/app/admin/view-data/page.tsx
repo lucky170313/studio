@@ -10,18 +10,17 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, BarChart3 } from 'lucide-react'; // Removed ImageIcon
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, BarChart3, Truck, Gauge, Edit } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
-import type { ChartConfig } from "@/components/ui/chart"; // Keep for potential future charts
+import { Badge } from '@/components/ui/badge';
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-} from "@/components/ui/chart";
-import { Bar, BarChart, CartesianGrid, XAxis, YAxis, ResponsiveContainer } from "recharts";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+
 
 import { cn } from '@/lib/utils';
 
@@ -186,20 +185,29 @@ export default function AdminViewDataPage() {
     );
   }
 
-  const tableHeaders: { key: keyof SalesReportDataWithId; label: string; sortable?: boolean; icon?: React.ElementType }[] = [
+  const tableHeaders: { key: keyof SalesReportDataWithId; label: string; sortable?: boolean; icon?: React.ElementType, className?: string }[] = [
     { key: 'firestoreDate', label: 'Date & Time', sortable: true, icon: CalendarDays },
     { key: 'riderName', label: 'Rider', sortable: true, icon: User },
-    { key: 'vehicleName', label: 'Vehicle', sortable: true },
-    { key: 'hoursWorked', label: 'Hours', sortable: true, icon: Clock },
-    { key: 'litersSold', label: 'Liters Sold', sortable: true, icon: Droplets },
-    { key: 'totalSale', label: 'Total Sale (₹)', sortable: true, icon: IndianRupee },
-    { key: 'actualReceived', label: 'Actual Rcvd (₹)', sortable: true, icon: IndianRupee },
-    { key: 'dailySalaryCalculated', label: 'Daily Salary (₹)', sortable: true, icon: Briefcase },
-    { key: 'commissionEarned', label: 'Commission (₹)', sortable: true, icon: Gift },
-    { key: 'newDueAmount', label: 'New Due (₹)', sortable: true, icon: IndianRupee },
-    { key: 'discrepancy', label: 'Discrepancy (₹)', sortable: true, icon: IndianRupee },
+    { key: 'vehicleName', label: 'Vehicle', sortable: true, icon: Truck },
+    { key: 'previousMeterReading', label: 'Prev. Reading', sortable: true, icon: Gauge, className: "text-right" },
+    { key: 'currentMeterReading', label: 'Curr. Reading', sortable: true, icon: Gauge, className: "text-right" },
+    { key: 'litersSold', label: 'Liters Sold', sortable: true, icon: Droplets, className: "text-right" },
+    { key: 'ratePerLiter', label: 'Rate/L', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'totalSale', label: 'Total Sale', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'cashReceived', label: 'Cash Rcvd', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'onlineReceived', label: 'Online Rcvd', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'actualReceived', label: 'Actual Rcvd', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'dueCollected', label: 'Due Collected', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'newDueAmount', label: 'New Due', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'tokenMoney', label: 'Token Money', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'staffExpense', label: 'Staff Expense', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'extraAmount', label: 'Extra Amount', sortable: true, icon: IndianRupee, className: "text-right" },
+    { key: 'hoursWorked', label: 'Hours', sortable: true, icon: Clock, className: "text-right" },
+    { key: 'dailySalaryCalculated', label: 'Daily Salary', sortable: true, icon: Briefcase, className: "text-right" },
+    { key: 'commissionEarned', label: 'Commission', sortable: true, icon: Gift, className: "text-right" },
+    { key: 'discrepancy', label: 'Discrepancy', sortable: true, icon: IndianRupee, className: "text-right" },
     { key: 'status', label: 'Status', sortable: true },
-    // { key: 'meterReadingImageDriveLink', label: 'Image Link', sortable: false, icon: ImageIcon }, // Removed for now
+    { key: 'recordedBy', label: 'Recorded By', sortable: true, icon: User },
     { key: 'comment', label: 'Comment' },
   ];
 
@@ -261,11 +269,13 @@ export default function AdminViewDataPage() {
       <Card className="shadow-lg">
         <CardHeader>
           <CardTitle>Sales Data Overview</CardTitle>
-          <CardDescription>Browse recorded sales entries. Click column headers to sort.
+          <CardDescription>
+            Browse all recorded sales entries. Click column headers to sort.
             Displaying {sortedEntries.length} of {allSalesEntries.length} total entries based on filters.
           </CardDescription>
         </CardHeader>
         <CardContent>
+           <TooltipProvider>
           {sortedEntries.length === 0 ? (
             <p className="text-muted-foreground text-center py-10">No sales entries found for the selected filters.</p>
           ) : (
@@ -277,7 +287,7 @@ export default function AdminViewDataPage() {
                       <TableHead
                         key={header.key}
                         onClick={header.sortable ? () => requestSort(header.key as keyof SalesReportDataWithId) : undefined}
-                        className={cn("whitespace-nowrap", header.sortable ? "cursor-pointer hover:bg-muted/50" : "")}
+                        className={cn("whitespace-nowrap", header.sortable ? "cursor-pointer hover:bg-muted/50" : "", header.className)}
                       >
                         {header.icon && <header.icon className="inline-block mr-1 h-4 w-4" />}
                         {header.label}
@@ -293,14 +303,37 @@ export default function AdminViewDataPage() {
                         let cellValue: any = entry[header.key as keyof SalesReportDataWithId];
                         if (header.key === 'firestoreDate') {
                            cellValue = formatDisplayDate(entry.firestoreDate);
-                        } else if (typeof cellValue === 'number' && (header.label.includes('(₹)') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'dailySalaryCalculated' || header.key === 'commissionEarned')) {
+                        } else if (typeof cellValue === 'number' && (header.label.includes('(') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'ratePerLiter')) {
                            cellValue = cellValue.toFixed(2);
                         } else if (cellValue === undefined || cellValue === null) {
                           cellValue = '-';
                         }
+                        
+                        let cellContent;
+
+                        if (header.key === 'litersSold') {
+                            cellContent = (
+                                <div className="flex items-center justify-end gap-1">
+                                    <span>{cellValue}</span>
+                                    {entry.adminOverrideLitersSold && (
+                                    <Tooltip>
+                                        <TooltipTrigger asChild>
+                                            <Badge variant="outline" className="p-1 leading-none"><Edit className="h-3 w-3"/></Badge>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                            <p>Admin Override: {entry.adminOverrideLitersSold.toFixed(2)}</p>
+                                        </TooltipContent>
+                                    </Tooltip>
+                                    )}
+                                </div>
+                            );
+                        } else {
+                            cellContent = String(cellValue);
+                        }
+
                         return (
-                          <TableCell key={`${entry._id}-${header.key}`} className="whitespace-nowrap">
-                            {String(cellValue)}
+                          <TableCell key={`${entry._id}-${header.key}`} className={cn("whitespace-nowrap", header.className)}>
+                            {cellContent}
                           </TableCell>
                         );
                       })}
@@ -310,6 +343,7 @@ export default function AdminViewDataPage() {
               </Table>
             </div>
           )}
+          </TooltipProvider>
         </CardContent>
       </Card>
        <footer className="mt-12 text-center text-sm text-muted-foreground">
@@ -318,3 +352,5 @@ export default function AdminViewDataPage() {
     </main>
   );
 }
+
+    
