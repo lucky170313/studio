@@ -34,7 +34,8 @@ const SalesReportSchema = new mongoose.Schema({
     enum: ['Match', 'Shortage', 'Overage'],
     required: true,
   },
-  // meterReadingImageDriveLink field removed
+  meterReadingImageDriveLink: { type: String, required: true },
+  riderCollectionTokenImageDriveLink: { type: String, required: true },
 }, { timestamps: true }); 
 
 // Compound indexes for common queries

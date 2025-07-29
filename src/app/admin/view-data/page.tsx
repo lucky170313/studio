@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from '@/components/ui/label';
-import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, BarChart3, Truck, Gauge, Edit } from 'lucide-react';
+import { Loader2, ArrowLeft, AlertCircle, FileSpreadsheet, CalendarDays, User, Droplets, IndianRupee, Clock, Briefcase, Gift, BarChart3, Truck, Gauge, Edit, Link as LinkIcon } from 'lucide-react';
 import { format as formatDateFns, getYear, getMonth } from 'date-fns';
 import * as XLSX from 'xlsx';
 import { Badge } from '@/components/ui/badge';
@@ -208,6 +208,8 @@ export default function AdminViewDataPage() {
     { key: 'discrepancy', label: 'Discrepancy', sortable: true, icon: IndianRupee, className: "text-right" },
     { key: 'status', label: 'Status', sortable: true },
     { key: 'recordedBy', label: 'Recorded By', sortable: true, icon: User },
+    { key: 'meterReadingImageDriveLink', label: 'Meter Image', sortable: false, icon: LinkIcon },
+    { key: 'riderCollectionTokenImageDriveLink', label: 'Token Image', sortable: false, icon: LinkIcon },
     { key: 'comment', label: 'Comment' },
   ];
 
@@ -301,17 +303,24 @@ export default function AdminViewDataPage() {
                     <TableRow key={entry._id}>
                       {tableHeaders.map((header) => {
                         let cellValue: any = entry[header.key as keyof SalesReportDataWithId];
-                        if (header.key === 'firestoreDate') {
-                           cellValue = formatDisplayDate(entry.firestoreDate);
-                        } else if (typeof cellValue === 'number' && (header.label.includes('(') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'ratePerLiter')) {
-                           cellValue = cellValue.toFixed(2);
-                        } else if (cellValue === undefined || cellValue === null) {
-                          cellValue = '-';
-                        }
-                        
                         let cellContent;
 
-                        if (header.key === 'litersSold') {
+                        if (header.key === 'firestoreDate') {
+                           cellValue = formatDisplayDate(entry.firestoreDate);
+                           cellContent = String(cellValue);
+                        } else if (typeof cellValue === 'number' && (header.label.includes('(') || header.key === 'litersSold' || header.key === 'discrepancy' || header.key === 'hoursWorked' || header.key === 'ratePerLiter')) {
+                           cellValue = cellValue.toFixed(2);
+                           cellContent = String(cellValue);
+                        } else if (cellValue === undefined || cellValue === null) {
+                          cellValue = '-';
+                          cellContent = String(cellValue);
+                        } else if (header.key === 'meterReadingImageDriveLink' || header.key === 'riderCollectionTokenImageDriveLink') {
+                            cellContent = (
+                                <Button asChild variant="link" className="p-0 h-auto">
+                                    <a href={String(cellValue)} target="_blank" rel="noopener noreferrer" className="truncate max-w-xs block">View Image</a>
+                                </Button>
+                            );
+                        } else if (header.key === 'litersSold') {
                             cellContent = (
                                 <div className="flex items-center justify-end gap-1">
                                     <span>{cellValue}</span>
@@ -352,5 +361,4 @@ export default function AdminViewDataPage() {
     </main>
   );
 }
-
     

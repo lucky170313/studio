@@ -51,6 +51,8 @@ export async function saveSalesReportAction(reportData: Omit<SalesReportData, 'i
       aiReasoning: reportData.aiReasoning,
       discrepancy: reportData.discrepancy,
       status: reportData.status,
+      meterReadingImageDriveLink: reportData.meterReadingImageDriveLink,
+      riderCollectionTokenImageDriveLink: reportData.riderCollectionTokenImageDriveLink,
     };
 
     console.log("[saveSalesReportAction] Attempting to save sales report with data:", JSON.stringify(dataToSave, null, 2));
@@ -691,4 +693,3 @@ export async function getCollectorCashReportDataAction(): Promise<{ success: boo
     return { success: false, message: `Error fetching data: ${error.message}` };
   }
 }
-

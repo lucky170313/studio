@@ -5,8 +5,10 @@ import type { SalesReportData } from '@/lib/types';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
-import { User, Truck, CalendarDays, Droplets, DollarSign, MessageSquare, AlertTriangle, CheckCircle, Info, Edit3, BarChartBig, Gauge, Clock, Briefcase, Gift } from 'lucide-react';
+import { User, Truck, CalendarDays, Droplets, DollarSign, MessageSquare, AlertTriangle, CheckCircle, Info, Edit3, BarChartBig, Gauge, Clock, Briefcase, Gift, Camera, Link as LinkIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from './ui/button';
+import Link from 'next/link';
 
 interface AquaTrackReportProps {
   reportData: SalesReportData;
@@ -66,6 +68,19 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
           <ReportItem icon={Droplets} label={litersSoldLabel} value={reportData.litersSold.toFixed(2)} unit="L" />
           <ReportItem icon={DollarSign} label="Rate Per Liter" value={reportData.ratePerLiter} unit="/L" />
           <ReportItem icon={DollarSign} label="Total Sale" value={reportData.totalSale} className="font-semibold text-primary" />
+        </div>
+
+        <Separator />
+        <h3 className="text-lg font-semibold text-primary flex items-center"><Camera className="mr-2 h-5 w-5" />Image Links</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-2 pl-2">
+            <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center"><LinkIcon className="mr-2 h-4 w-4"/>Meter Image</span>
+                <Button variant="link" asChild><Link href={reportData.meterReadingImageDriveLink} target="_blank" rel="noopener noreferrer">View</Link></Button>
+            </div>
+             <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground flex items-center"><LinkIcon className="mr-2 h-4 w-4"/>Token Image</span>
+                <Button variant="link" asChild><Link href={reportData.riderCollectionTokenImageDriveLink} target="_blank" rel="noopener noreferrer">View</Link></Button>
+            </div>
         </div>
 
         <Separator />
@@ -140,4 +155,3 @@ export function AquaTrackReport({ reportData }: AquaTrackReportProps) {
     </Card>
   );
 }
-

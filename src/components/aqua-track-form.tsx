@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { format } from 'date-fns';
-import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet } from 'lucide-react';
+import { CalendarIcon, User, Truck, IndianRupee, FileText, Loader2, Gauge, Edit, Clock, Coins, Wallet, Camera } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -85,6 +85,8 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
       extraAmount: 0,
       hoursWorked: 9,
       comment: '',
+      meterReadingImageDriveLink: '',
+      riderCollectionTokenImageDriveLink: '',
     },
   });
 
@@ -387,6 +389,24 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
             return (
                 <React.Fragment key={`fragment_${inputField.name}`}>
                     {renderFormField}
+                    {inputField.name === 'currentMeterReading' && (
+                        <div className="md:col-span-2">
+                            <FormField
+                                control={form.control}
+                                name="meterReadingImageDriveLink"
+                                render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel className="flex items-center"><Camera className="mr-2 h-4 w-4 text-primary" />Meter Image URL (Compulsory)</FormLabel>
+                                    <FormControl>
+                                    <Input placeholder="https://ik.imagekit.io/dropaqua/your-image.jpg" {...field} />
+                                    </FormControl>
+                                    <FormDescription>Upload the meter image (1:1 aspect ratio) to ImageKit and paste the URL here.</FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                                )}
+                            />
+                        </div>
+                    )}
                     {inputField.name === 'ratePerLiter' && (
                       <div className="md:col-span-2 my-4">
                         <Accordion type="single" collapsible className="w-full border rounded-md shadow-sm">
@@ -510,6 +530,22 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
         </div>
 
         <FormField
+            control={form.control}
+            name="riderCollectionTokenImageDriveLink"
+            render={({ field }) => (
+            <FormItem>
+                <FormLabel className="flex items-center"><Camera className="mr-2 h-4 w-4 text-primary" />Rider Collection Token Image URL (Compulsory)</FormLabel>
+                <FormControl>
+                <Input placeholder="https://ik.imagekit.io/dropaqua/your-image.jpg" {...field} />
+                </FormControl>
+                <FormDescription>Upload the rider token image (4:3 aspect ratio) to ImageKit and paste the URL here.</FormDescription>
+                <FormMessage />
+            </FormItem>
+            )}
+        />
+
+
+        <FormField
           control={form.control}
           name="comment"
           render={({ field }) => (
@@ -550,4 +586,3 @@ export function AquaTrackForm({ onSubmit, isProcessing, currentUserRole, ridersF
     </Form>
   );
 }
-

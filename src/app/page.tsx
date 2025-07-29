@@ -398,6 +398,8 @@ export default function AquaTrackPage() {
       recordedBy: loggedInUsername,
       totalSale, actualReceived, initialAdjustedExpected,
       aiAdjustedExpectedAmount, aiReasoning, discrepancy, status,
+      meterReadingImageDriveLink: formValues.meterReadingImageDriveLink,
+      riderCollectionTokenImageDriveLink: formValues.riderCollectionTokenImageDriveLink,
     };
 
     setPendingReportDetailsForConfirmation(reportToConfirm);
@@ -908,6 +910,4 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-    
-
     
