@@ -402,18 +402,22 @@ export default function AquaTrackPage() {
     let meterImageUrl = '';
     let riderTokenImageUrl = '';
     
-    const sanitizeForPath = (name: string) => {
+    const sanitizeForFilename = (name: string) => {
         return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
     }
+    
+    const submissionDateObject = formValues.date instanceof Date ? formValues.date : new Date(formValues.date);
+    const dateStringForFile = formatDateFns(submissionDateObject, 'yyyy-MM-dd');
 
     try {
       // Step 1: Upload Meter Image
       setUploadProgress(10);
       if (formValues.meterReadingImageFile) {
         const meterFormData = new FormData();
+        const meterFilename = `meter-${sanitizeForFilename(formValues.vehicleName)}-${sanitizeForFilename(formValues.riderName)}-${dateStringForFile}`;
         meterFormData.append('file', formValues.meterReadingImageFile);
-        meterFormData.append('fileName', `meter-${formValues.vehicleName}-${Date.now()}`);
-        meterFormData.append('folderPath', `vehicles/${sanitizeForPath(formValues.vehicleName)}`);
+        meterFormData.append('fileName', meterFilename);
+        meterFormData.append('folderPath', 'meter-images');
         const meterUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: meterFormData });
         const meterUploadResult = await meterUploadResponse.json();
         if (!meterUploadResult.success) throw new Error(`Meter image upload failed: ${meterUploadResult.message}`);
@@ -426,9 +430,10 @@ export default function AquaTrackPage() {
       // Step 2: Upload Rider Token Image
       if (formValues.riderCollectionTokenImageFile) {
         const tokenFormData = new FormData();
+        const tokenFilename = `token-${sanitizeForFilename(formValues.riderName)}-${dateStringForFile}`;
         tokenFormData.append('file', formValues.riderCollectionTokenImageFile);
-        tokenFormData.append('fileName', `token-${formValues.riderName}-${Date.now()}`);
-        tokenFormData.append('folderPath', `riders/${sanitizeForPath(formValues.riderName)}`);
+        tokenFormData.append('fileName', tokenFilename);
+        tokenFormData.append('folderPath', 'token-images');
         const tokenUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: tokenFormData });
         const tokenUploadResult = await tokenUploadResponse.json();
         if (!tokenUploadResult.success) throw new Error(`Rider token image upload failed: ${tokenUploadResult.message}`);
@@ -450,7 +455,7 @@ export default function AquaTrackPage() {
 
       const totalSale = finalLitersSold * formValues.ratePerLiter;
       const actualReceived = formValues.cashReceived + formValues.onlineReceived;
-      const submissionDateObject = formValues.date instanceof Date ? formValues.date : new Date(formValues.date);
+      
       const initialAdjustedExpected = totalSale + formValues.dueCollected - formValues.newDueAmount - formValues.tokenMoney - formValues.staffExpense - formValues.extraAmount;
       const discrepancy = initialAdjustedExpected - actualReceived;
       let status: SalesReportData['status'] = Math.abs(discrepancy) < 0.01 ? 'Match' : (discrepancy > 0 ? 'Shortage' : 'Overage');
@@ -765,23 +770,25 @@ export default function AquaTrackPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      <Card className="mb-8 shadow-md bg-green-50 border border-green-200">
-          <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between text-center gap-4">
+      <Card className="mb-8 shadow-md">
+          <CardContent className="p-4">
+            <div className="flex flex-col sm:flex-row items-center justify-between text-center gap-4">
               <div>
-                  <CardTitle className="text-lg text-green-800 flex items-center"><Home className="mr-2 h-5 w-5"/>Get the App!</CardTitle>
-                  <CardDescription className="text-green-700 mt-1">
+                  <CardTitle className="text-lg text-primary flex items-center"><Home className="mr-2 h-5 w-5"/>Install App</CardTitle>
+                  <CardDescription className="text-muted-foreground mt-1">
                       For a better experience, install the app on your device.
                   </CardDescription>
               </div>
               <Button 
                   onClick={handleInstallClick} 
                   size="lg" 
-                  className="shadow-lg bg-green-600 hover:bg-green-700 text-white font-bold py-3 disabled:bg-gray-400 disabled:cursor-not-allowed"
+                  className="shadow-lg bg-primary hover:bg-primary/90 text-primary-foreground font-bold py-3 disabled:bg-gray-400 disabled:cursor-not-allowed"
                   disabled={!installPromptEvent}
                   aria-disabled={!installPromptEvent}
               >
                   <Download className="mr-2 h-5 w-5"/> Install App
               </Button>
+            </div>
           </CardContent>
       </Card>
 
@@ -935,3 +942,5 @@ export default function AquaTrackPage() {
     </main>
   );
 }
+
+    
