@@ -401,6 +401,10 @@ export default function AquaTrackPage() {
     const formValues = pendingReportDetailsForConfirmation;
     let meterImageUrl = '';
     let riderTokenImageUrl = '';
+    
+    const sanitizeForPath = (name: string) => {
+        return name.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+    }
 
     try {
       // Step 1: Upload Meter Image
@@ -409,7 +413,7 @@ export default function AquaTrackPage() {
         const meterFormData = new FormData();
         meterFormData.append('file', formValues.meterReadingImageFile);
         meterFormData.append('fileName', `meter-${formValues.vehicleName}-${Date.now()}`);
-        meterFormData.append('folderPath', `vehicles/${formValues.vehicleName}`);
+        meterFormData.append('folderPath', `vehicles/${sanitizeForPath(formValues.vehicleName)}`);
         const meterUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: meterFormData });
         const meterUploadResult = await meterUploadResponse.json();
         if (!meterUploadResult.success) throw new Error(`Meter image upload failed: ${meterUploadResult.message}`);
@@ -424,7 +428,7 @@ export default function AquaTrackPage() {
         const tokenFormData = new FormData();
         tokenFormData.append('file', formValues.riderCollectionTokenImageFile);
         tokenFormData.append('fileName', `token-${formValues.riderName}-${Date.now()}`);
-        tokenFormData.append('folderPath', `riders/${formValues.riderName}`);
+        tokenFormData.append('folderPath', `riders/${sanitizeForPath(formValues.riderName)}`);
         const tokenUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: tokenFormData });
         const tokenUploadResult = await tokenUploadResponse.json();
         if (!tokenUploadResult.success) throw new Error(`Rider token image upload failed: ${tokenUploadResult.message}`);
