@@ -4,7 +4,7 @@
 import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { format as formatDateFns } from 'date-fns';
-import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift, Upload, Download } from 'lucide-react';
+import { Droplets, Loader2, BarChartBig, UserCog, Shield, UserPlus, Edit3, Trash2, XCircle, Eye, PieChart, DollarSign, BarChartHorizontal, IndianRupee, Clock, Users, LogIn, LogOut, AlertCircleIcon, FileSpreadsheet, KeyRound, UsersRound, ListChecks, Landmark, History, RefreshCw, Info, CheckCircle, AlertTriangle, MessageSquare, Gauge, Truck, CalendarDays, Briefcase, Gift, Upload, Download, Home } from 'lucide-react';
 import Link from 'next/link';
 
 import { AquaTrackForm } from '@/components/aqua-track-form';
@@ -169,7 +169,7 @@ export default function AquaTrackPage() {
 
   const handleInstallClick = async () => {
     if (!installPromptEvent) {
-      toast({ title: "Cannot Install", description: "The app cannot be installed at this moment.", variant: "destructive"});
+      toast({ title: "Cannot Install", description: "The app cannot be installed at this moment. You may already have it installed, or your browser may not be supported.", variant: "destructive"});
       return;
     }
     installPromptEvent.prompt();
@@ -409,7 +409,7 @@ export default function AquaTrackPage() {
         const meterFormData = new FormData();
         meterFormData.append('file', formValues.meterReadingImageFile);
         meterFormData.append('fileName', `meter-${formValues.vehicleName}-${Date.now()}`);
-        meterFormData.append('folderPath', `/vehicles/${formValues.vehicleName}`);
+        meterFormData.append('folderPath', `vehicles/${formValues.vehicleName}`);
         const meterUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: meterFormData });
         const meterUploadResult = await meterUploadResponse.json();
         if (!meterUploadResult.success) throw new Error(`Meter image upload failed: ${meterUploadResult.message}`);
@@ -424,7 +424,7 @@ export default function AquaTrackPage() {
         const tokenFormData = new FormData();
         tokenFormData.append('file', formValues.riderCollectionTokenImageFile);
         tokenFormData.append('fileName', `token-${formValues.riderName}-${Date.now()}`);
-        tokenFormData.append('folderPath', `/riders/${formValues.riderName}`);
+        tokenFormData.append('folderPath', `riders/${formValues.riderName}`);
         const tokenUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: tokenFormData });
         const tokenUploadResult = await tokenUploadResponse.json();
         if (!tokenUploadResult.success) throw new Error(`Rider token image upload failed: ${tokenUploadResult.message}`);
@@ -764,7 +764,7 @@ export default function AquaTrackPage() {
       <Card className="mb-8 shadow-md bg-green-50 border border-green-200">
           <CardContent className="p-4 flex flex-col sm:flex-row items-center justify-between text-center gap-4">
               <div>
-                  <CardTitle className="text-lg text-green-800">Get the App!</CardTitle>
+                  <CardTitle className="text-lg text-green-800 flex items-center"><Home className="mr-2 h-5 w-5"/>Get the App!</CardTitle>
                   <CardDescription className="text-green-700 mt-1">
                       For a better experience, install the app on your device.
                   </CardDescription>
@@ -931,7 +931,3 @@ export default function AquaTrackPage() {
     </main>
   );
 }
-
-    
-
-    
