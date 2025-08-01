@@ -409,7 +409,7 @@ export default function AquaTrackPage() {
         const meterFormData = new FormData();
         meterFormData.append('file', formValues.meterReadingImageFile);
         meterFormData.append('fileName', `meter-${formValues.vehicleName}-${Date.now()}`);
-        meterFormData.append('folderPath', `/drop-aqua-track-uploads/vehicles/${formValues.vehicleName}`);
+        meterFormData.append('folderPath', `/vehicles/${formValues.vehicleName}/`);
         const meterUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: meterFormData });
         const meterUploadResult = await meterUploadResponse.json();
         if (!meterUploadResult.success) throw new Error(`Meter image upload failed: ${meterUploadResult.message}`);
@@ -424,7 +424,7 @@ export default function AquaTrackPage() {
         const tokenFormData = new FormData();
         tokenFormData.append('file', formValues.riderCollectionTokenImageFile);
         tokenFormData.append('fileName', `token-${formValues.riderName}-${Date.now()}`);
-        tokenFormData.append('folderPath', `/drop-aqua-track-uploads/riders/${formValues.riderName}`);
+        tokenFormData.append('folderPath', `/riders/${formValues.riderName}/`);
         const tokenUploadResponse = await fetch('/api/upload-image', { method: 'POST', body: tokenFormData });
         const tokenUploadResult = await tokenUploadResponse.json();
         if (!tokenUploadResult.success) throw new Error(`Rider token image upload failed: ${tokenUploadResult.message}`);
